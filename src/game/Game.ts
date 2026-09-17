@@ -113,6 +113,9 @@ export class Game {
     })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
+      getParty: () => this.collection.party,
+      getMonsterSpritePath: (instanceId) =>
+        this.collection.party.find((monster) => monster.instanceId === instanceId)?.spritePath,
       getCaptureItemCount: () => this.inventory.getQuantity(CAPTURE_CAPSULE_ID),
       consumeCaptureItem: () => this.inventory.consume(CAPTURE_CAPSULE_ID),
       getBattleItems: () => this.inventory.getEntries()
@@ -297,34 +300,37 @@ export class Game {
     }
 
     if (phase !== 'won') return
-    const lead = this.collection.lead
-    if (!lead) return
+    const winner = this.collection.party.find((monster) => monster.instanceId === state.player.id)
+    if (!winner) return
 
-    const progressionResult = this.progression.applyVictory(lead, state.enemy)
+    const progressionResult = this.progression.applyVictory(winner, state.enemy)
     this.collection.updateMonster(progressionResult.monster)
     const battleReward = this.rewards.grantVictory(state.enemy)
     const rewardText = this.formatBattleReward(battleReward)
 
     if (progressionResult.levelsGained > 0) {
-      return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP and reached Lv.${progressionResult.newLevel}! ${rewardText}`
+      return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP and reached Lv.${progressionResult.newLevel}! ${rewardText}`
     }
 
     const required = this.progression.experienceRequiredForNextLevel(progressionResult.newLevel)
     if (required <= 0) {
-      return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. Max level reached. ${rewardText}`
+      return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP. Max level reached. ${rewardText}`
     }
-    return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
+    return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
   }
 
   private persistBattleState(state: BattleState): void {
-    const lead = this.collection.lead
-    if (!lead || lead.instanceId !== state.player.id) return
-    const nextHp = Math.max(0, Math.min(lead.maxHp, Math.trunc(state.player.currentHp)))
-    this.collection.updateBattleState(
-      lead.instanceId,
-      nextHp,
-      state.player.status ? { ...state.player.status } : undefined,
-    )
+    const partyById = new Map(this.collection.party.map((monster) => [monster.instanceId, monster]))
+    const updates = state.playerParty.flatMap((combatant) => {
+      const owned = partyById.get(combatant.id)
+      if (!owned) return []
+      return [{
+        instanceId: owned.instanceId,
+        currentHp: Math.max(0, Math.min(owned.maxHp, Math.trunc(combatant.currentHp))),
+        status: combatant.status ? { ...combatant.status } : undefined,
+      }]
+    })
+    if (updates.length > 0) this.collection.updateBattlePartyState(updates)
   }
 
   private formatBattleReward(reward: BattleRewardGrant): string {
@@ -338,8 +344,7 @@ export class Game {
   private async handleGrassStep(tile: GridPoint): Promise<void> {
     void this.world.showGrassStep(tile)
     if (this.transitioning || this.battle.isActive || this.menu.inputLocked) return
-    const lead = this.collection.lead
-    if (!lead || lead.currentHp <= 0) return
+    if (!this.collection.party.some((monster) => monster.currentHp > 0)) return
 
     const table = getEncounterTableForScene(this.world.currentScenePath)
     if (!table) return

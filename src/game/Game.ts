@@ -9,6 +9,7 @@ import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
+import { ProgressionService } from './progression/ProgressionService'
 import { MenuController } from './ui/MenuController'
 import type { DoorDefinition, GridPoint } from './world/types'
 import { WorldScene } from './world/WorldScene'
@@ -17,11 +18,14 @@ const PLAYER_DISAPPEAR_MS = 100
 const SCENE_FADE_MS = 1000
 const BATTLE_FADE_MS = 450
 
+type TerminalBattlePhase = 'won' | 'lost' | 'ran' | 'captured'
+
 export class Game {
   private readonly input = new InputController()
   private readonly world = new WorldScene()
   private readonly encounters = new EncounterService()
   private readonly collection = new MonsterCollectionStore()
+  private readonly progression = new ProgressionService()
   private readonly menu: MenuController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
@@ -37,10 +41,8 @@ export class Game {
     })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
-      onBattleFinished: (phase, state, encounter) => {
-        this.applyBattleResult(phase, state, encounter)
-        void this.transitionOutOfBattle()
-      },
+      onBattleResolved: (phase, state, encounter) => this.applyBattleResult(phase, state, encounter),
+      onBattleFinished: () => void this.transitionOutOfBattle(),
     })
     this.fadeOverlay.alpha = 0
     this.fadeOverlay.eventMode = 'none'
@@ -125,12 +127,32 @@ export class Game {
   }
 
   private applyBattleResult(
-    phase: 'won' | 'lost' | 'ran' | 'captured',
+    phase: TerminalBattlePhase,
     state: BattleState,
     encounter: WildEncounter,
-  ): void {
-    if (phase !== 'captured') return
-    this.collection.addCaptured(createCapturedMonster(encounter, state.enemy))
+  ): string | void {
+    if (phase === 'captured') {
+      const captured = createCapturedMonster(encounter, state.enemy)
+      const result = this.collection.addCaptured(captured)
+      return `${captured.displayName} was sent to your ${result.destination}.`
+    }
+
+    if (phase !== 'won') return
+    const lead = this.collection.lead
+    if (!lead) return
+
+    const result = this.progression.applyVictory(lead, state.enemy)
+    this.collection.updateMonster(result.monster)
+
+    if (result.levelsGained > 0) {
+      return `${lead.displayName} gained ${result.experienceAwarded} EXP and reached Lv.${result.newLevel}!`
+    }
+
+    const required = this.progression.experienceRequiredForNextLevel(result.newLevel)
+    if (required <= 0) {
+      return `${lead.displayName} gained ${result.experienceAwarded} EXP. Max level reached.`
+    }
+    return `${lead.displayName} gained ${result.experienceAwarded} EXP. EXP ${result.monster.experience}/${required}.`
   }
 
   private async handleGrassStep(tile: GridPoint): Promise<void> {

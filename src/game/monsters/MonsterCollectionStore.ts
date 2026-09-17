@@ -4,6 +4,14 @@ import type { AddMonsterResult, MonsterCollectionState, OwnedMonster } from './t
 const DEFAULT_KEY = 'monster-world.collection.v1'
 const MAX_PARTY_SIZE = 6
 
+type LegacyOwnedMonster = Omit<OwnedMonster, 'experience'>
+
+interface LegacyMonsterCollectionState {
+  version: 1
+  party: LegacyOwnedMonster[]
+  storage: LegacyOwnedMonster[]
+}
+
 export class MonsterCollectionStore {
   private state: MonsterCollectionState
 
@@ -70,8 +78,13 @@ export class MonsterCollectionStore {
 
     try {
       const parsed = JSON.parse(raw) as unknown
-      if (!this.isCollectionState(parsed)) return this.emptyState()
-      return this.cloneState(parsed)
+      if (this.isCollectionState(parsed)) return this.cloneState(parsed)
+      if (this.isLegacyCollectionState(parsed)) {
+        const migrated = this.migrateLegacyState(parsed)
+        this.storage.setItem(this.storageKey, JSON.stringify(migrated))
+        return migrated
+      }
+      return this.emptyState()
     } catch {
       return this.emptyState()
     }
@@ -82,12 +95,25 @@ export class MonsterCollectionStore {
   }
 
   private emptyState(): MonsterCollectionState {
-    return { version: 1, party: [], storage: [] }
+    return { version: 2, party: [], storage: [] }
+  }
+
+  private migrateLegacyState(state: LegacyMonsterCollectionState): MonsterCollectionState {
+    const migrate = (monster: LegacyOwnedMonster): OwnedMonster => ({
+      ...monster,
+      experience: 0,
+      moves: monster.moves.map((move) => ({ ...move })),
+    })
+    return {
+      version: 2,
+      party: state.party.map(migrate),
+      storage: state.storage.map(migrate),
+    }
   }
 
   private cloneState(state: MonsterCollectionState): MonsterCollectionState {
     return {
-      version: 1,
+      version: 2,
       party: state.party.map((monster) => this.cloneMonster(monster)),
       storage: state.storage.map((monster) => this.cloneMonster(monster)),
     }
@@ -103,23 +129,56 @@ export class MonsterCollectionStore {
   private isCollectionState(value: unknown): value is MonsterCollectionState {
     if (!value || typeof value !== 'object') return false
     const candidate = value as Partial<MonsterCollectionState>
-    return candidate.version === 1
+    return candidate.version === 2
       && Array.isArray(candidate.party)
       && Array.isArray(candidate.storage)
       && candidate.party.every((monster) => this.isMonster(monster))
       && candidate.storage.every((monster) => this.isMonster(monster))
   }
 
-  private isMonster(value: unknown): value is OwnedMonster {
+  private isLegacyCollectionState(value: unknown): value is LegacyMonsterCollectionState {
     if (!value || typeof value !== 'object') return false
+    const candidate = value as Partial<LegacyMonsterCollectionState>
+    return candidate.version === 1
+      && Array.isArray(candidate.party)
+      && Array.isArray(candidate.storage)
+      && candidate.party.every((monster) => this.isLegacyMonster(monster))
+      && candidate.storage.every((monster) => this.isLegacyMonster(monster))
+  }
+
+  private isMonster(value: unknown): value is OwnedMonster {
+    if (!this.isMonsterBase(value)) return false
     const monster = value as Partial<OwnedMonster>
-    const numericStats = [monster.level, monster.maxHp, monster.currentHp, monster.attack, monster.defense, monster.speed]
+    return typeof monster.experience === 'number'
+      && Number.isInteger(monster.experience)
+      && monster.experience >= 0
+  }
+
+  private isLegacyMonster(value: unknown): value is LegacyOwnedMonster {
+    return this.isMonsterBase(value)
+  }
+
+  private isMonsterBase(value: unknown): value is LegacyOwnedMonster {
+    if (!value || typeof value !== 'object') return false
+    const monster = value as Partial<LegacyOwnedMonster>
     return typeof monster.instanceId === 'string'
       && typeof monster.speciesId === 'string'
       && typeof monster.displayName === 'string'
       && typeof monster.spritePath === 'string'
       && typeof monster.capturedAt === 'string'
-      && numericStats.every((stat) => typeof stat === 'number' && Number.isFinite(stat))
+      && typeof monster.level === 'number'
+      && Number.isInteger(monster.level)
+      && monster.level > 0
+      && typeof monster.maxHp === 'number'
+      && Number.isFinite(monster.maxHp)
+      && monster.maxHp > 0
+      && typeof monster.currentHp === 'number'
+      && Number.isFinite(monster.currentHp)
+      && monster.currentHp >= 0
+      && monster.currentHp <= monster.maxHp
+      && [monster.attack, monster.defense, monster.speed].every(
+        (stat) => typeof stat === 'number' && Number.isFinite(stat) && stat > 0,
+      )
       && Array.isArray(monster.moves)
       && monster.moves.every((move) => this.isMove(move))
   }

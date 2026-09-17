@@ -1,7 +1,7 @@
 import type { BattleCombatantState } from '../battle/types'
 import type { OwnedMonster } from '../monsters/types'
 import { findSpeciesDefinition } from '../species/catalog'
-import type { ProgressionResult, StatGrowth } from './types'
+import type { ExperienceShare, ProgressionResult, StatGrowth } from './types'
 
 export const MAX_MONSTER_LEVEL = 100
 
@@ -25,6 +25,23 @@ export class ProgressionService {
     const level = Math.max(1, Math.trunc(enemy.level))
     const maxHp = Math.max(1, Math.trunc(enemy.maxHp))
     return Math.max(1, Math.round(20 + level * 18 + maxHp * 0.8))
+  }
+
+  allocateVictoryExperience(
+    enemy: Pick<BattleCombatantState, 'level' | 'maxHp'>,
+    participantIds: readonly string[],
+  ): readonly ExperienceShare[] {
+    const participants = [...new Set(participantIds.filter((id) => id.length > 0))]
+    if (participants.length === 0) return []
+
+    const totalExperience = this.calculateVictoryExperience(enemy)
+    const baseShare = Math.floor(totalExperience / participants.length)
+    const remainder = totalExperience % participants.length
+
+    return participants.map((instanceId, index) => ({
+      instanceId,
+      experience: baseShare + (index < remainder ? 1 : 0),
+    }))
   }
 
   applyVictory(monster: OwnedMonster, enemy: Pick<BattleCombatantState, 'level' | 'maxHp'>): ProgressionResult {

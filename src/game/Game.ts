@@ -317,23 +317,37 @@ export class Game {
     }
 
     if (phase !== 'won') return
-    const winner = this.collection.party.find((monster) => monster.instanceId === state.player.id)
-    if (!winner) return
-
-    const progressionResult = this.progression.applyVictory(winner, state.enemy)
-    this.collection.updateMonster(progressionResult.monster)
+    const experienceText = this.applySharedVictoryExperience(state)
     const battleReward = this.rewards.grantVictory(state.enemy)
     const rewardText = this.formatBattleReward(battleReward)
+    return `${experienceText} ${rewardText}`.trim()
+  }
 
-    if (progressionResult.levelsGained > 0) {
-      return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP and reached Lv.${progressionResult.newLevel}! ${rewardText}`
+  private applySharedVictoryExperience(state: BattleState): string {
+    const partyById = new Map(this.collection.party.map((monster) => [monster.instanceId, monster]))
+    const participantIds = state.participatingPlayerIds.filter((instanceId) => partyById.has(instanceId))
+    const shares = this.progression.allocateVictoryExperience(state.enemy, participantIds)
+    if (shares.length === 0) return 'No EXP awarded.'
+
+    const summaries: string[] = []
+    const levelUps: string[] = []
+
+    for (const share of shares) {
+      const monster = partyById.get(share.instanceId)
+      if (!monster) continue
+
+      const result = this.progression.grantExperience(monster, share.experience)
+      this.collection.updateMonster(result.monster)
+      summaries.push(`${monster.displayName} +${result.experienceAwarded} EXP`)
+      if (result.levelsGained > 0) {
+        levelUps.push(`${monster.displayName} reached Lv.${result.newLevel}`)
+      }
     }
 
-    const required = this.progression.experienceRequiredForNextLevel(progressionResult.newLevel)
-    if (required <= 0) {
-      return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP. Max level reached. ${rewardText}`
-    }
-    return `${winner.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
+    const expText = `EXP: ${summaries.join(', ')}.`
+    return levelUps.length > 0
+      ? `${expText} ${levelUps.join(', ')}!`
+      : expText
   }
 
   private persistBattleState(state: BattleState): void {

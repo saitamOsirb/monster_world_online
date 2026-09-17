@@ -47,9 +47,12 @@ describe('BattleEngine player party', () => {
       [combatant('reserve')],
     )
 
+    expect(engine.state.participatingPlayerIds).toEqual(['lead'])
+
     const result = engine.resolvePlayerAction({ kind: 'switch', targetId: 'reserve' })
 
     expect(result.state.player.id).toBe('reserve')
+    expect(result.state.participatingPlayerIds).toEqual(['lead', 'reserve'])
     expect(result.state.turn).toBe(2)
     expect(result.events[0]).toMatchObject({
       type: 'switch',
@@ -94,6 +97,7 @@ describe('BattleEngine player party', () => {
 
     expect(replacement.state.phase).toBe('awaiting-player')
     expect(replacement.state.player.id).toBe('reserve')
+    expect(replacement.state.participatingPlayerIds).toEqual(['lead', 'reserve'])
     expect(replacement.state.turn).toBe(2)
     expect(replacement.events).toEqual([
       expect.objectContaining({ type: 'switch', forced: true, toId: 'reserve' }),
@@ -150,6 +154,7 @@ describe('BattleEngine player party', () => {
     })
 
     expect(revived.state.playerParty.find((monster) => monster.id === 'reserve')?.currentHp).toBe(20)
+    expect(revived.state.participatingPlayerIds).toEqual(['lead'])
     expect(revived.state.turn).toBe(2)
     expect(revived.events[0]).toMatchObject({
       type: 'item-used',
@@ -159,6 +164,23 @@ describe('BattleEngine player party', () => {
 
     const switched = engine.resolvePlayerAction({ kind: 'switch', targetId: 'reserve' })
     expect(switched.state.player.id).toBe('reserve')
+    expect(switched.state.participatingPlayerIds).toEqual(['lead', 'reserve'])
+  })
+
+  it('does not duplicate participation when switching back to a prior participant', () => {
+    const engine = new BattleEngine(
+      combatant('lead'),
+      combatant('enemy', { attack: 1 }),
+      () => 0,
+      undefined,
+      undefined,
+      [combatant('reserve')],
+    )
+
+    engine.resolvePlayerAction({ kind: 'switch', targetId: 'reserve' })
+    const result = engine.resolvePlayerAction({ kind: 'switch', targetId: 'lead' })
+
+    expect(result.state.participatingPlayerIds).toEqual(['lead', 'reserve'])
   })
 
   it('rejects invalid or fainted switch targets without consuming a turn', () => {

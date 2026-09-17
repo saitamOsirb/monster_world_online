@@ -45,6 +45,7 @@ const SAME_ELEMENT_BONUS = 1.25
 export class BattleEngine {
   private readonly playerParty: BattleCombatantState[]
   private activePlayerIndex = 0
+  private readonly participatingPlayerIds: string[]
   private readonly enemy: BattleCombatantState
   private phase: BattleState['phase'] = 'awaiting-player'
   private turn = 1
@@ -68,6 +69,7 @@ export class BattleEngine {
       this.createState(player),
       ...playerReserves.map((reserve) => this.createState(reserve)),
     ]
+    this.participatingPlayerIds = [player.id]
     this.enemy = this.createState(enemy)
   }
 
@@ -160,6 +162,7 @@ export class BattleEngine {
     const forced = this.phase === 'awaiting-switch'
     const previous = this.player
     this.activePlayerIndex = targetIndex
+    this.registerParticipant(target.id)
     this.phase = 'awaiting-player'
     events.push({
       type: 'switch',
@@ -488,7 +491,14 @@ export class BattleEngine {
       player: this.copyCombatant(this.player),
       playerParty: this.playerParty.map((combatant) => this.copyCombatant(combatant)),
       activePlayerIndex: this.activePlayerIndex,
+      participatingPlayerIds: [...this.participatingPlayerIds],
       enemy: this.copyCombatant(this.enemy),
+    }
+  }
+
+  private registerParticipant(instanceId: string): void {
+    if (!this.participatingPlayerIds.includes(instanceId)) {
+      this.participatingPlayerIds.push(instanceId)
     }
   }
 

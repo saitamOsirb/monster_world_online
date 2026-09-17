@@ -9,6 +9,11 @@ export interface StatGrowth {
   speed: number
 }
 
+export interface ExperienceShare {
+  instanceId: string
+  experience: number
+}
+
 export interface ProgressionResult {
   monster: OwnedMonster
   experienceAwarded: number

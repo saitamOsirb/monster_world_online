@@ -126,14 +126,14 @@ The upstream prototype does not contain these systems. They are original Monster
 | Capture | Implemented | Item consumption, health-sensitive chance, collection persistence. |
 | Persistent collection | Implemented | Six active slots + storage overflow. |
 | Party/Storage manager | Implemented | Change lead and transfer monsters. |
-| EXP/level/stat growth | Implemented foundation | Persistent progression, level cap 100. |
+| EXP/level/stat growth | Implemented foundation | Persistent progression, level cap 100, participation-based shared victory EXP. |
 | Persistent inventory + Bag | Implemented | Categorized live inventory, field target selection and battle-side item actions. |
 | Capture Capsule | Implemented | Five starter capsules exactly once; capture keeps its dedicated battle command. |
 | Battle-side Bag | Implemented | Healing/status/revive items can target active or reserve party members with explicit turn-consumption rules. |
 | Battle party switching | Implemented | Voluntary switch consumes a turn; forced replacement after KO is free; defeat requires the entire party to faint. |
-| Healing Tonic | Implemented | Restores up to 20 HP to a conscious active monster. |
-| Status Remedy | Implemented | Clears poison/burn/paralysis/sleep from one active monster. |
-| Revive Kit | Implemented | Revives one fainted active monster at 50% max HP. |
+| Healing Tonic | Implemented | Restores up to 20 HP to a conscious active or reserve party member. |
+| Status Remedy | Implemented | Clears poison/burn/paralysis/sleep from one active or reserve party member. |
+| Revive Kit | Implemented | Revives one fainted active-party member at 50% max HP, including reserves during battle. |
 | Persistent wallet | Implemented | Starter credits granted exactly once. |
 | Victory currency + loot | Implemented foundation | Renderer-independent reward services. |
 | Shop purchase rules | Implemented | Transaction boundary around wallet/inventory. |
@@ -186,7 +186,11 @@ Species combat/presentation metadata no longer lives in encounter tables. `speci
 - Terminal party HP + status are written atomically through `MonsterCollectionStore.updateBattlePartyState()` before progression/reward side effects.
 - Defeat persists the terminal HP/status of every party member, including **0 HP** for fainted members.
 - Captured monsters preserve their battle elements, move metadata and status at capture time; canonical name/sprite identity resolves from the species catalog.
-- Victory EXP is currently awarded to the monster active when the enemy is defeated; participation/shared EXP is future product work.
+- Victory EXP is calculated once per defeated enemy and shared only among monsters that were active at least once during that battle.
+- The initial active monster participates immediately; each valid voluntary or forced switch registers the incoming monster once.
+- Healing/reviving a reserve without switching it into the field does **not** count as participation.
+- Fainted monsters that participated keep their EXP share; untouched reserves receive none.
+- The integer EXP pool is divided evenly; any remainder is assigned in first-participation order so distributed EXP always equals the original victory EXP exactly.
 - Level-up HP growth preserves existing damage; it does not full-heal.
 - A combatant can hold one status at a time; status moves do not overwrite an existing condition.
 - Poison and burn resolve at end of turn and can cause a KO.
@@ -298,9 +302,9 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **135 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **140 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
-All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
+All existing deterministic visual hashes remain unchanged through the participation/shared-EXP phase. Product-screen baselines remain:
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `a8904ce9ecf7a85df7e5b8fe9fb022a80f1ef882d6494d6a12734afa3c47645b`
@@ -310,12 +314,12 @@ All existing deterministic visual hashes remained unchanged through the elementa
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
 - Rendering does not decide movement, collision, capture, elemental effectiveness, status, rewards, inventory, economy, recovery or collection legality.
-- `BattleEngine` owns turn/status/elemental damage rules but never browser persistence.
+- `BattleEngine` owns turn/status/elemental damage/party participation rules but never browser persistence.
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
 - `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata from the catalog.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
-- `ProgressionService`, `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
+- `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
 - `BagController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
 - Scene transitions preserve the existing world object instead of reloading on battle exit.
@@ -327,14 +331,13 @@ All existing deterministic visual hashes remained unchanged through the elementa
 The original Godot repository does not expose another major gameplay subsystem beyond the migrated overworld/UI prototype. Remaining work is original Monster World Online development:
 
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
-2. Extend deterministic visual fixtures as maps/scenes/product screens are added, including a deterministic battle fixture when battle presentation stabilizes.
+2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
 4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
 5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
-6. Define participation/shared EXP rules for battles involving multiple party members.
-7. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
-8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
+7. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

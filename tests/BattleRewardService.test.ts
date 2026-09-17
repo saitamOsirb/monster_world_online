@@ -23,6 +23,7 @@ const enemy: BattleCombatantState = {
   attack: 10,
   defense: 9,
   speed: 8,
+  elements: ['neutral'],
   moves: [],
 }
 

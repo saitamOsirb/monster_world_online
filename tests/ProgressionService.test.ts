@@ -143,7 +143,7 @@ describe('ProgressionService', () => {
 
   it('uses species-specific stat growth when the catalog knows the species', () => {
     const result = progression.grantExperience(monster({
-      speciesId: 'pidgey',
+      speciesId: 'skyrill',
       level: 5,
       maxHp: 22,
       currentHp: 18,

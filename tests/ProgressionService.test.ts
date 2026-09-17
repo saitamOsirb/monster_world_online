@@ -42,7 +42,14 @@ describe('ProgressionService', () => {
     expect(result.newLevel).toBe(5)
     expect(result.monster.experience).toBe(90)
     expect(result.levelsGained).toBe(0)
-    expect(result.statGrowth).toEqual({ maxHp: 0, attack: 0, defense: 0, speed: 0 })
+    expect(result.statGrowth).toEqual({
+      maxHp: 0,
+      attack: 0,
+      defense: 0,
+      specialAttack: 0,
+      specialDefense: 0,
+      speed: 0,
+    })
     expect(result.monster.elements).toEqual(['fire'])
     expect(source.experience).toBe(0)
   })
@@ -57,7 +64,16 @@ describe('ProgressionService', () => {
     expect(result.monster.attack).toBe(15)
     expect(result.monster.defense).toBe(13)
     expect(result.monster.speed).toBe(13)
-    expect(result.statGrowth).toEqual({ maxHp: 4, attack: 2, defense: 2, speed: 1 })
+    expect(result.monster.specialAttack).toBe(15)
+    expect(result.monster.specialDefense).toBe(13)
+    expect(result.statGrowth).toEqual({
+      maxHp: 4,
+      attack: 2,
+      defense: 2,
+      specialAttack: 2,
+      specialDefense: 2,
+      speed: 1,
+    })
   })
 
   it('can gain multiple levels from one experience grant', () => {
@@ -68,7 +84,14 @@ describe('ProgressionService', () => {
     expect(result.monster.experience).toBe(0)
     expect(result.monster.maxHp).toBe(18)
     expect(result.monster.currentHp).toBe(15)
-    expect(result.statGrowth).toEqual({ maxHp: 8, attack: 4, defense: 4, speed: 2 })
+    expect(result.statGrowth).toEqual({
+      maxHp: 8,
+      attack: 4,
+      defense: 4,
+      specialAttack: 4,
+      specialDefense: 4,
+      speed: 2,
+    })
   })
 
   it('applies the calculated victory reward through the same progression path', () => {
@@ -91,7 +114,16 @@ describe('ProgressionService', () => {
     expect(result.monster.maxHp).toBe(25)
     expect(result.monster.currentHp).toBe(21)
     expect(result.monster.speed).toBe(17)
-    expect(result.statGrowth).toEqual({ maxHp: 3, attack: 2, defense: 2, speed: 2 })
+    expect(result.monster.specialAttack).toBe(14)
+    expect(result.monster.specialDefense).toBe(13)
+    expect(result.statGrowth).toEqual({
+      maxHp: 3,
+      attack: 2,
+      defense: 2,
+      specialAttack: 1,
+      specialDefense: 2,
+      speed: 2,
+    })
   })
 
   it('clamps level 100 and discards unusable overflow experience', () => {

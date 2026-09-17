@@ -2,13 +2,15 @@ import { createBattleMove, type BattleMoveId } from '../battle/moves'
 import type { BattleMove } from '../battle/types'
 import type { MonsterSpeciesDefinition, SpeciesStats } from './types'
 
-export const STARTER_SPECIES_ID = 'charmander-reference'
+export const STARTER_SPECIES_ID = 'cindlet'
 
 const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: STARTER_SPECIES_ID,
-    displayName: 'Partner',
+    legacyIds: ['charmander-reference'],
+    displayName: 'Cindlet',
     spritePath: '/assets/Pokemon/Charmander.png',
+    artStatus: 'temporary-reference',
     elements: ['fire'],
     baseStats: {
       maxHp: 10,
@@ -35,9 +37,11 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
     ],
   },
   {
-    id: 'pidgey',
-    displayName: 'Pidgey',
+    id: 'skyrill',
+    legacyIds: ['pidgey'],
+    displayName: 'Skyrill',
     spritePath: '/assets/Pokemon/Pidgey.png',
+    artStatus: 'temporary-reference',
     elements: ['air', 'neutral'],
     baseStats: {
       maxHp: 10,
@@ -64,9 +68,11 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
     ],
   },
   {
-    id: 'pikachu',
-    displayName: 'Pikachu',
+    id: 'voltail',
+    legacyIds: ['pikachu'],
+    displayName: 'Voltail',
     spritePath: '/assets/Pokemon/Pikachu.png',
+    artStatus: 'temporary-reference',
     elements: ['electric'],
     baseStats: {
       maxHp: 9,
@@ -95,15 +101,31 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
 ]
 
 const SPECIES_BY_ID = new Map(SPECIES.map((species) => [species.id, species]))
+const CANONICAL_ID_BY_ANY_ID = new Map<string, string>()
+
+for (const species of SPECIES) {
+  CANONICAL_ID_BY_ANY_ID.set(species.id, species.id)
+  for (const legacyId of species.legacyIds ?? []) {
+    if (CANONICAL_ID_BY_ANY_ID.has(legacyId)) {
+      throw new Error(`Duplicate species id/alias: ${legacyId}`)
+    }
+    CANONICAL_ID_BY_ANY_ID.set(legacyId, species.id)
+  }
+}
+
+export function canonicalSpeciesId(speciesId: string): string {
+  return CANONICAL_ID_BY_ANY_ID.get(speciesId) ?? speciesId
+}
 
 export function getSpeciesDefinition(speciesId: string): MonsterSpeciesDefinition {
-  const species = SPECIES_BY_ID.get(speciesId)
+  const canonicalId = canonicalSpeciesId(speciesId)
+  const species = SPECIES_BY_ID.get(canonicalId)
   if (!species) throw new Error(`Unknown monster species: ${speciesId}`)
   return cloneSpecies(species)
 }
 
 export function findSpeciesDefinition(speciesId: string): MonsterSpeciesDefinition | null {
-  const species = SPECIES_BY_ID.get(speciesId)
+  const species = SPECIES_BY_ID.get(canonicalSpeciesId(speciesId))
   return species ? cloneSpecies(species) : null
 }
 
@@ -149,6 +171,7 @@ export function createSpeciesMovesAtLevel(
 function cloneSpecies(species: MonsterSpeciesDefinition): MonsterSpeciesDefinition {
   return {
     ...species,
+    legacyIds: species.legacyIds ? [...species.legacyIds] : undefined,
     elements: [...species.elements],
     baseStats: { ...species.baseStats },
     statGrowth: { ...species.statGrowth },

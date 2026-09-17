@@ -12,6 +12,11 @@ interface LegacyMonsterCollectionState {
   storage: LegacyOwnedMonster[]
 }
 
+export interface PartyHealthRestoreResult {
+  recoveredMonsters: number
+  totalHpRestored: number
+}
+
 export class MonsterCollectionStore {
   private state: MonsterCollectionState
 
@@ -114,6 +119,23 @@ export class MonsterCollectionStore {
       return true
     }
     return false
+  }
+
+  restorePartyToFullHealth(): PartyHealthRestoreResult {
+    let recoveredMonsters = 0
+    let totalHpRestored = 0
+
+    for (let index = 0; index < this.state.party.length; index += 1) {
+      const monster = this.state.party[index]
+      if (monster.currentHp >= monster.maxHp) continue
+
+      totalHpRestored += monster.maxHp - monster.currentHp
+      recoveredMonsters += 1
+      this.state.party[index] = this.cloneMonster({ ...monster, currentHp: monster.maxHp })
+    }
+
+    if (recoveredMonsters > 0) this.persist()
+    return { recoveredMonsters, totalHpRestored }
   }
 
   clear(): void {

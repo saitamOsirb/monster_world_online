@@ -2,6 +2,8 @@ import {
   CAPTURE_CAPSULE_ID,
   HEALING_TONIC_ID,
   INVENTORY_ITEMS,
+  REVIVE_KIT_ID,
+  STATUS_REMEDY_ID,
   type InventoryCategory,
   type InventoryEntry,
   type InventoryItemId,
@@ -90,6 +92,8 @@ export class InventoryStore {
       quantities: {
         [CAPTURE_CAPSULE_ID]: 0,
         [HEALING_TONIC_ID]: 0,
+        [STATUS_REMEDY_ID]: 0,
+        [REVIVE_KIT_ID]: 0,
       },
     }
   }
@@ -101,6 +105,8 @@ export class InventoryStore {
       quantities: {
         [CAPTURE_CAPSULE_ID]: state.quantities[CAPTURE_CAPSULE_ID] ?? 0,
         [HEALING_TONIC_ID]: state.quantities[HEALING_TONIC_ID] ?? 0,
+        [STATUS_REMEDY_ID]: state.quantities[STATUS_REMEDY_ID] ?? 0,
+        [REVIVE_KIT_ID]: state.quantities[REVIVE_KIT_ID] ?? 0,
       },
     }
   }
@@ -115,8 +121,11 @@ export class InventoryStore {
     const captureQuantity = quantities[CAPTURE_CAPSULE_ID]
     if (!this.isStoredQuantity(captureQuantity)) return false
 
-    const healingQuantity = quantities[HEALING_TONIC_ID]
-    return healingQuantity === undefined || this.isStoredQuantity(healingQuantity)
+    for (const itemId of [HEALING_TONIC_ID, STATUS_REMEDY_ID, REVIVE_KIT_ID] as const) {
+      const quantity = quantities[itemId]
+      if (quantity !== undefined && !this.isStoredQuantity(quantity)) return false
+    }
+    return true
   }
 
   private isStoredQuantity(value: unknown): value is number {

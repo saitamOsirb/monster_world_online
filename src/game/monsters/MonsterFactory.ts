@@ -1,25 +1,7 @@
+import { createBattleMove } from '../battle/moves'
 import type { BattleCombatantState, BattleMove } from '../battle/types'
 import type { WildEncounter } from '../encounters/types'
 import type { OwnedMonster } from './types'
-
-const BASIC_STRIKE: BattleMove = {
-  id: 'basic-strike',
-  name: 'Strike',
-  power: 40,
-  accuracy: 0.95,
-}
-
-const QUICK_HIT: BattleMove = {
-  id: 'quick-hit',
-  name: 'Quick Hit',
-  power: 28,
-  accuracy: 1,
-  priority: 1,
-  statusEffect: {
-    condition: 'paralysis',
-    chance: 0.2,
-  },
-}
 
 export function createStarterMonster(now: Date = new Date()): OwnedMonster {
   return {
@@ -33,7 +15,12 @@ export function createStarterMonster(now: Date = new Date()): OwnedMonster {
     attack: 13,
     defense: 11,
     speed: 12,
-    moves: [cloneMove(BASIC_STRIKE), cloneMove(QUICK_HIT)],
+    elements: ['fire'],
+    moves: [
+      createBattleMove('basic-strike'),
+      createBattleMove('ember-burst'),
+      createBattleMove('quick-hit'),
+    ],
     spritePath: '/assets/Pokemon/Charmander.png',
     capturedAt: now.toISOString(),
   }
@@ -55,6 +42,7 @@ export function createCapturedMonster(
     attack: enemy.attack,
     defense: enemy.defense,
     speed: enemy.speed,
+    elements: [...enemy.elements],
     moves: enemy.moves.map(cloneMove),
     status: enemy.status ? { ...enemy.status } : undefined,
     spritePath: encounter.spritePath,

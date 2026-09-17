@@ -6,7 +6,7 @@ import { InputController } from '../input/InputController'
 import type { OwnedMonster } from '../monsters/types'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
-import type { BattleEvent, BattlePhase, BattleState } from './types'
+import type { BattleEvent, BattlePhase, BattleSide, BattleState, BattleStatusCondition } from './types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
 const PLAYER_REFERENCE_SPRITE = '/assets/Pokemon/Charmander.png'
@@ -196,12 +196,23 @@ export class BattleController {
 
   private refreshBattleUi(state: BattleState): void {
     if (this.playerStatusText) {
-      this.playerStatusText.text = `${state.player.displayName} Lv.${state.player.level}\nHP ${state.player.currentHp}/${state.player.maxHp}`
+      this.playerStatusText.text = this.formatCombatantStatus(state.player.displayName, state.player.level, state.player.currentHp, state.player.maxHp, state.player.status?.condition)
     }
     if (this.enemyStatusText) {
-      this.enemyStatusText.text = `${state.enemy.displayName} Lv.${state.enemy.level}\nHP ${state.enemy.currentHp}/${state.enemy.maxHp}`
+      this.enemyStatusText.text = this.formatCombatantStatus(state.enemy.displayName, state.enemy.level, state.enemy.currentHp, state.enemy.maxHp, state.enemy.status?.condition)
     }
     this.refreshCommandText(state)
+  }
+
+  private formatCombatantStatus(
+    name: string,
+    level: number,
+    currentHp: number,
+    maxHp: number,
+    condition?: BattleStatusCondition,
+  ): string {
+    const suffix = condition ? `  ${condition.toUpperCase()}` : ''
+    return `${name} Lv.${level}\nHP ${currentHp}/${maxHp}${suffix}`
   }
 
   private refreshCommandText(state: BattleState): void {
@@ -229,13 +240,25 @@ export class BattleController {
       if (event.type === 'capture-attempt') {
         messages.push(event.success ? 'Capture successful!' : 'The monster broke free!')
       } else if (event.type === 'move') {
-        messages.push(`${event.side === 'player' ? 'Partner' : this.encounter?.displayName ?? 'Enemy'} used ${event.moveName}.`)
+        messages.push(`${this.sideName(event.side)} used ${event.moveName}.`)
       } else if (event.type === 'miss') {
         messages.push('It missed!')
       } else if (event.type === 'damage') {
         messages.push(`${event.amount} damage.`)
+      } else if (event.type === 'status-applied') {
+        messages.push(`${this.sideName(event.target)} is now ${this.statusLabel(event.condition)}.`)
+      } else if (event.type === 'status-blocked') {
+        messages.push(event.condition === 'sleep'
+          ? `${this.sideName(event.side)} is asleep.`
+          : `${this.sideName(event.side)} is paralyzed and cannot move.`)
+      } else if (event.type === 'status-cleared') {
+        messages.push(event.condition === 'sleep'
+          ? `${this.sideName(event.side)} woke up.`
+          : `${this.sideName(event.side)} recovered from ${this.statusLabel(event.condition)}.`)
+      } else if (event.type === 'status-damage') {
+        messages.push(`${this.statusLabel(event.condition)} hurt ${this.sideName(event.side)} for ${event.amount}.`)
       } else if (event.type === 'faint') {
-        messages.push(`${event.side === 'enemy' ? this.encounter?.displayName ?? 'Enemy' : 'Partner'} fainted.`)
+        messages.push(`${this.sideName(event.side)} fainted.`)
       } else if (event.type === 'battle-end') {
         if (event.phase === 'won') messages.push('You won the battle!')
         else if (event.phase === 'lost') messages.push('You lost the battle.')
@@ -243,6 +266,18 @@ export class BattleController {
       }
     }
     return messages.join(' ')
+  }
+
+  private sideName(side: BattleSide): string {
+    if (side === 'enemy') return this.encounter?.displayName ?? 'Enemy'
+    return this.hooks.getLeadMonster?.()?.displayName ?? 'Partner'
+  }
+
+  private statusLabel(condition: BattleStatusCondition): string {
+    if (condition === 'paralysis') return 'paralyzed'
+    if (condition === 'sleep') return 'asleep'
+    if (condition === 'poison') return 'poisoned'
+    return 'burned'
   }
 
   private setMessage(message: string): void {

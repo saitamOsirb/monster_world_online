@@ -11,6 +11,8 @@ export interface OwnedMonster {
   currentHp: number
   attack: number
   defense: number
+  specialAttack?: number
+  specialDefense?: number
   speed: number
   elements: readonly BattleElement[]
   moves: readonly BattleMove[]

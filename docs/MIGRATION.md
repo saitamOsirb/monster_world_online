@@ -39,10 +39,13 @@ src/
 | Water blocking | Migrated | Imported from overworld tile id 2. |
 | `RectangleShape2D` collision | Migrated | Axis-aligned rectangle shapes are decoded from scenes and instantiated objects and rasterized to the 16px movement grid. |
 | Interior wall collision | Migrated | Local rectangle shapes in interiors are imported by the same collision path. |
-| Downward ledge jump | Migrated | Two-tile jump contract retained. |
+| Control-node interior placement | Migrated | `position` is preferred and `margin_left/margin_top` are retained for Godot Control nodes. |
+| Downward ledge jump | Migrated | Two-tile jump contract and parabolic vertical arc retained. |
+| Landing dust | Migrated | Three horizontal frames at the original 5 FPS. |
 | Door target + spawn | Migrated | Door metadata is imported from TSCN and scene switching uses fade transitions. |
 | Camera follows player | Migrated | Integer-aligned camera to prevent texture shimmer. |
-| Tall-grass hooks | Migrated | Collision flag plus four-frame step effect implemented. |
+| Tall-grass hooks | Migrated | Collision flag plus four-frame 10 FPS step effect implemented. |
+| Flower animation | Migrated | Five horizontal frames at the original 5 FPS. |
 | Enter menu, Z confirm, X cancel | Migrated | Keyboard contract retained. |
 | Six menu choices | Migrated | State/navigation retained. |
 | Party selection + cancel | Migrated | Navigation state retained; visual parity is not finished. |
@@ -60,12 +63,10 @@ src/
 ## Remaining parity work
 
 1. Convert Godot `AnimatedTexture` water frames to a Pixi animation rather than using the first water frame.
-2. Recreate door open/close animation timing before the scene transition.
-3. Recreate the landing-dust animation after a ledge jump.
-4. Animate flowers at the original 5 FPS instead of rendering the sheet as a static resource.
-5. Rebuild the party screen from the original UI textures/font for pixel-identical visuals.
-6. Add support for rotated/scaled collision shapes if future imported scenes use them; current upstream collision rectangles are axis-aligned.
-7. Add visual regression fixtures for Pallet Town and the interiors.
+2. Recreate the visible door open/close animation timing before the scene transition.
+3. Rebuild the party screen from the original UI textures/font for pixel-identical visuals.
+4. Add support for rotated/scaled collision shapes if future imported scenes use them; current upstream collision rectangles are axis-aligned.
+5. Add visual regression fixtures for Pallet Town and the interiors.
 
 ## Scope note
 

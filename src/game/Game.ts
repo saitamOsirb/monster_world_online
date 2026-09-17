@@ -12,6 +12,7 @@ import { CAPTURE_CAPSULE_ID } from './inventory/types'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
+import { BagController } from './ui/BagController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
 import type { DoorDefinition, GridPoint } from './world/types'
@@ -32,6 +33,7 @@ export class Game {
   private readonly inventory = new InventoryStore()
   private readonly progression = new ProgressionService()
   private readonly menu: MenuController
+  private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
@@ -42,6 +44,11 @@ export class Game {
   constructor(private readonly app: Application) {
     this.collection.ensureStarter(createStarterMonster())
     this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
+
+    this.bag = new BagController({
+      getEntries: (category) => this.inventory.getEntries(category),
+      onExit: () => void this.transitionBackToMenuFromBag(),
+    })
 
     this.partyStorage = new PartyStorageController({
       getParty: () => this.collection.party,
@@ -54,6 +61,7 @@ export class Game {
 
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
+      onBagRequested: () => void this.transitionToBag(),
       onPartyExitRequested: () => void this.transitionBackToMenu(),
       onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
@@ -69,6 +77,7 @@ export class Game {
     this.app.stage.addChild(
       this.world.view,
       this.menu.view,
+      this.bag.view,
       this.partyStorage.view,
       this.battle.view,
       this.fadeOverlay,
@@ -129,6 +138,12 @@ export class Game {
 
     if (this.battle.isActive) {
       if (!this.transitioning) this.battle.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.bag.isActive) {
+      if (!this.transitioning) this.bag.update(this.input)
       this.input.endFrame()
       return
     }
@@ -264,6 +279,34 @@ export class Game {
       await this.menu.showParty(this.collection.party)
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionToBag(): Promise<void> {
+    if (this.transitioning || this.battle.isActive || this.bag.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.menu.view.visible = false
+      this.bag.show()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionBackToMenuFromBag(): Promise<void> {
+    if (this.transitioning || !this.bag.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.bag.hide()
+      this.menu.view.visible = true
+      this.menu.showMenu()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.menu.view.visible = true
       this.transitioning = false
     }
   }

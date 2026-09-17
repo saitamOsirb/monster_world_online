@@ -29,6 +29,8 @@ jobs:
 
       - name: Sync reference resources
         run: pnpm assets:sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Test
         run: pnpm test

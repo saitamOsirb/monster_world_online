@@ -1,7 +1,13 @@
 export const CAPTURE_CAPSULE_ID = 'capture-capsule' as const
 export const HEALING_TONIC_ID = 'healing-tonic' as const
+export const STATUS_REMEDY_ID = 'status-remedy' as const
+export const REVIVE_KIT_ID = 'revive-kit' as const
 
-export type InventoryItemId = typeof CAPTURE_CAPSULE_ID | typeof HEALING_TONIC_ID
+export type InventoryItemId =
+  | typeof CAPTURE_CAPSULE_ID
+  | typeof HEALING_TONIC_ID
+  | typeof STATUS_REMEDY_ID
+  | typeof REVIVE_KIT_ID
 export type InventoryCategory = 'capture' | 'healing' | 'battle' | 'key'
 
 export const INVENTORY_CATEGORIES: readonly InventoryCategory[] = [
@@ -24,6 +30,8 @@ export interface InventoryItemDefinition {
   description: string
   useContext: 'battle' | 'field' | 'both'
   healingAmount?: number
+  clearsStatus?: boolean
+  reviveFraction?: number
 }
 
 export interface InventoryEntry {
@@ -43,8 +51,24 @@ export const INVENTORY_ITEMS: Record<InventoryItemId, InventoryItemDefinition> =
     id: HEALING_TONIC_ID,
     displayName: 'Healing Tonic',
     category: 'healing',
-    description: 'Restores up to 20 HP to one active monster.',
+    description: 'Restores up to 20 HP to one conscious active monster.',
     useContext: 'field',
     healingAmount: 20,
+  },
+  [STATUS_REMEDY_ID]: {
+    id: STATUS_REMEDY_ID,
+    displayName: 'Status Remedy',
+    category: 'healing',
+    description: 'Clears poison, burn, paralysis or sleep from one active monster.',
+    useContext: 'field',
+    clearsStatus: true,
+  },
+  [REVIVE_KIT_ID]: {
+    id: REVIVE_KIT_ID,
+    displayName: 'Revive Kit',
+    category: 'healing',
+    description: 'Revives one fainted active monster at 50% of max HP.',
+    useContext: 'field',
+    reviveFraction: 0.5,
   },
 }

@@ -282,7 +282,7 @@ export class Game {
     state: BattleState,
     encounter: WildEncounter,
   ): string | void {
-    this.persistBattleHp(state)
+    this.persistBattleState(state)
 
     if (phase === 'captured') {
       const captured = createCapturedMonster(encounter, state.enemy)
@@ -310,11 +310,15 @@ export class Game {
     return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
   }
 
-  private persistBattleHp(state: BattleState): void {
+  private persistBattleState(state: BattleState): void {
     const lead = this.collection.lead
     if (!lead || lead.instanceId !== state.player.id) return
     const nextHp = Math.max(0, Math.min(lead.maxHp, Math.trunc(state.player.currentHp)))
-    this.collection.updateCurrentHp(lead.instanceId, nextHp)
+    this.collection.updateBattleState(
+      lead.instanceId,
+      nextHp,
+      state.player.status ? { ...state.player.status } : undefined,
+    )
   }
 
   private formatBattleReward(reward: BattleRewardGrant): string {

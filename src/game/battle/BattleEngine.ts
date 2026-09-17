@@ -7,6 +7,8 @@ import type {
   BattleRandomSource,
   BattleSide,
   BattleState,
+  BattleStatus,
+  BattleStatusCondition,
   BattleTurnResult,
   PlayerBattleAction,
 } from './types'
@@ -17,6 +19,9 @@ interface QueuedMove {
   priority: number
   speed: number
 }
+
+const PARALYSIS_SKIP_CHANCE = 0.25
+const BURN_ATTACK_MULTIPLIER = 0.75
 
 export class BattleEngine {
   private readonly player: BattleCombatantState
@@ -64,13 +69,13 @@ export class BattleEngine {
         side: 'player',
         move: playerMove,
         priority: playerMove.priority ?? 0,
-        speed: this.player.speed,
+        speed: this.effectiveSpeed(this.player),
       },
       {
         side: 'enemy',
         move: enemyMove,
         priority: enemyMove.priority ?? 0,
-        speed: this.enemy.speed,
+        speed: this.effectiveSpeed(this.enemy),
       },
     ]
 
@@ -85,9 +90,11 @@ export class BattleEngine {
       const attacker = queued.side === 'player' ? this.player : this.enemy
       const defender = queued.side === 'player' ? this.enemy : this.player
       if (attacker.currentHp <= 0 || defender.currentHp <= 0) continue
+      if (!this.canAct(queued.side, attacker, events)) continue
       this.executeMove(queued.side, attacker, defender, queued.move, events)
     }
 
+    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
     if (this.phase === 'awaiting-player') this.turn += 1
     return { state: this.snapshot(), events }
   }
@@ -106,8 +113,11 @@ export class BattleEngine {
     }
 
     if (this.enemy.currentHp > 0 && this.player.currentHp > 0) {
-      this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
+      if (this.canAct('enemy', this.enemy, events)) {
+        this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
+      }
     }
+    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
     if (this.phase === 'awaiting-player') this.turn += 1
     return { state: this.snapshot(), events }
   }
@@ -121,7 +131,7 @@ export class BattleEngine {
   ): void {
     events.push({ type: 'move', side, moveId: move.id, moveName: move.name })
 
-    if (!this.rollAccuracy(move.accuracy)) {
+    if (!this.rollChance(move.accuracy)) {
       events.push({ type: 'miss', side, moveId: move.id })
       return
     }
@@ -137,9 +147,90 @@ export class BattleEngine {
       remainingHp: defender.currentHp,
     })
 
-    if (defender.currentHp > 0) return
-    events.push({ type: 'faint', side: target })
-    this.phase = target === 'enemy' ? 'won' : 'lost'
+    if (defender.currentHp <= 0) {
+      events.push({ type: 'faint', side: target })
+      this.phase = target === 'enemy' ? 'won' : 'lost'
+      events.push({ type: 'battle-end', phase: this.phase })
+      return
+    }
+
+    this.tryApplyStatus(target, defender, move, events)
+  }
+
+  private tryApplyStatus(
+    target: BattleSide,
+    defender: BattleCombatantState,
+    move: BattleMove,
+    events: BattleEvent[],
+  ): void {
+    const effect = move.statusEffect
+    if (!effect || defender.status || !this.rollChance(effect.chance)) return
+
+    const status: BattleStatus = { condition: effect.condition }
+    if (effect.condition === 'sleep') status.remainingTurns = effect.durationTurns ?? 2
+    defender.status = status
+    events.push({
+      type: 'status-applied',
+      target,
+      condition: effect.condition,
+      remainingTurns: status.remainingTurns,
+    })
+  }
+
+  private canAct(side: BattleSide, combatant: BattleCombatantState, events: BattleEvent[]): boolean {
+    const status = combatant.status
+    if (!status) return true
+
+    if (status.condition === 'paralysis') {
+      if (!this.rollChance(PARALYSIS_SKIP_CHANCE)) return true
+      events.push({ type: 'status-blocked', side, condition: 'paralysis' })
+      return false
+    }
+
+    if (status.condition !== 'sleep') return true
+
+    const remaining = Math.max(1, status.remainingTurns ?? 1)
+    const next = remaining - 1
+    events.push({ type: 'status-blocked', side, condition: 'sleep' })
+    if (next <= 0) {
+      combatant.status = undefined
+      events.push({ type: 'status-cleared', side, condition: 'sleep' })
+    } else {
+      combatant.status = { condition: 'sleep', remainingTurns: next }
+    }
+    return false
+  }
+
+  private applyEndOfTurnStatuses(events: BattleEvent[]): void {
+    const targets: Array<{ side: BattleSide; combatant: BattleCombatantState }> = [
+      { side: 'player', combatant: this.player },
+      { side: 'enemy', combatant: this.enemy },
+    ]
+
+    for (const { side, combatant } of targets) {
+      if (combatant.currentHp <= 0) continue
+      const condition = combatant.status?.condition
+      if (condition !== 'poison' && condition !== 'burn') continue
+
+      const divisor = condition === 'poison' ? 8 : 16
+      const amount = Math.max(1, Math.floor(combatant.maxHp / divisor))
+      combatant.currentHp = Math.max(0, combatant.currentHp - amount)
+      events.push({
+        type: 'status-damage',
+        side,
+        condition,
+        amount,
+        remainingHp: combatant.currentHp,
+      })
+    }
+
+    const playerFainted = this.player.currentHp <= 0
+    const enemyFainted = this.enemy.currentHp <= 0
+    if (!playerFainted && !enemyFainted) return
+
+    if (playerFainted) events.push({ type: 'faint', side: 'player' })
+    if (enemyFainted) events.push({ type: 'faint', side: 'enemy' })
+    this.phase = playerFainted ? 'lost' : 'won'
     events.push({ type: 'battle-end', phase: this.phase })
   }
 
@@ -149,15 +240,22 @@ export class BattleEngine {
     move: BattleMove,
   ): number {
     const levelFactor = (2 * attacker.level) / 5 + 2
-    const raw = ((levelFactor * move.power * attacker.attack) / Math.max(1, defender.defense)) / 50 + 2
+    const attack = attacker.status?.condition === 'burn'
+      ? attacker.attack * BURN_ATTACK_MULTIPLIER
+      : attacker.attack
+    const raw = ((levelFactor * move.power * attack) / Math.max(1, defender.defense)) / 50 + 2
     const variance = 0.85 + this.normalizedRandom() * 0.15
     return Math.max(1, Math.floor(raw * variance))
   }
 
-  private rollAccuracy(accuracy: number): boolean {
-    if (accuracy >= 1) return true
-    if (accuracy <= 0) return false
-    return this.normalizedRandom() < accuracy
+  private effectiveSpeed(combatant: BattleCombatantState): number {
+    return combatant.status?.condition === 'paralysis' ? combatant.speed * 0.5 : combatant.speed
+  }
+
+  private rollChance(chance: number): boolean {
+    if (chance >= 1) return true
+    if (chance <= 0) return false
+    return this.normalizedRandom() < chance
   }
 
   private pickEnemyMove(): BattleMove {
@@ -184,8 +282,9 @@ export class BattleEngine {
   private createState(definition: BattleCombatantDefinition): BattleCombatantState {
     return {
       ...definition,
-      moves: definition.moves.map((move) => ({ ...move })),
+      moves: definition.moves.map((move) => this.copyMove(move)),
       currentHp: definition.currentHp ?? definition.maxHp,
+      status: definition.status ? { ...definition.status } : undefined,
     }
   }
 
@@ -201,7 +300,15 @@ export class BattleEngine {
   private copyCombatant(combatant: BattleCombatantState): BattleCombatantState {
     return {
       ...combatant,
-      moves: combatant.moves.map((move) => ({ ...move })),
+      moves: combatant.moves.map((move) => this.copyMove(move)),
+      status: combatant.status ? { ...combatant.status } : undefined,
+    }
+  }
+
+  private copyMove(move: BattleMove): BattleMove {
+    return {
+      ...move,
+      statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,
     }
   }
 
@@ -216,6 +323,7 @@ export class BattleEngine {
         throw new Error('Combatant current HP must be greater than zero and at most max HP')
       }
     }
+    this.assertStatus(combatant.status)
     if (combatant.moves.length === 0) throw new Error('Combatants require at least one move')
     for (const move of combatant.moves) {
       if (!move.id || !move.name) throw new Error('Moves require id and name')
@@ -223,6 +331,36 @@ export class BattleEngine {
       if (!Number.isFinite(move.accuracy) || move.accuracy < 0 || move.accuracy > 1) {
         throw new Error('Move accuracy must be between 0 and 1')
       }
+      if (move.statusEffect) {
+        const effect = move.statusEffect
+        this.assertStatusCondition(effect.condition)
+        if (!Number.isFinite(effect.chance) || effect.chance < 0 || effect.chance > 1) {
+          throw new Error('Status chance must be between 0 and 1')
+        }
+        if (effect.durationTurns !== undefined && (!Number.isInteger(effect.durationTurns) || effect.durationTurns <= 0)) {
+          throw new Error('Status duration must be a positive integer')
+        }
+        if (effect.durationTurns !== undefined && effect.condition !== 'sleep') {
+          throw new Error('Only sleep status effects may define durationTurns')
+        }
+      }
+    }
+  }
+
+  private assertStatus(status: BattleStatus | undefined): void {
+    if (!status) return
+    this.assertStatusCondition(status.condition)
+    if (status.remainingTurns !== undefined && (!Number.isInteger(status.remainingTurns) || status.remainingTurns <= 0)) {
+      throw new Error('Status remainingTurns must be a positive integer')
+    }
+    if (status.remainingTurns !== undefined && status.condition !== 'sleep') {
+      throw new Error('Only sleep status may define remainingTurns')
+    }
+  }
+
+  private assertStatusCondition(condition: BattleStatusCondition): void {
+    if (!['poison', 'burn', 'paralysis', 'sleep'].includes(condition)) {
+      throw new Error(`Unsupported status condition: ${String(condition)}`)
     }
   }
 }

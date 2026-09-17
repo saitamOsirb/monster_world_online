@@ -24,7 +24,10 @@ function monster(instanceId: string, currentHp: number, maxHp = 30): OwnedMonste
     displayName: instanceId,
     maxHp,
     currentHp,
-    moves: starter.moves.map((move) => ({ ...move })),
+    moves: starter.moves.map((move) => ({
+      ...move,
+      statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,
+    })),
   }
 }
 
@@ -42,26 +45,48 @@ describe('PartyRecoveryService', () => {
     expect(result).toEqual({
       recoveredMonsters: 2,
       totalHpRestored: 61,
+      clearedStatuses: 0,
       alreadyHealthy: false,
     })
     expect(collection.party.map((entry) => entry.currentHp)).toEqual([30, 40])
   })
 
-  it('does not heal monsters kept in storage', () => {
+  it('clears active-party status conditions in the same recovery action', () => {
+    const storage = new MemoryStorage()
+    const collection = new MonsterCollectionStore(storage)
+    collection.ensureStarter(monster('lead', 30))
+    collection.updateBattleState('lead', 30, { condition: 'paralysis' })
+    const writesBefore = storage.writes
+
+    const result = new PartyRecoveryService(collection).recoverActiveParty()
+
+    expect(result).toEqual({
+      recoveredMonsters: 0,
+      totalHpRestored: 0,
+      clearedStatuses: 1,
+      alreadyHealthy: false,
+    })
+    expect(collection.lead?.status).toBeUndefined()
+    expect(storage.writes).toBe(writesBefore + 1)
+  })
+
+  it('does not heal or clear status from monsters kept in storage', () => {
     const storage = new MemoryStorage()
     const collection = new MonsterCollectionStore(storage)
     collection.ensureStarter(monster('lead', 30))
     collection.addCaptured(monster('stored', 7, 35))
     expect(collection.movePartyMemberToStorage('stored')).toBe(true)
+    collection.updateBattleState('stored', 7, { condition: 'poison' })
     collection.updateCurrentHp('lead', 12)
 
     new PartyRecoveryService(collection).recoverActiveParty()
 
     expect(collection.lead?.currentHp).toBe(30)
     expect(collection.storageMonsters[0].currentHp).toBe(7)
+    expect(collection.storageMonsters[0].status?.condition).toBe('poison')
   })
 
-  it('does not persist again when every active monster is already healthy', () => {
+  it('does not persist again when every active monster is already healthy and clear', () => {
     const storage = new MemoryStorage()
     const collection = new MonsterCollectionStore(storage)
     collection.ensureStarter(monster('lead', 30))
@@ -72,6 +97,7 @@ describe('PartyRecoveryService', () => {
     expect(result.alreadyHealthy).toBe(true)
     expect(result.recoveredMonsters).toBe(0)
     expect(result.totalHpRestored).toBe(0)
+    expect(result.clearedStatuses).toBe(0)
     expect(storage.writes).toBe(writesBefore)
   })
 
@@ -81,6 +107,7 @@ describe('PartyRecoveryService', () => {
     expect(new PartyRecoveryService(collection).recoverActiveParty()).toEqual({
       recoveredMonsters: 0,
       totalHpRestored: 0,
+      clearedStatuses: 0,
       alreadyHealthy: true,
     })
   })

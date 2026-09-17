@@ -15,6 +15,7 @@ function monster(id: string): OwnedMonster {
     speciesId: `species-${id}`,
     displayName: `Monster ${id}`,
     level: 3,
+    experience: 0,
     maxHp: 20,
     currentHp: 20,
     attack: 9,
@@ -56,7 +57,40 @@ describe('MonsterCollectionStore', () => {
 
     const snapshot = store.snapshot
     snapshot.party[0].currentHp = 1
+    snapshot.party[0].experience = 999
 
     expect(store.lead?.currentHp).toBe(20)
+    expect(store.lead?.experience).toBe(0)
+  })
+
+  it('persists experience updates', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    const starter = monster('starter')
+    store.ensureStarter(starter)
+
+    store.updateMonster({ ...starter, experience: 77, level: 4 })
+
+    const reloaded = new MonsterCollectionStore(storage).lead
+    expect(reloaded?.experience).toBe(77)
+    expect(reloaded?.level).toBe(4)
+  })
+
+  it('migrates version 1 collections with zero experience', () => {
+    const storage = new MemoryStorage()
+    const legacy = monster('legacy')
+    const { experience: _experience, ...legacyMonster } = legacy
+    storage.setItem('monster-world.collection.v1', JSON.stringify({
+      version: 1,
+      party: [legacyMonster],
+      storage: [],
+    }))
+
+    const store = new MonsterCollectionStore(storage)
+
+    expect(store.snapshot.version).toBe(2)
+    expect(store.lead?.instanceId).toBe('legacy')
+    expect(store.lead?.experience).toBe(0)
+    expect(JSON.parse(storage.getItem('monster-world.collection.v1') ?? '{}').version).toBe(2)
   })
 })

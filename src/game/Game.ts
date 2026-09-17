@@ -72,6 +72,7 @@ export class Game {
     player.setSpawn(spawn.tile, spawn.direction)
     this.fadeOverlay.alpha = 0
     this.updateCamera()
+    this.app.renderer.render(this.app.stage)
   }
 
   private update(deltaMs: number): void {

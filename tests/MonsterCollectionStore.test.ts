@@ -93,4 +93,66 @@ describe('MonsterCollectionStore', () => {
     expect(store.lead?.experience).toBe(0)
     expect(JSON.parse(storage.getItem('monster-world.collection.v1') ?? '{}').version).toBe(2)
   })
+
+  it('promotes any party member to lead and persists the order', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('a'))
+    store.addCaptured(monster('b'))
+    store.addCaptured(monster('c'))
+
+    expect(store.setLead('c')).toBe(true)
+    expect(store.party.map((entry) => entry.instanceId)).toEqual(['c', 'a', 'b'])
+    expect(new MonsterCollectionStore(storage).lead?.instanceId).toBe('c')
+  })
+
+  it('moves a party member to storage while keeping at least one active monster', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('a'))
+    store.addCaptured(monster('b'))
+
+    expect(store.movePartyMemberToStorage('a')).toBe(true)
+    expect(store.party.map((entry) => entry.instanceId)).toEqual(['b'])
+    expect(store.storageMonsters.map((entry) => entry.instanceId)).toEqual(['a'])
+    expect(store.movePartyMemberToStorage('b')).toBe(false)
+    expect(store.party).toHaveLength(1)
+  })
+
+  it('moves a stored monster back to party when a slot is available', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('starter'))
+    for (let index = 1; index <= 6; index += 1) store.addCaptured(monster(String(index)))
+
+    expect(store.storageMonsters.map((entry) => entry.instanceId)).toEqual(['6'])
+    expect(store.movePartyMemberToStorage('1')).toBe(true)
+    expect(store.moveStorageMonsterToParty('6')).toBe(true)
+    expect(store.party.map((entry) => entry.instanceId)).toContain('6')
+    expect(store.storageMonsters.map((entry) => entry.instanceId)).toContain('1')
+  })
+
+  it('refuses to exceed six active party members', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('starter'))
+    for (let index = 1; index <= 6; index += 1) store.addCaptured(monster(String(index)))
+
+    expect(store.party).toHaveLength(6)
+    expect(store.moveStorageMonsterToParty('6')).toBe(false)
+    expect(store.party).toHaveLength(6)
+    expect(store.storageMonsters).toHaveLength(1)
+  })
+
+  it('rejects unknown monster ids without mutating collection state', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('starter'))
+    const before = store.snapshot
+
+    expect(store.setLead('missing')).toBe(false)
+    expect(store.movePartyMemberToStorage('missing')).toBe(false)
+    expect(store.moveStorageMonsterToParty('missing')).toBe(false)
+    expect(store.snapshot).toEqual(before)
+  })
 })

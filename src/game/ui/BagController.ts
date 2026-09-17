@@ -122,11 +122,11 @@ export class BagController {
       return
     }
 
-    if (selected.item.healingAmount) {
+    if (selected.item.useContext === 'field' || selected.item.useContext === 'both') {
       this.mode = 'target'
       this.pendingItemId = selected.item.id
       this.targetIndex = 0
-      this.status = 'Choose a monster to heal.'
+      this.status = 'Choose a monster.'
       this.render()
       return
     }
@@ -155,14 +155,14 @@ export class BagController {
 
     if (input.wasPressed('ArrowUp')) {
       this.targetIndex = this.targetIndex === 0 ? party.length - 1 : this.targetIndex - 1
-      this.status = 'Choose a monster to heal.'
+      this.status = 'Choose a monster.'
       this.render()
       return
     }
 
     if (input.wasPressed('ArrowDown')) {
       this.targetIndex = (this.targetIndex + 1) % party.length
-      this.status = 'Choose a monster to heal.'
+      this.status = 'Choose a monster.'
       this.render()
       return
     }
@@ -185,9 +185,18 @@ export class BagController {
 
   private describeUseResult(result: FieldItemUseResult): string {
     if (result.ok) {
-      return `${result.targetName} recovered ${result.healedHp} HP. HP ${result.currentHp}/${result.maxHp}`
+      if (result.action === 'status-recovery') {
+        return `${result.targetName} recovered from ${result.clearedStatus ?? 'its condition'}.`
+      }
+      if (result.action === 'revive') {
+        return `${result.targetName} revived with ${result.currentHp}/${result.maxHp} HP.`
+      }
+      return `${result.targetName} recovered ${result.healedHp ?? 0} HP. HP ${result.currentHp}/${result.maxHp}`
     }
     if (result.reason === 'already-full') return 'That monster is already at full HP.'
+    if (result.reason === 'fainted-requires-revive') return 'A fainted monster requires a Revive Kit.'
+    if (result.reason === 'no-status') return 'That monster has no status condition.'
+    if (result.reason === 'not-fainted') return 'Revive Kit only works on a fainted monster.'
     if (result.reason === 'no-stock') return 'You do not have that item anymore.'
     if (result.reason === 'target-not-found') return 'That monster is no longer in the active party.'
     return 'This item cannot be used in the field.'
@@ -283,14 +292,15 @@ export class BagController {
         this.view.addChild(highlight)
       }
       this.addText(monster.displayName, 13, y, 9, 0x242938)
-      this.addText(`Lv.${monster.level}`, 116, y, 8, 0x505563)
-      this.addText(`HP ${monster.currentHp}/${monster.maxHp}`, 157, y, 8, 0x242938)
+      this.addText(`Lv.${monster.level}`, 103, y, 8, 0x505563)
+      this.addText(`HP ${monster.currentHp}/${monster.maxHp}`, 140, y, 8, 0x242938)
+      if (monster.status) this.addText(monster.status.condition.toUpperCase(), 193, y, 7, 0x8a5a2b)
     })
 
     const detailTop = 130
     const divider = new Graphics().rect(7, detailTop - 4, 226, 1).fill(0xa8a8a8)
     this.view.addChild(divider)
-    this.addText(this.status || 'Choose a monster to heal.', 9, detailTop, 8, 0x505563, 222)
+    this.addText(this.status || 'Choose a monster.', 9, detailTop, 8, 0x505563, 222)
     this.addText('Z: USE   X: BACK', 145, 150, 7, 0x6c7180)
   }
 

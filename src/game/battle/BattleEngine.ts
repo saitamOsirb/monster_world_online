@@ -1,3 +1,4 @@
+import type { InventoryItemId } from '../inventory/types'
 import {
   elementalEffectiveness,
   hasSameElementBonus,
@@ -42,7 +43,8 @@ const BURN_ATTACK_MULTIPLIER = 0.75
 const SAME_ELEMENT_BONUS = 1.25
 
 export class BattleEngine {
-  private readonly player: BattleCombatantState
+  private readonly playerParty: BattleCombatantState[]
+  private activePlayerIndex = 0
   private readonly enemy: BattleCombatantState
   private phase: BattleState['phase'] = 'awaiting-player'
   private turn = 1
@@ -53,10 +55,19 @@ export class BattleEngine {
     private readonly random: BattleRandomSource = Math.random,
     private readonly captureResolver?: BattleCaptureResolver,
     private readonly itemResolver?: BattleItemResolver,
+    playerReserves: readonly BattleCombatantDefinition[] = [],
   ) {
     this.assertCombatant(player)
     this.assertCombatant(enemy)
-    this.player = this.createState(player)
+    playerReserves.forEach((reserve) => this.assertCombatant(reserve, true))
+
+    const ids = [player.id, ...playerReserves.map((reserve) => reserve.id)]
+    if (new Set(ids).size !== ids.length) throw new Error('Battle party combatant ids must be unique')
+
+    this.playerParty = [
+      this.createState(player),
+      ...playerReserves.map((reserve) => this.createState(reserve)),
+    ]
     this.enemy = this.createState(enemy)
   }
 
@@ -64,12 +75,22 @@ export class BattleEngine {
     return this.snapshot()
   }
 
+  private get player(): BattleCombatantState {
+    return this.playerParty[this.activePlayerIndex]
+  }
+
   resolvePlayerAction(action: PlayerBattleAction): BattleTurnResult {
-    if (this.phase !== 'awaiting-player') {
+    if (this.isTerminalPhase(this.phase)) {
       throw new Error(`Battle already finished with phase: ${this.phase}`)
+    }
+    if (this.phase === 'awaiting-switch' && action.kind !== 'switch') {
+      throw new Error('A conscious replacement monster must be selected')
     }
 
     const events: BattleEvent[] = []
+
+    if (action.kind === 'switch') return this.resolveSwitch(action.targetId, events)
+
     if (action.kind === 'run') {
       this.phase = 'ran'
       events.push({ type: 'run', side: 'player' })
@@ -77,12 +98,10 @@ export class BattleEngine {
       return { state: this.snapshot(), events }
     }
 
-    if (action.kind === 'capture') {
-      return this.resolveCapture(events)
-    }
+    if (action.kind === 'capture') return this.resolveCapture(events)
 
     if (action.kind === 'item') {
-      return this.resolveItem(action.itemId, events)
+      return this.resolveItem(action.itemId, action.targetId, events)
     }
 
     const playerMove = this.findMove(this.player, action.moveId)
@@ -117,38 +136,85 @@ export class BattleEngine {
       this.executeMove(queued.side, attacker, defender, queued.move, events)
     }
 
-    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
-    if (this.phase === 'awaiting-player') this.turn += 1
+    this.completeTurn(events)
     return { state: this.snapshot(), events }
   }
 
-  private resolveItem(itemId: import('../inventory/types').InventoryItemId, events: BattleEvent[]): BattleTurnResult {
+  private resolveSwitch(targetId: string, events: BattleEvent[]): BattleTurnResult {
+    const targetIndex = this.playerParty.findIndex((combatant) => combatant.id === targetId)
+    if (targetIndex < 0) {
+      events.push({ type: 'switch-failed', side: 'player', targetId, reason: 'target-not-found' })
+      return { state: this.snapshot(), events }
+    }
+    if (targetIndex === this.activePlayerIndex) {
+      events.push({ type: 'switch-failed', side: 'player', targetId, reason: 'already-active' })
+      return { state: this.snapshot(), events }
+    }
+
+    const target = this.playerParty[targetIndex]
+    if (target.currentHp <= 0) {
+      events.push({ type: 'switch-failed', side: 'player', targetId, reason: 'target-fainted' })
+      return { state: this.snapshot(), events }
+    }
+
+    const forced = this.phase === 'awaiting-switch'
+    const previous = this.player
+    this.activePlayerIndex = targetIndex
+    this.phase = 'awaiting-player'
+    events.push({
+      type: 'switch',
+      side: 'player',
+      fromId: previous.id,
+      fromName: previous.displayName,
+      toId: target.id,
+      toName: target.displayName,
+      forced,
+    })
+
+    if (forced) return { state: this.snapshot(), events }
+
+    this.resolveEnemyResponse(events)
+    this.completeTurn(events)
+    return { state: this.snapshot(), events }
+  }
+
+  private resolveItem(
+    itemId: InventoryItemId,
+    targetId: string | undefined,
+    events: BattleEvent[],
+  ): BattleTurnResult {
     if (!this.itemResolver) throw new Error('Battle items are not available in this battle')
 
-    const result = this.itemResolver(itemId, this.copyCombatant(this.player))
+    const target = targetId
+      ? this.playerParty.find((combatant) => combatant.id === targetId)
+      : this.player
+
+    if (!target) {
+      events.push({ type: 'item-failed', side: 'player', itemId, reason: 'target-not-found' })
+      return { state: this.snapshot(), events }
+    }
+
+    const result = this.itemResolver(itemId, this.copyCombatant(target))
     if (!result.ok) {
       events.push({ type: 'item-failed', side: 'player', itemId, reason: result.reason })
       return { state: this.snapshot(), events }
     }
 
-    this.player.currentHp = Math.max(0, Math.min(this.player.maxHp, result.currentHp))
-    this.player.status = result.status ? { ...result.status } : undefined
+    target.currentHp = Math.max(0, Math.min(target.maxHp, result.currentHp))
+    target.status = result.status ? { ...result.status } : undefined
     events.push({
       type: 'item-used',
       side: 'player',
       itemId: result.itemId,
       itemName: result.itemName,
+      targetId: target.id,
+      targetName: target.displayName,
       healedHp: result.healedHp,
       clearedStatus: result.clearedStatus,
     })
 
-    if (this.enemy.currentHp > 0 && this.player.currentHp > 0) {
-      if (this.canAct('enemy', this.enemy, events)) {
-        this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
-      }
-    }
-    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
-    if (this.phase === 'awaiting-player') this.turn += 1
+    this.resolveEnemyResponse(events)
+    this.completeTurn(events)
     return { state: this.snapshot(), events }
   }
 
@@ -165,14 +231,21 @@ export class BattleEngine {
       return { state: this.snapshot(), events }
     }
 
-    if (this.enemy.currentHp > 0 && this.player.currentHp > 0) {
-      if (this.canAct('enemy', this.enemy, events)) {
-        this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
-      }
-    }
-    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
-    if (this.phase === 'awaiting-player') this.turn += 1
+    this.resolveEnemyResponse(events)
+    this.completeTurn(events)
     return { state: this.snapshot(), events }
+  }
+
+  private resolveEnemyResponse(events: BattleEvent[]): void {
+    if (this.phase !== 'awaiting-player') return
+    if (this.enemy.currentHp <= 0 || this.player.currentHp <= 0) return
+    if (!this.canAct('enemy', this.enemy, events)) return
+    this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
+  }
+
+  private completeTurn(events: BattleEvent[]): void {
+    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
+    if (this.phase === 'awaiting-player' || this.phase === 'awaiting-switch') this.turn += 1
   }
 
   private executeMove(
@@ -211,14 +284,37 @@ export class BattleEngine {
     })
 
     if (defender.currentHp <= 0) {
-      events.push({ type: 'faint', side: target })
-      this.phase = target === 'enemy' ? 'won' : 'lost'
-      events.push({ type: 'battle-end', phase: this.phase })
+      this.handleFaint(target, events)
       return
     }
 
     if (result.effectiveness === 0) return
     this.tryApplyStatus(target, defender, move, events)
+  }
+
+  private handleFaint(side: BattleSide, events: BattleEvent[]): void {
+    events.push({ type: 'faint', side })
+
+    if (side === 'enemy') {
+      this.phase = 'won'
+      events.push({ type: 'battle-end', phase: 'won' })
+      return
+    }
+
+    if (this.hasConsciousReserve()) {
+      this.phase = 'awaiting-switch'
+      events.push({ type: 'switch-required', side: 'player' })
+      return
+    }
+
+    this.phase = 'lost'
+    events.push({ type: 'battle-end', phase: 'lost' })
+  }
+
+  private hasConsciousReserve(): boolean {
+    return this.playerParty.some(
+      (combatant, index) => index !== this.activePlayerIndex && combatant.currentHp > 0,
+    )
   }
 
   private tryApplyStatus(
@@ -294,8 +390,21 @@ export class BattleEngine {
 
     if (playerFainted) events.push({ type: 'faint', side: 'player' })
     if (enemyFainted) events.push({ type: 'faint', side: 'enemy' })
-    this.phase = playerFainted ? 'lost' : 'won'
-    events.push({ type: 'battle-end', phase: this.phase })
+
+    if (enemyFainted) {
+      this.phase = 'won'
+      events.push({ type: 'battle-end', phase: 'won' })
+      return
+    }
+
+    if (this.hasConsciousReserve()) {
+      this.phase = 'awaiting-switch'
+      events.push({ type: 'switch-required', side: 'player' })
+      return
+    }
+
+    this.phase = 'lost'
+    events.push({ type: 'battle-end', phase: 'lost' })
   }
 
   private calculateDamage(
@@ -315,7 +424,8 @@ export class BattleEngine {
       : defender.defense
     const moveElement: BattleElement = move.element ?? 'neutral'
     const effectiveness = elementalEffectiveness(moveElement, defender.elements)
-    const sameElementBonus = move.element !== undefined && hasSameElementBonus(attacker.elements, moveElement)
+    const sameElementBonus = move.element !== undefined
+      && hasSameElementBonus(attacker.elements, moveElement)
     const stab = sameElementBonus ? SAME_ELEMENT_BONUS : 1
 
     if (effectiveness === 0) {
@@ -376,6 +486,8 @@ export class BattleEngine {
       phase: this.phase,
       turn: this.turn,
       player: this.copyCombatant(this.player),
+      playerParty: this.playerParty.map((combatant) => this.copyCombatant(combatant)),
+      activePlayerIndex: this.activePlayerIndex,
       enemy: this.copyCombatant(this.enemy),
     }
   }
@@ -396,9 +508,11 @@ export class BattleEngine {
     }
   }
 
-  private assertCombatant(combatant: BattleCombatantDefinition): void {
+  private assertCombatant(combatant: BattleCombatantDefinition, allowFainted = false): void {
     if (!combatant.id || !combatant.displayName) throw new Error('Combatants require id and displayName')
-    if (!Number.isInteger(combatant.level) || combatant.level <= 0) throw new Error('Combatant level must be positive')
+    if (!Number.isInteger(combatant.level) || combatant.level <= 0) {
+      throw new Error('Combatant level must be positive')
+    }
     for (const value of [
       combatant.maxHp,
       combatant.attack,
@@ -407,11 +521,18 @@ export class BattleEngine {
       combatant.specialDefense ?? combatant.defense,
       combatant.speed,
     ]) {
-      if (!Number.isFinite(value) || value <= 0) throw new Error('Combatant stats must be positive finite numbers')
+      if (!Number.isFinite(value) || value <= 0) {
+        throw new Error('Combatant stats must be positive finite numbers')
+      }
     }
     if (combatant.currentHp !== undefined) {
-      if (!Number.isFinite(combatant.currentHp) || combatant.currentHp <= 0 || combatant.currentHp > combatant.maxHp) {
-        throw new Error('Combatant current HP must be greater than zero and at most max HP')
+      const minimum = allowFainted ? 0 : Number.MIN_VALUE
+      if (!Number.isFinite(combatant.currentHp)
+        || combatant.currentHp < minimum
+        || combatant.currentHp > combatant.maxHp) {
+        throw new Error(allowFainted
+          ? 'Reserve current HP must be between zero and max HP'
+          : 'Combatant current HP must be greater than zero and at most max HP')
       }
     }
     if (combatant.elements !== undefined) {
@@ -429,7 +550,9 @@ export class BattleEngine {
     if (combatant.moves.length === 0) throw new Error('Combatants require at least one move')
     for (const move of combatant.moves) {
       if (!move.id || !move.name) throw new Error('Moves require id and name')
-      if (!Number.isFinite(move.power) || move.power <= 0) throw new Error('Move power must be positive')
+      if (!Number.isFinite(move.power) || move.power <= 0) {
+        throw new Error('Move power must be positive')
+      }
       if (!Number.isFinite(move.accuracy) || move.accuracy < 0 || move.accuracy > 1) {
         throw new Error('Move accuracy must be between 0 and 1')
       }
@@ -445,7 +568,8 @@ export class BattleEngine {
         if (!Number.isFinite(effect.chance) || effect.chance < 0 || effect.chance > 1) {
           throw new Error('Status chance must be between 0 and 1')
         }
-        if (effect.durationTurns !== undefined && (!Number.isInteger(effect.durationTurns) || effect.durationTurns <= 0)) {
+        if (effect.durationTurns !== undefined
+          && (!Number.isInteger(effect.durationTurns) || effect.durationTurns <= 0)) {
           throw new Error('Status duration must be a positive integer')
         }
         if (effect.durationTurns !== undefined && effect.condition !== 'sleep') {
@@ -458,7 +582,8 @@ export class BattleEngine {
   private assertStatus(status: BattleStatus | undefined): void {
     if (!status) return
     this.assertStatusCondition(status.condition)
-    if (status.remainingTurns !== undefined && (!Number.isInteger(status.remainingTurns) || status.remainingTurns <= 0)) {
+    if (status.remainingTurns !== undefined
+      && (!Number.isInteger(status.remainingTurns) || status.remainingTurns <= 0)) {
       throw new Error('Status remainingTurns must be a positive integer')
     }
     if (status.remainingTurns !== undefined && status.condition !== 'sleep') {
@@ -470,5 +595,11 @@ export class BattleEngine {
     if (!['poison', 'burn', 'paralysis', 'sleep'].includes(condition)) {
       throw new Error(`Unsupported status condition: ${String(condition)}`)
     }
+  }
+
+  private isTerminalPhase(
+    phase: BattleState['phase'],
+  ): phase is Extract<BattleState['phase'], 'won' | 'lost' | 'ran' | 'captured'> {
+    return phase === 'won' || phase === 'lost' || phase === 'ran' || phase === 'captured'
   }
 }

@@ -15,6 +15,8 @@ type TerminalBattlePhase = Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captur
 
 export interface BattleControllerHooks {
   getLeadMonster?: () => OwnedMonster | null
+  getCaptureItemCount?: () => number
+  consumeCaptureItem?: () => boolean
   onBattleResolved?: (
     phase: TerminalBattlePhase,
     state: BattleState,
@@ -146,6 +148,20 @@ export class BattleController {
 
   private resolveCapture(): void {
     if (!this.engine) return
+    const available = this.hooks.getCaptureItemCount?.() ?? 0
+    if (available <= 0) {
+      this.setMessage('No Capture Capsules left.')
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+
+    const consumed = this.hooks.consumeCaptureItem?.() ?? false
+    if (!consumed) {
+      this.setMessage('No Capture Capsules left.')
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+
     const result = this.engine.resolvePlayerAction({ kind: 'capture' })
     this.applyTurnResult(result.state, result.events)
   }
@@ -190,9 +206,10 @@ export class BattleController {
 
   private refreshCommandText(state: BattleState): void {
     if (!this.commandText) return
+    const captureCount = Math.max(0, Math.trunc(this.hooks.getCaptureItemCount?.() ?? 0))
     const options = [
       ...state.player.moves.map((move) => move.name),
-      'CAPTURE',
+      `CAPTURE x${captureCount}`,
       'RUN',
     ]
     this.commandText.text = options

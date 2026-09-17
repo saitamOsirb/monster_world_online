@@ -58,6 +58,23 @@ export class Game {
     if (this.player) this.world.removeActor(this.player.view)
   }
 
+  async loadSceneForVisualTest(scenePath: string): Promise<void> {
+    if (!new URLSearchParams(window.location.search).has('visualTest')) {
+      throw new Error('Visual scene loading is only available in visual-test mode')
+    }
+    if (!scenePath.startsWith('res://') || !scenePath.endsWith('.tscn')) {
+      throw new Error(`Invalid visual-test scene path: ${scenePath}`)
+    }
+    const player = this.player
+    if (!player) throw new Error('Player is not initialized')
+
+    const spawn = await this.world.load(scenePath)
+    player.setSpawn(spawn.tile, spawn.direction)
+    this.menu.showClosedForVisualTest()
+    this.fadeOverlay.alpha = 0
+    this.updateCamera()
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return

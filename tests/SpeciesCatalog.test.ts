@@ -16,6 +16,8 @@ describe('species catalog', () => {
       maxHp: 26,
       attack: 13,
       defense: 11,
+      specialAttack: 18,
+      specialDefense: 12,
       speed: 12,
     })
   })

@@ -28,7 +28,7 @@ src/
       InventoryStore.ts           versioned persistent item repository
       types.ts                    item IDs/catalog/inventory state
     monsters/
-      MonsterCollectionStore.ts   versioned persistent party/storage repository
+      MonsterCollectionStore.ts   versioned party/storage repository + transfer rules
       MonsterFactory.ts           starter/captured-monster adapters
       types.ts                    owned-monster contracts
     progression/
@@ -36,7 +36,9 @@ src/
       types.ts                    progression result contracts
     entities/Player.ts            player state machine and animation slicing
     input/InputController.ts      keyboard edge/held state
-    ui/MenuController.ts          migrated menu + persistent Party UI
+    ui/
+      MenuController.ts           migrated menu + persistent Party UI
+      PartyStorageController.ts   runtime Party/Storage management presentation
     world/
       CollisionWorld.ts
       DoorAnimator.ts
@@ -97,6 +99,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | Capture probability | Implemented foundation | Health-sensitive, injectable RNG, capped at 90%; not a Pokémon formula. |
 | Persistent monster collection | Implemented | Six active party slots plus storage overflow. |
 | Runtime Party Screen | Implemented | Displays actual persisted monster name/level/HP/sprite. |
+| Party/Storage management | Implemented | Runtime two-column manager can change lead and transfer monsters between active party and storage. |
+| Party safety rules | Implemented | Active party is capped at 6 and cannot be reduced below one monster. |
+| Storage paging | Implemented | Manager scrolls storage independently when collection exceeds the visible page. |
 | Victory EXP | Implemented | Only victories grant EXP. |
 | Leveling | Implemented foundation | Multi-level gains, cap 100. |
 | Persistent stat growth | Implemented | +4 max HP, +2 ATK, +2 DEF, +1 SPD per level. |
@@ -107,7 +112,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | Capture stock display | Implemented | Battle command renders `CAPTURE xN` from live inventory state. |
 | Status effects/elements | Not implemented | Add only after Monster World Online rules are defined. |
 | Shop/loot item sources | Not implemented | Inventory APIs are ready; acquisition rules come later. |
-| Party/storage management UI | Not implemented | Next product slice. |
+| Bag UI | Not implemented | Next inventory-facing product slice. |
 
 ## Progression rules
 
@@ -140,6 +145,27 @@ The first inventory implementation intentionally has one item: `capture-capsule`
 
 Future NPC/shop/loot systems can call the same repository without coupling economy rules to Pixi.
 
+## Party and storage rules
+
+`MonsterCollectionStore` owns all collection mutations; `PartyStorageController` only presents them and reacts to success/failure.
+
+- Active party capacity is **6**.
+- `setLead(instanceId)` moves an existing active member to slot 0 while preserving the relative order of the other members.
+- `movePartyMemberToStorage(instanceId)` is rejected when only one active monster remains.
+- `moveStorageMonsterToParty(instanceId)` is rejected when all six party slots are occupied.
+- Unknown monster instance IDs never mutate collection state.
+- Every successful lead/transfer change is persisted immediately.
+- The battle session already reads `collection.lead`, so selecting a new lead affects subsequent battles without additional battle-specific state.
+- Confirming a runtime Party Screen member opens the manager focused on that monster.
+- Returning from the manager rebuilds the Party Screen from persisted collection state.
+
+Manager controls:
+
+- Left/Right: switch Party and Storage columns.
+- Up/Down: move selection.
+- Z/Enter: open or confirm the contextual action menu.
+- X/Escape: go back.
+
 ## Persistence boundaries
 
 Monster ownership/progression and item inventory are intentionally separate repositories:
@@ -162,17 +188,18 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **44 tests across 9 test files** covering import/collision, encounters, battle resolution, capture, monster persistence/migration, progression and inventory persistence/consumption.
+The unit suite now contains **49 tests across 9 test files** covering import/collision, encounters, battle resolution, capture, monster persistence/migration, party/storage mutation rules, progression and inventory persistence/consumption.
 
-Visual tests keep the migrated deterministic fixture for Town, menu, Party Screen, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product state such as local storage is deliberately excluded from the legacy Party hash fixture.
+Visual tests keep the migrated deterministic fixture for Town, menu, Party Screen, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product state such as local storage is deliberately excluded from the legacy Party hash fixture. The Party/Storage manager was added without changing any existing visual baseline hash.
 
 ## Intentional architecture cleanups
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
-- Rendering does not decide movement, collision, capture, rewards or inventory legality.
+- Rendering does not decide movement, collision, capture, rewards, inventory or collection legality.
 - Battle terminal results are applied once before UI acknowledgement, preventing duplicate capture/reward side effects.
 - `ProgressionService` owns EXP/level/stat rules.
-- `MonsterCollectionStore` owns party/storage persistence and schema migration.
+- `MonsterCollectionStore` owns party/storage persistence, transfer legality and schema migration.
+- `PartyStorageController` receives narrow collection callbacks and never writes browser storage directly.
 - `InventoryStore` owns item quantities and starter-stock initialization.
 - Battle receives capture stock through hooks rather than reading `localStorage` directly.
 - Scene transitions preserve the existing world object instead of reloading for battle exit.
@@ -186,16 +213,15 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures when new maps/scenes are imported.
 3. Replace temporary third-party Pokémon resources before any distribution requiring original/licensed assets.
-4. Add party/storage management UI for moving monsters between six active slots and storage.
-5. Add Bag UI backed by `InventoryStore`.
-6. Add actual item acquisition sources: NPC/shop/loot/rewards.
-7. Define persistent post-battle HP/healing rules before carrying combat damage between encounters.
-8. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
-9. Replace browser persistence and local battle/encounter authority with server-backed multiplayer authority.
+4. Add Bag UI backed by `InventoryStore`.
+5. Add actual item acquisition sources: NPC/shop/loot/rewards.
+6. Define persistent post-battle HP/healing rules before carrying combat damage between encounters.
+7. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
+8. Replace browser persistence and local battle/encounter authority with server-backed multiplayer authority.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system or inventory economy. Encounter, battle, capture, collection, progression and inventory modules described above are Monster World Online product code.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system, inventory economy or party/storage manager. Encounter, battle, capture, collection, progression, inventory and collection-management modules described above are Monster World Online product code.
 
 ## Resource and licensing note
 

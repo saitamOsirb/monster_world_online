@@ -7,6 +7,8 @@ import { getEncounterTableForScene } from './encounters/tables'
 import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
+import { InventoryStore } from './inventory/InventoryStore'
+import { CAPTURE_CAPSULE_ID } from './inventory/types'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
@@ -17,6 +19,7 @@ import { WorldScene } from './world/WorldScene'
 const PLAYER_DISAPPEAR_MS = 100
 const SCENE_FADE_MS = 1000
 const BATTLE_FADE_MS = 450
+const STARTER_CAPTURE_CAPSULES = 5
 
 type TerminalBattlePhase = 'won' | 'lost' | 'ran' | 'captured'
 
@@ -25,6 +28,7 @@ export class Game {
   private readonly world = new WorldScene()
   private readonly encounters = new EncounterService()
   private readonly collection = new MonsterCollectionStore()
+  private readonly inventory = new InventoryStore()
   private readonly progression = new ProgressionService()
   private readonly menu: MenuController
   private readonly battle: BattleController
@@ -35,12 +39,15 @@ export class Game {
 
   constructor(private readonly app: Application) {
     this.collection.ensureStarter(createStarterMonster())
+    this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
       onPartyExitRequested: () => void this.transitionBackToMenu(),
     })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
+      getCaptureItemCount: () => this.inventory.getQuantity(CAPTURE_CAPSULE_ID),
+      consumeCaptureItem: () => this.inventory.consume(CAPTURE_CAPSULE_ID),
       onBattleResolved: (phase, state, encounter) => this.applyBattleResult(phase, state, encounter),
       onBattleFinished: () => void this.transitionOutOfBattle(),
     })

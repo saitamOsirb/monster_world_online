@@ -9,19 +9,25 @@ import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
 import { InteractionService } from './interaction/InteractionService'
-import { TOWN_SUPPLY_MERCHANT } from './interaction/npcs'
+import {
+  PARTY_RECOVERY_SERVICE_ID,
+  TOWN_RECOVERY_ATTENDANT,
+  TOWN_SUPPLY_MERCHANT,
+} from './interaction/npcs'
 import { InventoryStore } from './inventory/InventoryStore'
 import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
 import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
+import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
 import { ShopService } from './shop/ShopService'
 import { TOWN_SUPPLY_SHOP } from './shop/catalog'
 import { BagController } from './ui/BagController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
+import { RecoveryController } from './ui/RecoveryController'
 import { VendorController } from './ui/VendorController'
 import { NpcWorldLayer } from './world/NpcWorldLayer'
 import type { DoorDefinition, GridPoint } from './world/types'
@@ -47,6 +53,7 @@ export class Game {
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly shopService = new ShopService(this.inventory, this.wallet)
   private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
+  private readonly recoveryService = new PartyRecoveryService(this.collection)
   private readonly interaction = new InteractionService()
   private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
   private readonly npcWorld: NpcWorldLayer
@@ -54,6 +61,7 @@ export class Game {
   private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
   private readonly vendor: VendorController
+  private readonly recovery: RecoveryController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
 
@@ -89,6 +97,12 @@ export class Game {
       onExit: () => this.vendor.hide(),
     })
 
+    this.recovery = new RecoveryController({
+      getParty: () => this.collection.party,
+      recover: () => this.recoveryService.recoverActiveParty(),
+      onExit: () => this.recovery.hide(),
+    })
+
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
       onBagRequested: () => void this.transitionToBag(),
@@ -111,6 +125,7 @@ export class Game {
       this.partyStorage.view,
       this.battle.view,
       this.vendor.view,
+      this.recovery.view,
       this.fadeOverlay,
     )
   }
@@ -176,6 +191,15 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+  openRecoveryForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual recovery loading is only available in visual-test mode')
+    }
+    this.recovery.show(TOWN_RECOVERY_ATTENDANT)
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -188,6 +212,12 @@ export class Game {
 
     if (this.vendor.isActive) {
       if (!this.transitioning) this.vendor.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.recovery.isActive) {
+      if (!this.transitioning) this.recovery.update(this.input)
       this.input.endFrame()
       return
     }
@@ -228,6 +258,10 @@ export class Game {
     if (!npc) return false
     if (npc.vendorId === TOWN_SUPPLY_SHOP.id) {
       this.vendor.show(npc, TOWN_SUPPLY_SHOP)
+      return true
+    }
+    if (npc.serviceId === PARTY_RECOVERY_SERVICE_ID) {
+      this.recovery.show(npc)
       return true
     }
     return false

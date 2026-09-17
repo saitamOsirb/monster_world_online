@@ -127,8 +127,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | Persistent collection | Implemented | Six active slots + storage overflow. |
 | Party/Storage manager | Implemented | Change lead and transfer monsters. |
 | EXP/level/stat growth | Implemented foundation | Persistent progression, level cap 100. |
-| Persistent inventory + Bag | Implemented | Categorized live inventory and field target selection. |
-| Capture Capsule | Implemented | Five starter capsules exactly once. |
+| Persistent inventory + Bag | Implemented | Categorized live inventory, field target selection and battle-side item actions. |
+| Capture Capsule | Implemented | Five starter capsules exactly once; capture keeps its dedicated battle command. |
+| Battle-side Bag | Implemented | Healing/status/revive items can be selected in battle with explicit turn-consumption rules. |
 | Healing Tonic | Implemented | Restores up to 20 HP to a conscious active monster. |
 | Status Remedy | Implemented | Clears poison/burn/paralysis/sleep from one active monster. |
 | Revive Kit | Implemented | Revives one fainted active monster at 50% max HP. |
@@ -209,6 +210,11 @@ Inventory rules:
 - Quantities are non-negative integers; `add()`/`consume()` require positive integer mutations.
 - Capture attempts consume a capsule before success/failure resolution.
 - Capture with zero stock does not consume a battle turn.
+- Healing Tonic, Status Remedy and Revive Kit are `both` field/battle usable; Capture Capsule remains battle-only on its dedicated capture command.
+- A **successful** battle item use consumes exactly one item, updates the active battle state, gives the enemy one response, resolves end-of-turn status effects and then advances the turn once.
+- An **invalid** battle item use consumes no item, gives no enemy response, resolves no end-of-turn status tick and does not increment the battle turn.
+- While the battle Bag is open, X/Escape returns to battle commands instead of triggering Run.
+- Revive Kit is structurally supported by battle item rules, but the current one-active-monster battle ends immediately when that active monster faints; reviving a fainted reserve requires future battle-party target selection.
 - Bag hides zero-stock entries by default and exposes `capture`, `healing`, `battle`, and `key` categories.
 - Any field-usable item enters active-party target selection.
 - Healing Tonic **cannot revive** a 0-HP monster; it returns `fainted-requires-revive` without consumption.
@@ -285,7 +291,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **118 tests across 22 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **127 tests across 24 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
 
@@ -317,10 +323,11 @@ The original Godot repository does not expose another major gameplay subsystem b
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
 4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
 5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
-6. Implement battle-side Bag actions and explicit turn-consumption/enemy-response rules.
-7. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
-8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Add battle party switching and reserve-monster target selection so Revive Kit can revive a fainted reserve during combat.
+7. Add a deterministic battle visual fixture once battle-party interaction is stable.
+8. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
+9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

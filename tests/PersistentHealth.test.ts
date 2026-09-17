@@ -14,8 +14,8 @@ class MemoryStorage {
 
 const encounter: WildEncounter = {
   tableId: 'test-table',
-  speciesId: 'pidgey',
-  displayName: 'Pidgey',
+  speciesId: 'skyrill',
+  displayName: 'Skyrill',
   level: 3,
   spritePath: '/assets/Pokemon/Pidgey.png',
 }

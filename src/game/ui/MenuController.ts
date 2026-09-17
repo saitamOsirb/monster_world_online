@@ -95,6 +95,7 @@ export class MenuController {
   private readonly menuPanel = new Container()
   private readonly partyPanel = new Container()
   private readonly partySelectionSprites: Sprite[] = []
+  private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
   private menuArrow: Sprite | null = null
   private cancelSprite: Sprite | null = null
   private mainBackgroundFrames: Texture[] = []
@@ -301,7 +302,8 @@ export class MenuController {
       creature.animationSpeed = 2 / 60
       creature.loop = true
       creature.roundPixels = true
-      creature.play()
+      if (this.visualTestMode) creature.gotoAndStop(0)
+      else creature.play()
       this.partyPanel.addChild(creature)
 
       const name = new Sprite(this.cropTexture(speciesTexture, 0, 0, 73, 10))

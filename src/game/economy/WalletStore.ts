@@ -16,6 +16,10 @@ export class WalletStore {
     return this.cloneState(this.state)
   }
 
+  get balance(): number {
+    return this.getBalance()
+  }
+
   getBalance(currencyId: CurrencyId = CURRENCY_ID): number {
     return this.state.balances[currencyId] ?? 0
   }

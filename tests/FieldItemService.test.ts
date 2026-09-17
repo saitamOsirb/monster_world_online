@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { InventoryStore } from '../src/game/inventory/InventoryStore'
-import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../src/game/inventory/types'
+import {
+  CAPTURE_CAPSULE_ID,
+  HEALING_TONIC_ID,
+  REVIVE_KIT_ID,
+  STATUS_REMEDY_ID,
+} from '../src/game/inventory/types'
 import { FieldItemService } from '../src/game/items/FieldItemService'
 import { MonsterCollectionStore } from '../src/game/monsters/MonsterCollectionStore'
 import { createStarterMonster } from '../src/game/monsters/MonsterFactory'
@@ -38,6 +43,7 @@ describe('FieldItemService', () => {
 
     expect(result).toMatchObject({
       ok: true,
+      action: 'heal',
       healedHp: 20,
       currentHp: 25,
       maxHp: 26,
@@ -48,13 +54,53 @@ describe('FieldItemService', () => {
     expect(new InventoryStore(storage).getQuantity(HEALING_TONIC_ID)).toBe(1)
   })
 
-  it('can recover a fainted monster from zero HP', () => {
-    const { service, collection, starter } = setup(0)
+  it('requires a Revive Kit instead of Healing Tonic at zero HP', () => {
+    const { service, inventory, collection, starter } = setup(0)
 
     const result = service.use(HEALING_TONIC_ID, starter.instanceId)
 
-    expect(result).toMatchObject({ ok: true, healedHp: 20, currentHp: 20 })
-    expect(collection.lead?.currentHp).toBe(20)
+    expect(result).toEqual({ ok: false, reason: 'fainted-requires-revive' })
+    expect(inventory.getQuantity(HEALING_TONIC_ID)).toBe(1)
+    expect(collection.lead?.currentHp).toBe(0)
+  })
+
+  it('revives a fainted monster at 50 percent max HP', () => {
+    const { service, inventory, collection, starter } = setup(0, 0)
+    inventory.add(REVIVE_KIT_ID, 1)
+
+    const result = service.use(REVIVE_KIT_ID, starter.instanceId)
+
+    expect(result).toMatchObject({ ok: true, action: 'revive', currentHp: 13, maxHp: 26 })
+    expect(collection.lead?.currentHp).toBe(13)
+    expect(inventory.getQuantity(REVIVE_KIT_ID)).toBe(0)
+  })
+
+  it('does not consume Revive Kit on a conscious target', () => {
+    const { service, inventory, starter } = setup(5, 0)
+    inventory.add(REVIVE_KIT_ID, 1)
+
+    expect(service.use(REVIVE_KIT_ID, starter.instanceId)).toEqual({ ok: false, reason: 'not-fainted' })
+    expect(inventory.getQuantity(REVIVE_KIT_ID)).toBe(1)
+  })
+
+  it('clears a persistent status condition with Status Remedy', () => {
+    const { service, inventory, collection, starter } = setup(10, 0)
+    collection.updateBattleState(starter.instanceId, 10, { condition: 'poison' })
+    inventory.add(STATUS_REMEDY_ID, 1)
+
+    const result = service.use(STATUS_REMEDY_ID, starter.instanceId)
+
+    expect(result).toMatchObject({ ok: true, action: 'status-recovery', clearedStatus: 'poison' })
+    expect(collection.lead?.status).toBeUndefined()
+    expect(inventory.getQuantity(STATUS_REMEDY_ID)).toBe(0)
+  })
+
+  it('does not consume Status Remedy when there is no condition', () => {
+    const { service, inventory, starter } = setup(10, 0)
+    inventory.add(STATUS_REMEDY_ID, 1)
+
+    expect(service.use(STATUS_REMEDY_ID, starter.instanceId)).toEqual({ ok: false, reason: 'no-status' })
+    expect(inventory.getQuantity(STATUS_REMEDY_ID)).toBe(1)
   })
 
   it('does not consume a Healing Tonic at full HP', () => {
@@ -86,7 +132,7 @@ describe('FieldItemService', () => {
     expect(inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(before)
   })
 
-  it('loads legacy inventory payloads without manufacturing Healing Tonics', () => {
+  it('loads legacy inventory payloads without manufacturing recovery items', () => {
     const storage = new MemoryStorage()
     storage.setItem('monster-world.inventory.v1', JSON.stringify({
       version: 1,
@@ -98,7 +144,9 @@ describe('FieldItemService', () => {
 
     expect(inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(3)
     expect(inventory.getQuantity(HEALING_TONIC_ID)).toBe(0)
-    inventory.add(HEALING_TONIC_ID, 2)
-    expect(new InventoryStore(storage).getQuantity(HEALING_TONIC_ID)).toBe(2)
+    expect(inventory.getQuantity(STATUS_REMEDY_ID)).toBe(0)
+    expect(inventory.getQuantity(REVIVE_KIT_ID)).toBe(0)
+    inventory.add(STATUS_REMEDY_ID, 2)
+    expect(new InventoryStore(storage).getQuantity(STATUS_REMEDY_ID)).toBe(2)
   })
 })

@@ -31,7 +31,7 @@ export class Game {
       onPartyExitRequested: () => void this.transitionBackToMenu(),
     })
     this.battle = new BattleController({
-      onRunRequested: () => void this.transitionOutOfBattle(),
+      onBattleFinished: () => void this.transitionOutOfBattle(),
     })
     this.fadeOverlay.alpha = 0
     this.fadeOverlay.eventMode = 'none'

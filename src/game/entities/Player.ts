@@ -16,6 +16,7 @@ type PlayerState = 'idle' | 'turning' | 'walking' | 'jumping' | 'door'
 export interface PlayerHooks {
   onMoveStart?: (tile: GridPoint) => void
   onMoveEnd?: (tile: GridPoint) => void
+  onDoorEntering?: (door: DoorDefinition) => void
   onDoorEntered?: (door: DoorDefinition) => void
   onGrassStep?: (tile: GridPoint) => void
   onLanded?: (tile: GridPoint) => void
@@ -127,6 +128,7 @@ export class Player {
       this.state = 'door'
       this.motion = { from: { ...this.tile }, to: target, progress: 0, distanceTiles: 1, door }
       this.hooks.onMoveStart?.(this.tile)
+      this.hooks.onDoorEntering?.(door)
       return
     }
 

@@ -132,6 +132,35 @@ export class MonsterCollectionStore {
     return false
   }
 
+  updateBattlePartyState(
+    updates: readonly { instanceId: string; currentHp: number; status?: BattleStatus }[],
+  ): boolean {
+    if (updates.length === 0) return true
+    if (new Set(updates.map((update) => update.instanceId)).size !== updates.length) {
+      throw new Error('Battle party updates must contain unique monster ids')
+    }
+
+    const nextParty = this.state.party.map((monster) => this.cloneMonster(monster))
+    for (const update of updates) {
+      const index = nextParty.findIndex((monster) => monster.instanceId === update.instanceId)
+      if (index < 0) return false
+      const monster = nextParty[index]
+      this.assertCurrentHp(update.currentHp, monster.maxHp)
+      if (update.status && !this.isStatus(update.status)) {
+        throw new Error('Invalid monster status state')
+      }
+      nextParty[index] = this.cloneMonster({
+        ...monster,
+        currentHp: update.currentHp,
+        status: update.status,
+      })
+    }
+
+    this.state.party = nextParty
+    this.persist()
+    return true
+  }
+
   updateBattleState(instanceId: string, currentHp: number, status?: BattleStatus): boolean {
     for (const collection of [this.state.party, this.state.storage]) {
       const index = collection.findIndex((monster) => monster.instanceId === instanceId)

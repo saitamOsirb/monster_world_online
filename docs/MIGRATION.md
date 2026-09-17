@@ -106,7 +106,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | --- | --- | --- |
 | Scene-scoped encounters | Implemented foundation | Town has the reference grass table. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
-| Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture and statuses. |
+| Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
 | Elemental typing | Implemented foundation | Ten Monster World elements, up to two per monster. |
 | Elemental effectiveness | Implemented | Immunity/resistance/weakness/dual weakness at `0×/0.5×/2×/4×`. |
@@ -129,7 +129,8 @@ The upstream prototype does not contain these systems. They are original Monster
 | EXP/level/stat growth | Implemented foundation | Persistent progression, level cap 100. |
 | Persistent inventory + Bag | Implemented | Categorized live inventory, field target selection and battle-side item actions. |
 | Capture Capsule | Implemented | Five starter capsules exactly once; capture keeps its dedicated battle command. |
-| Battle-side Bag | Implemented | Healing/status/revive items can be selected in battle with explicit turn-consumption rules. |
+| Battle-side Bag | Implemented | Healing/status/revive items can target active or reserve party members with explicit turn-consumption rules. |
+| Battle party switching | Implemented | Voluntary switch consumes a turn; forced replacement after KO is free; defeat requires the entire party to faint. |
 | Healing Tonic | Implemented | Restores up to 20 HP to a conscious active monster. |
 | Status Remedy | Implemented | Clears poison/burn/paralysis/sleep from one active monster. |
 | Revive Kit | Implemented | Revives one fainted active monster at 50% max HP. |
@@ -182,9 +183,10 @@ Species combat/presentation metadata no longer lives in encounter tables. `speci
 - One reward may grant multiple levels; level 100 clears unusable overflow EXP.
 - Capture, run and defeat grant no EXP.
 - Battles begin from persisted `currentHp` and persisted `status`.
-- Terminal player HP + status are written through `MonsterCollectionStore.updateBattleState()` before progression/reward side effects.
-- Defeat persists **0 HP**.
+- Terminal party HP + status are written atomically through `MonsterCollectionStore.updateBattlePartyState()` before progression/reward side effects.
+- Defeat persists the terminal HP/status of every party member, including **0 HP** for fainted members.
 - Captured monsters preserve their battle elements, move metadata and status at capture time; canonical name/sprite identity resolves from the species catalog.
+- Victory EXP is currently awarded to the monster active when the enemy is defeated; participation/shared EXP is future product work.
 - Level-up HP growth preserves existing damage; it does not full-heal.
 - A combatant can hold one status at a time; status moves do not overwrite an existing condition.
 - Poison and burn resolve at end of turn and can cause a KO.
@@ -214,7 +216,12 @@ Inventory rules:
 - A **successful** battle item use consumes exactly one item, updates the active battle state, gives the enemy one response, resolves end-of-turn status effects and then advances the turn once.
 - An **invalid** battle item use consumes no item, gives no enemy response, resolves no end-of-turn status tick and does not increment the battle turn.
 - While the battle Bag is open, X/Escape returns to battle commands instead of triggering Run.
-- Revive Kit is structurally supported by battle item rules, but the current one-active-monster battle ends immediately when that active monster faints; reviving a fainted reserve requires future battle-party target selection.
+- Battle state carries the full active party plus an active index while preserving `state.player` as the active-monster alias.
+- Voluntary switch consumes the player's turn and gives the enemy one response.
+- If the active monster faints and a conscious reserve exists, battle enters `awaiting-switch`; the forced replacement is free and does not trigger another enemy action.
+- Defeat occurs only when no conscious party member remains.
+- Battle-side Healing Tonic, Status Remedy and Revive Kit can target active or reserve party members.
+- Revive Kit can revive a fainted reserve during combat; a successful reserve item use still consumes the player's turn and the enemy attacks the current active monster.
 - Bag hides zero-stock entries by default and exposes `capture`, `healing`, `battle`, and `key` categories.
 - Any field-usable item enters active-party target selection.
 - Healing Tonic **cannot revive** a 0-HP monster; it returns `fainted-requires-revive` without consumption.
@@ -291,12 +298,13 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **127 tests across 24 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **135 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `a8904ce9ecf7a85df7e5b8fe9fb022a80f1ef882d6494d6a12734afa3c47645b`
+- battle: `96f6124fcba0ba46ab89255d6889a8cc8a81958d110e558099049a9092570b48`
 
 ## Intentional architecture cleanups
 
@@ -323,11 +331,10 @@ The original Godot repository does not expose another major gameplay subsystem b
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
 4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
 5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
-6. Add battle party switching and reserve-monster target selection so Revive Kit can revive a fainted reserve during combat.
-7. Add a deterministic battle visual fixture once battle-party interaction is stable.
-8. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
-9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Define participation/shared EXP rules for battles involving multiple party members.
+7. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
+8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

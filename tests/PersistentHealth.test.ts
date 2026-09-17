@@ -31,6 +31,24 @@ describe('persistent monster HP', () => {
     expect(engine.state.player.maxHp).toBe(26)
   })
 
+  it('selects the first conscious party member when the lead is fainted', () => {
+    const faintedLead = { ...createStarterMonster(new Date(0)), instanceId: 'lead', currentHp: 0 }
+    const reserve = { ...createStarterMonster(new Date(1)), instanceId: 'reserve', currentHp: 12 }
+    const definitions = createReferenceBattleSession(encounter, [faintedLead, reserve])
+    const engine = new BattleEngine(
+      definitions.player,
+      definitions.enemy,
+      () => 0,
+      undefined,
+      undefined,
+      definitions.playerReserves,
+    )
+
+    expect(engine.state.player.id).toBe('reserve')
+    expect(engine.state.player.currentHp).toBe(12)
+    expect(engine.state.playerParty.find((monster) => monster.id === 'lead')?.currentHp).toBe(0)
+  })
+
   it('keeps partial HP unchanged when running from battle', () => {
     const lead = { ...createStarterMonster(new Date(0)), currentHp: 11 }
     const definitions = createReferenceBattleSession(encounter, lead)

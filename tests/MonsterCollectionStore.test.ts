@@ -168,6 +168,39 @@ describe('MonsterCollectionStore', () => {
     expect(store.storageMonsters).toHaveLength(1)
   })
 
+  it('persists multiple battle party HP/status updates atomically', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('a'))
+    store.addCaptured(monster('b'))
+
+    expect(store.updateBattlePartyState([
+      { instanceId: 'a', currentHp: 3, status: { condition: 'poison' } },
+      { instanceId: 'b', currentHp: 0 },
+    ])).toBe(true)
+
+    const reloaded = new MonsterCollectionStore(storage)
+    expect(reloaded.party.find((entry) => entry.instanceId === 'a')).toMatchObject({
+      currentHp: 3,
+      status: { condition: 'poison' },
+    })
+    expect(reloaded.party.find((entry) => entry.instanceId === 'b')?.currentHp).toBe(0)
+  })
+
+  it('does not partially persist a battle party update containing an unknown id', () => {
+    const storage = new MemoryStorage()
+    const store = new MonsterCollectionStore(storage)
+    store.ensureStarter(monster('a'))
+    store.addCaptured(monster('b'))
+    const before = store.snapshot
+
+    expect(store.updateBattlePartyState([
+      { instanceId: 'a', currentHp: 1 },
+      { instanceId: 'missing', currentHp: 1 },
+    ])).toBe(false)
+    expect(store.snapshot).toEqual(before)
+  })
+
   it('rejects unknown monster ids without mutating collection state', () => {
     const storage = new MemoryStorage()
     const store = new MonsterCollectionStore(storage)

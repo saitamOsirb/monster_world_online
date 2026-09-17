@@ -112,21 +112,19 @@ describe('elemental battle model', () => {
     expect(result.state.enemy.status).toBeUndefined()
   })
 
-  it('builds enemy elements and moves from encounter metadata', () => {
+  it('builds enemy elements, stats and learnset from the species catalog', () => {
     const encounter: WildEncounter = {
       tableId: 'element-test',
-      speciesId: 'storm-bird',
-      displayName: 'Storm Bird',
-      level: 6,
-      spritePath: '/storm-bird.png',
-      elements: ['air', 'electric'],
-      moveIds: ['gust-cut', 'spark-jolt'],
+      speciesId: 'pidgey',
+      displayName: 'Pidgey',
+      level: 4,
+      spritePath: '/assets/Pokemon/Pidgey.png',
     }
 
     const session = createReferenceBattleSession(encounter)
 
-    expect(session.enemy.elements).toEqual(['air', 'electric'])
-    expect(session.enemy.moves.map((move) => move.id)).toEqual(['gust-cut', 'spark-jolt'])
-    expect(session.enemy.moves.map((move) => move.element)).toEqual(['air', 'electric'])
+    expect(session.enemy.elements).toEqual(['air', 'neutral'])
+    expect(session.enemy.maxHp).toBe(19)
+    expect(session.enemy.moves.map((move) => move.id)).toEqual(['basic-strike', 'gust-cut', 'quick-hit'])
   })
 })

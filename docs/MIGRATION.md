@@ -112,7 +112,8 @@ The upstream prototype does not contain these systems. They are original Monster
 | Elemental effectiveness | Implemented | Immunity/resistance/weakness/dual weakness at `0×/0.5×/2×/4×`. |
 | Same-element attack bonus | Implemented | Explicit typed moves gain `1.25×` when matching an attacker element. |
 | Typed move catalog | Implemented foundation | Central move metadata for element, physical/special class, priority and status effects. |
-| Species catalog | Implemented foundation | Central base stats, stat growth, elements, catch rate, growth curve, sprite and learnset metadata. |
+| Physical/Special stat split | Implemented | Physical uses ATK/DEF; special uses Special Attack/Special Defense with independent species growth. |
+| Species catalog | Implemented foundation | Central physical/special base stats, stat growth, elements, catch rate, growth curve, sprite and learnset metadata. |
 | Species-driven encounters | Implemented | Encounter tables now contain only species id, level range and weight. |
 | Species-driven capture/growth | Implemented | Catch rate and per-level stat growth resolve through species metadata with legacy fallbacks. |
 | Persistent HP/status | Implemented | Terminal HP + condition persist for win/loss/run/capture. |
@@ -157,8 +158,9 @@ Monster World currently defines these ten elements:
 - Double resistance is intentionally floored at **0.5×** for this Monster World foundation rather than stacking below that value.
 - Example immunity: `electric → earth = 0×`.
 - `effectiveness` battle events drive presentation feedback such as resisted, super-effective and immune messages; Pixi does not calculate multipliers.
-- Physical/special metadata is now explicit. Both classes still use the current shared ATK/DEF stats; splitting physical/special offensive and defensive stats is future product work.
-- Burn's outgoing attack penalty applies to **physical** damage only.
+- Physical moves resolve with **Attack → Defense**.
+- Special moves resolve with **Special Attack → Special Defense**.
+- Burn's outgoing attack penalty applies to **physical Attack only** and does not reduce Special Attack.
 
 The first centralized move catalog contains:
 
@@ -175,7 +177,7 @@ Species combat/presentation metadata no longer lives in encounter tables. `speci
 - Max level: **100**.
 - EXP required for next level: `60 + currentLevel × 30`.
 - Victory EXP: `round(20 + enemyLevel × 18 + enemyMaxHp × 0.8)`.
-- Per-level stat growth is species-driven. The current starter uses **+4 max HP, +2 ATK, +2 DEF, +1 SPD**; unknown legacy species retain that previous global growth as a compatibility fallback.
+- Per-level stat growth is species-driven across all six combat stats. The current starter uses **+4 max HP, +2 ATK, +2 DEF, +3 Special Attack, +2 Special Defense, +1 SPD**. Unknown legacy species retain the old physical growth plus **+2 Special Attack/+2 Special Defense** compatibility growth.
 - One reward may grant multiple levels; level 100 clears unusable overflow EXP.
 - Capture, run and defeat grant no EXP.
 - Battles begin from persisted `currentHp` and persisted `status`.
@@ -269,7 +271,8 @@ Collection payload `version: 2` remains backward compatible with records created
 - missing `status` means healthy/clear;
 - missing `elements` normalizes to `['neutral']`;
 - existing moves without `element`/`damageClass` remain untyped rather than being silently rewritten, so they do not receive accidental STAB;
-- legacy collection `version: 1` still migrates with `experience: 0` and normalized elements.
+- missing `specialAttack` normalizes from `attack` and missing `specialDefense` normalizes from `defense` without changing the collection key or payload version;
+- legacy collection `version: 1` still migrates with `experience: 0`, normalized elements and normalized special stats.
 
 Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and Revive Kit keys and normalizes each missing quantity to zero. No migration manufactures new stock.
 
@@ -282,7 +285,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **114 tests across 21 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, battle/capture/status/elemental resolution, species catch rates, HP/status/element persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **118 tests across 22 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
 
@@ -314,11 +317,10 @@ The original Godot repository does not expose another major gameplay subsystem b
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
 4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
 5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
-6. Split physical/special offensive/defensive stats if the final combat design requires that distinction beyond move metadata.
-7. Decide whether battle-side Bag use should allow healing/status/revive actions and define turn-consumption rules.
-8. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
-9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Implement battle-side Bag actions and explicit turn-consumption/enemy-response rules.
+7. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
+8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

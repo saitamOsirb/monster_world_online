@@ -35,6 +35,46 @@ describe('ProgressionService', () => {
     expect(progression.calculateVictoryExperience({ level: 3, maxHp: 21 })).toBe(91)
   })
 
+  it('splits one victory EXP pool across participants without inflation', () => {
+    const shares = progression.allocateVictoryExperience(
+      { level: 3, maxHp: 21 },
+      ['lead', 'reserve'],
+    )
+
+    expect(shares).toEqual([
+      { instanceId: 'lead', experience: 46 },
+      { instanceId: 'reserve', experience: 45 },
+    ])
+    expect(shares.reduce((sum, share) => sum + share.experience, 0)).toBe(91)
+  })
+
+  it('preserves participation order, deduplicates ids and assigns integer remainder once', () => {
+    const shares = progression.allocateVictoryExperience(
+      { level: 3, maxHp: 21 },
+      ['lead', 'reserve-a', 'lead', 'reserve-b'],
+    )
+
+    expect(shares).toEqual([
+      { instanceId: 'lead', experience: 31 },
+      { instanceId: 'reserve-a', experience: 30 },
+      { instanceId: 'reserve-b', experience: 30 },
+    ])
+  })
+
+  it('awards the full victory EXP when only one monster participated', () => {
+    expect(progression.allocateVictoryExperience(
+      { level: 3, maxHp: 21 },
+      ['lead'],
+    )).toEqual([{ instanceId: 'lead', experience: 91 }])
+  })
+
+  it('returns no allocation when there are no valid participant ids', () => {
+    expect(progression.allocateVictoryExperience(
+      { level: 3, maxHp: 21 },
+      ['', ''],
+    )).toEqual([])
+  })
+
   it('stores partial experience without changing level or stats', () => {
     const source = monster()
     const result = progression.grantExperience(source, 90)

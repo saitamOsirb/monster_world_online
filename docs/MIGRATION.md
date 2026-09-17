@@ -11,20 +11,26 @@ The target runtime does **not** embed Godot, GDScript, `AnimationTree`, `TileMap
 ```text
 src/
   game/
-    Game.ts                       application loop, camera, transitions
+    Game.ts                       application loop, camera, transitions, persistence wiring
     constants.ts                  preserved 240x160 / 16px gameplay contracts
     battle/
       BattleController.ts         Pixi battle presentation + input adapter
-      BattleEngine.ts             renderer-independent turn resolution
+      BattleEngine.ts             renderer-independent turn/capture resolution
       BattleSessionFactory.ts     temporary reference-content adapter
       types.ts                    battle domain contracts/events
+    capture/
+      CaptureService.ts           renderer-independent capture probability
     encounters/
       EncounterService.ts         renderer-independent weighted encounter RNG
       tables.ts                   scene-scoped encounter tables
       types.ts                    encounter domain contracts
+    monsters/
+      MonsterCollectionStore.ts   persistent party/storage repository
+      MonsterFactory.ts           starter/captured-monster adapters
+      types.ts                    owned-monster domain contracts
     entities/Player.ts            player state machine and animation slicing
     input/InputController.ts      keyboard edge/held state
-    ui/MenuController.ts          source-asset menu + party UI/state
+    ui/MenuController.ts          source-asset menu + runtime persistent Party UI
     world/
       CollisionWorld.ts           deterministic grid queries
       DoorAnimator.ts             visible 3-frame door sequences
@@ -52,25 +58,25 @@ visual-tests/
 | Side-facing horizontal flip | Migrated | Right reuses left-facing frames, matching the Godot scene. |
 | Water blocking | Migrated | Imported from overworld tile id 2. |
 | Animated water | Migrated | Eight source sheets are advanced by one shared renderer clock instead of one ticker per tile. |
-| `RectangleShape2D` collision | Migrated | Rectangle shapes are decoded from scenes and instantiated objects and rasterized to the 16px movement grid. |
-| Scaled/rotated collision transforms | Migrated | `position`, `scale`, `rotation` and explicit `Transform2D` matrices are composed through the scene hierarchy. Rotated rectangles remain convex polygons for tile-overlap testing instead of being reduced to their AABB. |
+| `RectangleShape2D` collision | Migrated | Rectangle shapes are decoded from scenes/instances and rasterized to the 16px movement grid. |
+| Scaled/rotated collision transforms | Migrated | Hierarchy transforms are composed and rotated rectangles retain polygon overlap tests. |
 | Nested scene transforms | Migrated | Parent/child transforms are resolved before object, collision and door placement. |
-| Instance visual overrides | Migrated | Editable child Sprite overrides such as Oak's Lab and its door are associated with their owning instance. |
-| Interior wall collision | Migrated | Local rectangle shapes in interiors are imported by the same collision path. |
+| Instance visual overrides | Migrated | Editable child Sprite overrides such as Oak's Lab and its door remain associated with the owning instance. |
+| Interior wall collision | Migrated | Local rectangle shapes in interiors use the same collision path. |
 | Control-node interior placement | Migrated | `position` is preferred and `margin_left/margin_top` are retained for Godot Control nodes. |
 | Downward ledge jump | Migrated | Two-tile jump contract and parabolic vertical arc retained. |
 | Landing dust | Migrated | Three horizontal frames at the original 5 FPS. |
 | Door target + spawn | Migrated | Door metadata is imported from TSCN, including invisible interior doors. |
 | Visible door animation | Migrated | 0→1→2 opening and 2→1→0 closing use the original 100 ms frame cadence. |
 | Scene fade | Migrated | Fade-to-black and fade-to-normal both use the original 1 second duration. |
-| Camera follows player | Migrated | Integer-aligned camera to prevent texture shimmer. |
+| Camera follows player | Migrated | Integer-aligned camera prevents texture shimmer. |
 | Tall-grass hooks | Migrated | Collision flag plus four-frame 10 FPS step effect implemented. |
 | Flower animation | Migrated | Five horizontal frames at the original 5 FPS. |
 | Tree visual offset | Migrated | The original -16 px vertical sprite offset is retained. |
 | Enter menu, Z confirm, X cancel | Migrated | Keyboard contract retained. |
-| Six menu choices | Migrated | Original labels, arrow positions, menu texture and Pokémon font are used. |
-| Menu → Party transition | Migrated | Original fade-to-black/fade-to-normal timing is retained. |
-| Party layout | Migrated | Original background, six creature resources, slot backgrounds, gender icons, HP bar, labels and Cancel resource/coordinates are used. |
+| Six menu choices | Migrated | Original labels, arrow positions, menu texture and reference font are used. |
+| Menu → Party transition | Migrated | Original fade timing is retained. |
+| Party layout | Migrated | Original panel resources/layout remain the visual baseline. Runtime content now comes from the persistent collection. |
 | Party selection + cancel | Migrated | Original 7-state navigation contract and selected frames are retained. |
 | Godot autotile `PoolIntArray` | Migrated | Signed cell coordinates, autotile coordinates and flip/transpose flags decoded. |
 
@@ -82,63 +88,72 @@ These systems are intentionally **new product code**, not claims of migrated God
 | --- | --- | --- |
 | Scene-scoped wild encounter tables | Foundation implemented | `Town.tscn` currently has a reference grass table; interiors without tables never roll encounters. |
 | Weighted encounter selection | Implemented | Renderer-independent `EncounterService` supports weighted species, inclusive level ranges and injectable RNG. |
-| Step-based encounter checks | Implemented | Rolls happen only after a completed movement step in tall grass, never from elapsed time or held input alone. |
-| Post-encounter cooldown | Implemented | Prevents immediate back-to-back rolls and is unit-tested deterministically. |
+| Step-based encounter checks | Implemented | Rolls happen only after completed movement steps in tall grass. |
+| Post-encounter cooldown | Implemented | Prevents immediate back-to-back rolls. |
 | Overworld → battle transition | Implemented | Short fade locks input, hides the world and opens a dedicated Pixi battle layer. |
-| Battle domain engine | Implemented | Renderer-independent combatants, HP/stats, moves, priority, speed ordering, accuracy, deterministic damage variance, KO and win/lose/run phases. |
-| Battle event model | Implemented | Engine emits move/miss/damage/faint/run/battle-end events; Pixi consumes events without owning rules. |
-| Battle command UI | Implemented | Move selection, HP display, RUN, turn resolution and end-of-battle acknowledgement are wired into the Pixi battle layer. |
-| Battle exit / return to world | Implemented | Victory, defeat or run returns to the same overworld state/camera without reloading the map. |
-| Capture, rewards, EXP, persistent party | Not implemented | These are the next product modules and are intentionally not inferred from the Godot prototype. |
-| Status effects / advanced move rules | Not implemented | The engine types leave room for them, but no speculative rules are added yet. |
+| Battle domain engine | Implemented | Combatants, HP/stats, moves, priority, speed ordering, accuracy, deterministic damage variance, KO and terminal phases. |
+| Battle event model | Implemented | Engine emits move/miss/damage/faint/run/capture/battle-end events; Pixi consumes them without owning rules. |
+| Battle command UI | Implemented | Move selection, HP display, CAPTURE, RUN, turn resolution and result acknowledgement are wired into Pixi. |
+| Capture action | Implemented foundation | A failed capture consumes the turn and allows an enemy response; success ends battle with `captured`. |
+| Capture probability | Implemented foundation | `CaptureService` uses injectable RNG and a health-sensitive formula capped at 90%. This is a Monster World Online placeholder rule, not a Pokémon formula. |
+| Owned-monster model | Implemented | Captured monsters have stable instance IDs, species IDs, level/stats, moves, sprite adapter and capture timestamp. |
+| Persistent party/storage | Implemented client foundation | `MonsterCollectionStore` persists to `localStorage`, keeps six active party slots and overflows additional captures into storage. |
+| Runtime Party Screen | Implemented | Outside visual-test mode, the Party Screen is rebuilt from the persisted party and displays actual name/level/HP/sprite. |
+| Battle party lead | Implemented | The first persisted party member is now the combatant supplied to `BattleSessionFactory`. |
+| Rewards / EXP / leveling | Not implemented | Next progression module. |
+| Status effects / advanced move rules | Not implemented | Add only after Monster World Online rule design is defined. |
 
-The initial encounter table, battle creature art and `BattleSessionFactory` still use temporary synced Pokémon reference resources/data so the vertical slice is executable. The encounter and battle engines themselves are resource-name agnostic and should receive original Monster World Online species data later.
+The starter, current encounter table and temporary sprite adapters still use synced Pokémon reference resources so the vertical slice remains executable. The encounter, battle, capture and owned-monster domain APIs themselves are resource-name agnostic and are ready for original Monster World Online data/assets.
+
+## Persistence boundary
+
+`MonsterCollectionStore` is intentionally a client-side repository abstraction rather than direct `localStorage` calls scattered throughout gameplay code. `Game` talks to the repository and battle/Party systems consume domain snapshots. When multiplayer authority is introduced, this repository can be replaced by a server-backed implementation without moving capture rules into Pixi.
+
+The current storage schema is versioned as `version: 1`. Invalid/corrupted payloads fall back to an empty collection and a starter is inserted only when both party and storage are empty.
 
 ## Regression protection
 
-CI now runs four independent gates:
+CI runs four independent gates:
 
-1. `pnpm assets:sync` — proves all required reference resources can still be materialized.
-2. `pnpm test` — validates TSCN/hierarchy/collision parsing, deterministic encounter behavior and battle turn resolution. The current suite contains 20 unit tests.
-3. `pnpm test:visual` — launches the game in deterministic visual-test mode and compares SHA-256 hashes of the 240×160 canvas for Town, the menu, Party Screen, Oak's Lab, Player Home Floor 1 and Rival Home Floor.
+1. `pnpm assets:sync` — proves required reference resources can still be materialized.
+2. `pnpm test` — validates import/collision, encounter logic, battle turns, capture behavior and persistent collection semantics. The suite now contains **29 unit tests**.
+3. `pnpm test:visual` — compares deterministic SHA-256 hashes of the 240×160 canvas for Town, menu, legacy Party fixture, Oak's Lab, Player Home Floor 1 and Rival Home Floor.
 4. `pnpm build` — validates strict TypeScript and the Vite production bundle.
 
-Visual-test mode exists only behind `?visualTest=1`. Pixi tickers are frozen, Party creature sprites are pinned to a deterministic frame, and the test harness explicitly renders the Pixi stage before hashing so captures represent final state rather than whichever ticker frame happened to be last. Normal runtime animation and behavior are unchanged.
-
-The current visual regression protects the migrated Pixi baseline. It is **not** a claim that every pixel has been independently compared against a screenshot generated by the original Godot runtime; a cross-engine golden-image set would require running and capturing that legacy project in a controlled environment.
+Visual-test mode exists only behind `?visualTest=1`. It intentionally keeps the migrated legacy Party fixture so product-state persistence does not make pixel baselines depend on browser storage. The harness freezes animation where needed and explicitly renders the Pixi stage before hashing.
 
 ## Intentional cleanups
 
 - Gameplay state is explicit TypeScript instead of being spread across scene nodes and animation callbacks.
-- Movement and collision are deterministic grid operations; rendering does not decide whether movement is legal.
-- Input edge state is centralized rather than handled independently by several scene scripts.
+- Movement/collision are deterministic grid operations; rendering does not decide legality.
+- Input edge state is centralized.
 - Scene transitions do not destroy/recreate the player object.
-- Assets are synchronized as resources; `.import` files and Godot-generated metadata are not carried forward.
-- Collision geometry is imported into a renderer-independent grid instead of emulating Godot physics at runtime.
-- Rotated collision shapes use polygon-vs-tile SAT checks instead of conservative whole-AABB blocking.
-- Animated water uses a single global frame clock so large maps do not create a ticker per tile.
-- Door, effects and object rendering are isolated modules rather than responsibilities of the scene manager.
-- Menu and Party rendering are Pixi-native while preserving the source assets/layout instead of recreating the Godot scene graph at runtime.
-- Encounter probability/selection is isolated from Pixi and world rendering, so server-authoritative RNG can replace the local random source later without rewriting battle presentation.
-- Battle rules are isolated from Pixi. `BattleEngine` accepts definitions/RNG and returns state/events, making a future server-authoritative implementation possible without coupling rules to the renderer.
-- Battle presentation is a separate layer; leaving battle restores the existing world object rather than reloading the map.
+- Assets are synchronized as resources; Godot-generated metadata is not carried forward.
+- Collision geometry is imported into a renderer-independent grid rather than emulating Godot physics at runtime.
+- Animated water uses one global frame clock.
+- Door, effects and object rendering are isolated modules.
+- Encounter probability, battle resolution and capture probability are renderer-independent and accept injectable RNG.
+- Battle presentation is a separate layer; leaving battle restores the existing world object instead of reloading the map.
+- Persistent collection access is isolated behind `MonsterCollectionStore`, giving a clear future server-authority seam.
+- The Party UI consumes owned-monster state at runtime while visual migration tests retain a deterministic legacy fixture.
 
 ## Remaining migration/product work
 
-The upstream repository does not expose another major gameplay subsystem beyond the overworld/menu prototype. Remaining work is therefore validation and new Monster World Online product development rather than hidden Godot logic:
+The upstream repository does not expose another major gameplay subsystem beyond the overworld/menu prototype. Remaining work is validation plus original Monster World Online development:
 
 1. Add controlled cross-engine golden screenshots if an environment running the original Godot project is available.
-2. Extend the deterministic visual fixture set whenever another legacy scene or future map is imported.
-3. Replace third-party Pokémon resources before any distribution that requires original/licensed art.
-4. Add capture and owned-monster/party persistence on top of the battle result model.
-5. Add rewards, EXP, leveling and progression with original Monster World Online species/move data.
-6. Extend battle rules with status effects, elemental/type interactions and richer move metadata only after those game-design rules are defined.
-7. Move encounter/battle authority to the multiplayer server when networking is introduced.
+2. Extend deterministic visual fixtures whenever another legacy scene or future map is imported.
+3. Replace third-party Pokémon resources before distribution requiring original/licensed art.
+4. Add rewards, EXP, leveling and progression, including persistent post-battle HP/level/stat updates.
+5. Add inventory-backed capture items so capture attempts consume owned resources instead of being unlimited.
+6. Add storage-management UI for swapping party/storage members.
+7. Extend battle rules with statuses/elements/richer move metadata only after game-design rules are defined.
+8. Replace `localStorage` collection authority with server-backed persistence when multiplayer/network accounts are introduced.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. The new encounter/battle foundation in this branch is Monster World Online code and should not be presented as migrated upstream functionality.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. Encounter, battle, capture and persistence code in this branch are original Monster World Online foundation modules.
 
 ## Resource and licensing note
 
-The upstream GitHub repository reports no repository license. Its Pokémon names/artwork/resources also relate to third-party intellectual property. The sync script is provided to reproduce the requested technical migration from the referenced project, but the repository should not assume that upstream assets are cleared for redistribution or commercial use. For an original game, replace those resources with assets you have rights to use before distribution.
+The upstream GitHub repository reports no repository license. Its Pokémon names/artwork/resources also relate to third-party intellectual property. The sync script exists to reproduce the requested technical migration from that reference project, but production/distribution should replace those temporary resources with assets/data you have rights to use.

@@ -1,7 +1,9 @@
 import { Assets, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'pixi.js'
+import { CaptureService } from '../capture/CaptureService'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../constants'
 import type { WildEncounter } from '../encounters/types'
 import { InputController } from '../input/InputController'
+import type { OwnedMonster } from '../monsters/types'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
 import type { BattleEvent, BattlePhase, BattleState } from './types'
@@ -10,7 +12,12 @@ const UI_FONT_FAMILY = 'PokemonFL'
 const PLAYER_REFERENCE_SPRITE = '/assets/Pokemon/Charmander.png'
 
 export interface BattleControllerHooks {
-  onBattleFinished?: (phase: Extract<BattlePhase, 'won' | 'lost' | 'ran'>) => void
+  getLeadMonster?: () => OwnedMonster | null
+  onBattleFinished?: (
+    phase: Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'>,
+    state: BattleState,
+    encounter: WildEncounter,
+  ) => void
 }
 
 export class BattleController {
@@ -63,8 +70,14 @@ export class BattleController {
     this.enemySprite = enemy
     this.view.addChildAt(enemy, 3)
 
-    const definitions = createReferenceBattleSession(encounter)
-    this.engine = new BattleEngine(definitions.player, definitions.enemy)
+    const definitions = createReferenceBattleSession(encounter, this.hooks.getLeadMonster?.())
+    const capture = new CaptureService()
+    this.engine = new BattleEngine(
+      definitions.player,
+      definitions.enemy,
+      Math.random,
+      (target) => capture.attempt(target),
+    )
     this.encounter = encounter
     this.selectedCommand = 0
     this.awaitingExit = false
@@ -82,12 +95,12 @@ export class BattleController {
     }
 
     const commands = this.commandCount()
-    if (input.wasPressed('ArrowDown')) {
+    if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) {
       this.selectedCommand = (this.selectedCommand + 1) % commands
       this.refreshCommandText(this.engine.state)
       return
     }
-    if (input.wasPressed('ArrowUp')) {
+    if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) {
       this.selectedCommand = this.selectedCommand === 0 ? commands - 1 : this.selectedCommand - 1
       this.refreshCommandText(this.engine.state)
       return
@@ -100,11 +113,15 @@ export class BattleController {
     if (!input.isConfirmPressed()) return
 
     const moves = this.engine.state.player.moves
-    if (this.selectedCommand >= moves.length) {
-      this.resolveRun()
+    if (this.selectedCommand < moves.length) {
+      this.resolveMove(moves[this.selectedCommand].id)
       return
     }
-    this.resolveMove(moves[this.selectedCommand].id)
+    if (this.selectedCommand === moves.length) {
+      this.resolveCapture()
+      return
+    }
+    this.resolveRun()
   }
 
   hide(): void {
@@ -118,24 +135,32 @@ export class BattleController {
   private resolveMove(moveId: string): void {
     if (!this.engine) return
     const result = this.engine.resolvePlayerAction({ kind: 'move', moveId })
-    this.refreshBattleUi(result.state)
-    this.setMessage(this.describeEvents(result.events))
-    if (result.state.phase !== 'awaiting-player') this.awaitingExit = true
+    this.applyTurnResult(result.state, result.events)
+  }
+
+  private resolveCapture(): void {
+    if (!this.engine) return
+    const result = this.engine.resolvePlayerAction({ kind: 'capture' })
+    this.applyTurnResult(result.state, result.events)
   }
 
   private resolveRun(): void {
     if (!this.engine) return
     const result = this.engine.resolvePlayerAction({ kind: 'run' })
-    this.refreshBattleUi(result.state)
-    this.setMessage(this.describeEvents(result.events))
-    this.awaitingExit = true
+    this.applyTurnResult(result.state, result.events)
+  }
+
+  private applyTurnResult(state: BattleState, events: readonly BattleEvent[]): void {
+    this.refreshBattleUi(state)
+    this.setMessage(this.describeEvents(events))
+    if (state.phase !== 'awaiting-player') this.awaitingExit = true
   }
 
   private finishBattle(): void {
-    if (!this.engine) return
-    const phase = this.engine.state.phase
-    if (phase === 'awaiting-player') return
-    this.hooks.onBattleFinished?.(phase)
+    if (!this.engine || !this.encounter) return
+    const state = this.engine.state
+    if (state.phase === 'awaiting-player') return
+    this.hooks.onBattleFinished?.(state.phase, state, this.encounter)
   }
 
   private refreshBattleUi(state: BattleState): void {
@@ -152,6 +177,7 @@ export class BattleController {
     if (!this.commandText) return
     const options = [
       ...state.player.moves.map((move) => move.name),
+      'CAPTURE',
       'RUN',
     ]
     this.commandText.text = options
@@ -160,7 +186,7 @@ export class BattleController {
   }
 
   private commandCount(): number {
-    return (this.engine?.state.player.moves.length ?? 0) + 1
+    return (this.engine?.state.player.moves.length ?? 0) + 2
   }
 
   private describeEvents(events: readonly BattleEvent[]): string {
@@ -168,7 +194,9 @@ export class BattleController {
 
     const messages: string[] = []
     for (const event of events) {
-      if (event.type === 'move') {
+      if (event.type === 'capture-attempt') {
+        messages.push(event.success ? 'Capture successful!' : 'The monster broke free!')
+      } else if (event.type === 'move') {
         messages.push(`${event.side === 'player' ? 'Partner' : this.encounter?.displayName ?? 'Enemy'} used ${event.moveName}.`)
       } else if (event.type === 'miss') {
         messages.push('It missed!')
@@ -179,6 +207,7 @@ export class BattleController {
       } else if (event.type === 'battle-end') {
         if (event.phase === 'won') messages.push('You won the battle!')
         else if (event.phase === 'lost') messages.push('You lost the battle.')
+        else if (event.phase === 'captured') messages.push('Added to your collection.')
       }
     }
     return messages.join(' ')

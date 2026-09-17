@@ -1,0 +1,135 @@
+import type { BattleMove } from '../battle/types'
+import type { AddMonsterResult, MonsterCollectionState, OwnedMonster } from './types'
+
+const DEFAULT_KEY = 'monster-world.collection.v1'
+const MAX_PARTY_SIZE = 6
+
+export class MonsterCollectionStore {
+  private state: MonsterCollectionState
+
+  constructor(
+    private readonly storage: Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> = window.localStorage,
+    private readonly storageKey = DEFAULT_KEY,
+  ) {
+    this.state = this.load()
+  }
+
+  get snapshot(): MonsterCollectionState {
+    return this.cloneState(this.state)
+  }
+
+  get party(): readonly OwnedMonster[] {
+    return this.state.party.map((monster) => this.cloneMonster(monster))
+  }
+
+  get storageMonsters(): readonly OwnedMonster[] {
+    return this.state.storage.map((monster) => this.cloneMonster(monster))
+  }
+
+  get lead(): OwnedMonster | null {
+    const monster = this.state.party[0]
+    return monster ? this.cloneMonster(monster) : null
+  }
+
+  ensureStarter(starter: OwnedMonster): void {
+    if (this.state.party.length > 0 || this.state.storage.length > 0) return
+    this.state.party.push(this.cloneMonster(starter))
+    this.persist()
+  }
+
+  addCaptured(monster: OwnedMonster): AddMonsterResult {
+    const captured = this.cloneMonster(monster)
+    const destination: AddMonsterResult['destination'] =
+      this.state.party.length < MAX_PARTY_SIZE ? 'party' : 'storage'
+
+    this.state[destination === 'party' ? 'party' : 'storage'].push(captured)
+    this.persist()
+    return { destination, monster: this.cloneMonster(captured) }
+  }
+
+  updateMonster(updated: OwnedMonster): boolean {
+    for (const collection of [this.state.party, this.state.storage]) {
+      const index = collection.findIndex((monster) => monster.instanceId === updated.instanceId)
+      if (index >= 0) {
+        collection[index] = this.cloneMonster(updated)
+        this.persist()
+        return true
+      }
+    }
+    return false
+  }
+
+  clear(): void {
+    this.state = this.emptyState()
+    this.storage.removeItem(this.storageKey)
+  }
+
+  private load(): MonsterCollectionState {
+    const raw = this.storage.getItem(this.storageKey)
+    if (!raw) return this.emptyState()
+
+    try {
+      const parsed = JSON.parse(raw) as unknown
+      if (!this.isCollectionState(parsed)) return this.emptyState()
+      return this.cloneState(parsed)
+    } catch {
+      return this.emptyState()
+    }
+  }
+
+  private persist(): void {
+    this.storage.setItem(this.storageKey, JSON.stringify(this.state))
+  }
+
+  private emptyState(): MonsterCollectionState {
+    return { version: 1, party: [], storage: [] }
+  }
+
+  private cloneState(state: MonsterCollectionState): MonsterCollectionState {
+    return {
+      version: 1,
+      party: state.party.map((monster) => this.cloneMonster(monster)),
+      storage: state.storage.map((monster) => this.cloneMonster(monster)),
+    }
+  }
+
+  private cloneMonster(monster: OwnedMonster): OwnedMonster {
+    return {
+      ...monster,
+      moves: monster.moves.map((move) => ({ ...move })),
+    }
+  }
+
+  private isCollectionState(value: unknown): value is MonsterCollectionState {
+    if (!value || typeof value !== 'object') return false
+    const candidate = value as Partial<MonsterCollectionState>
+    return candidate.version === 1
+      && Array.isArray(candidate.party)
+      && Array.isArray(candidate.storage)
+      && candidate.party.every((monster) => this.isMonster(monster))
+      && candidate.storage.every((monster) => this.isMonster(monster))
+  }
+
+  private isMonster(value: unknown): value is OwnedMonster {
+    if (!value || typeof value !== 'object') return false
+    const monster = value as Partial<OwnedMonster>
+    const numericStats = [monster.level, monster.maxHp, monster.currentHp, monster.attack, monster.defense, monster.speed]
+    return typeof monster.instanceId === 'string'
+      && typeof monster.speciesId === 'string'
+      && typeof monster.displayName === 'string'
+      && typeof monster.spritePath === 'string'
+      && typeof monster.capturedAt === 'string'
+      && numericStats.every((stat) => typeof stat === 'number' && Number.isFinite(stat))
+      && Array.isArray(monster.moves)
+      && monster.moves.every((move) => this.isMove(move))
+  }
+
+  private isMove(value: unknown): value is BattleMove {
+    if (!value || typeof value !== 'object') return false
+    const move = value as Partial<BattleMove>
+    return typeof move.id === 'string'
+      && typeof move.name === 'string'
+      && typeof move.power === 'number'
+      && typeof move.accuracy === 'number'
+  }
+}

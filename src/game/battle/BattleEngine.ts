@@ -1,4 +1,5 @@
 import type {
+  BattleCaptureResolver,
   BattleCombatantDefinition,
   BattleCombatantState,
   BattleEvent,
@@ -27,6 +28,7 @@ export class BattleEngine {
     player: BattleCombatantDefinition,
     enemy: BattleCombatantDefinition,
     private readonly random: BattleRandomSource = Math.random,
+    private readonly captureResolver?: BattleCaptureResolver,
   ) {
     this.assertCombatant(player)
     this.assertCombatant(enemy)
@@ -49,6 +51,10 @@ export class BattleEngine {
       events.push({ type: 'run', side: 'player' })
       events.push({ type: 'battle-end', phase: 'ran' })
       return { state: this.snapshot(), events }
+    }
+
+    if (action.kind === 'capture') {
+      return this.resolveCapture(events)
     }
 
     const playerMove = this.findMove(this.player, action.moveId)
@@ -82,6 +88,26 @@ export class BattleEngine {
       this.executeMove(queued.side, attacker, defender, queued.move, events)
     }
 
+    if (this.phase === 'awaiting-player') this.turn += 1
+    return { state: this.snapshot(), events }
+  }
+
+  private resolveCapture(events: BattleEvent[]): BattleTurnResult {
+    if (!this.captureResolver) throw new Error('Capture is not available in this battle')
+
+    const attempt = this.captureResolver(this.copyCombatant(this.enemy))
+    const chance = Math.min(1, Math.max(0, Number.isFinite(attempt.chance) ? attempt.chance : 0))
+    events.push({ type: 'capture-attempt', success: attempt.success, chance })
+
+    if (attempt.success) {
+      this.phase = 'captured'
+      events.push({ type: 'battle-end', phase: 'captured' })
+      return { state: this.snapshot(), events }
+    }
+
+    if (this.enemy.currentHp > 0 && this.player.currentHp > 0) {
+      this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
+    }
     if (this.phase === 'awaiting-player') this.turn += 1
     return { state: this.snapshot(), events }
   }

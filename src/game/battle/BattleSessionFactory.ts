@@ -1,4 +1,5 @@
 import type { WildEncounter } from '../encounters/types'
+import type { OwnedMonster } from '../monsters/types'
 import type { BattleCombatantDefinition } from './types'
 
 export interface BattleSessionDefinitions {
@@ -21,19 +22,35 @@ const QUICK_HIT = {
   priority: 1,
 } as const
 
-export function createReferenceBattleSession(encounter: WildEncounter): BattleSessionDefinitions {
+export function createReferenceBattleSession(
+  encounter: WildEncounter,
+  lead?: OwnedMonster | null,
+): BattleSessionDefinitions {
   const enemyLevel = Math.max(1, encounter.level)
+  const player: BattleCombatantDefinition = lead
+    ? {
+        id: lead.instanceId,
+        displayName: lead.displayName,
+        level: lead.level,
+        maxHp: lead.maxHp,
+        attack: lead.attack,
+        defense: lead.defense,
+        speed: lead.speed,
+        moves: lead.moves.map((move) => ({ ...move })),
+      }
+    : {
+        id: 'reference-player-creature',
+        displayName: 'Partner',
+        level: 5,
+        maxHp: 26,
+        attack: 13,
+        defense: 11,
+        speed: 12,
+        moves: [BASIC_STRIKE, QUICK_HIT],
+      }
+
   return {
-    player: {
-      id: 'reference-player-creature',
-      displayName: 'Partner',
-      level: 5,
-      maxHp: 26,
-      attack: 13,
-      defense: 11,
-      speed: 12,
-      moves: [BASIC_STRIKE, QUICK_HIT],
-    },
+    player,
     enemy: {
       id: encounter.speciesId,
       displayName: encounter.displayName,

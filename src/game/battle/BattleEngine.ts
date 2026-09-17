@@ -1,9 +1,18 @@
+import {
+  elementalEffectiveness,
+  hasSameElementBonus,
+  isBattleElement,
+  normalizeBattleElements,
+  type BattleElement,
+  type ElementEffectiveness,
+} from './elements'
 import type {
   BattleCaptureResolver,
   BattleCombatantDefinition,
   BattleCombatantState,
   BattleEvent,
   BattleMove,
+  BattleMoveDamageClass,
   BattleRandomSource,
   BattleSide,
   BattleState,
@@ -20,8 +29,16 @@ interface QueuedMove {
   speed: number
 }
 
+interface DamageResult {
+  amount: number
+  effectiveness: ElementEffectiveness
+  sameElementBonus: boolean
+  moveElement: BattleElement
+}
+
 const PARALYSIS_SKIP_CHANCE = 0.25
 const BURN_ATTACK_MULTIPLIER = 0.75
+const SAME_ELEMENT_BONUS = 1.25
 
 export class BattleEngine {
   private readonly player: BattleCombatantState
@@ -136,14 +153,24 @@ export class BattleEngine {
       return
     }
 
-    const damage = this.calculateDamage(attacker, defender, move)
-    defender.currentHp = Math.max(0, defender.currentHp - damage)
     const target: BattleSide = side === 'player' ? 'enemy' : 'player'
+    const result = this.calculateDamage(attacker, defender, move)
+    if (result.effectiveness !== 1) {
+      events.push({
+        type: 'effectiveness',
+        target,
+        moveElement: result.moveElement,
+        multiplier: result.effectiveness,
+        sameElementBonus: result.sameElementBonus,
+      })
+    }
+
+    defender.currentHp = Math.max(0, defender.currentHp - result.amount)
     events.push({
       type: 'damage',
       side,
       target,
-      amount: damage,
+      amount: result.amount,
       remainingHp: defender.currentHp,
     })
 
@@ -154,6 +181,7 @@ export class BattleEngine {
       return
     }
 
+    if (result.effectiveness === 0) return
     this.tryApplyStatus(target, defender, move, events)
   }
 
@@ -238,14 +266,25 @@ export class BattleEngine {
     attacker: BattleCombatantState,
     defender: BattleCombatantState,
     move: BattleMove,
-  ): number {
+  ): DamageResult {
     const levelFactor = (2 * attacker.level) / 5 + 2
-    const attack = attacker.status?.condition === 'burn'
+    const damageClass: BattleMoveDamageClass = move.damageClass ?? 'physical'
+    const attack = damageClass === 'physical' && attacker.status?.condition === 'burn'
       ? attacker.attack * BURN_ATTACK_MULTIPLIER
       : attacker.attack
+    const moveElement: BattleElement = move.element ?? 'neutral'
+    const effectiveness = elementalEffectiveness(moveElement, defender.elements)
+    const sameElementBonus = move.element !== undefined && hasSameElementBonus(attacker.elements, moveElement)
+    const stab = sameElementBonus ? SAME_ELEMENT_BONUS : 1
+
+    if (effectiveness === 0) {
+      return { amount: 0, effectiveness, sameElementBonus, moveElement }
+    }
+
     const raw = ((levelFactor * move.power * attack) / Math.max(1, defender.defense)) / 50 + 2
     const variance = 0.85 + this.normalizedRandom() * 0.15
-    return Math.max(1, Math.floor(raw * variance))
+    const amount = Math.max(1, Math.floor(raw * variance * stab * effectiveness))
+    return { amount, effectiveness, sameElementBonus, moveElement }
   }
 
   private effectiveSpeed(combatant: BattleCombatantState): number {
@@ -282,6 +321,7 @@ export class BattleEngine {
   private createState(definition: BattleCombatantDefinition): BattleCombatantState {
     return {
       ...definition,
+      elements: [...normalizeBattleElements(definition.elements)],
       moves: definition.moves.map((move) => this.copyMove(move)),
       currentHp: definition.currentHp ?? definition.maxHp,
       status: definition.status ? { ...definition.status } : undefined,
@@ -300,6 +340,7 @@ export class BattleEngine {
   private copyCombatant(combatant: BattleCombatantState): BattleCombatantState {
     return {
       ...combatant,
+      elements: [...combatant.elements],
       moves: combatant.moves.map((move) => this.copyMove(move)),
       status: combatant.status ? { ...combatant.status } : undefined,
     }
@@ -323,6 +364,17 @@ export class BattleEngine {
         throw new Error('Combatant current HP must be greater than zero and at most max HP')
       }
     }
+    if (combatant.elements !== undefined) {
+      if (combatant.elements.length === 0 || combatant.elements.length > 2) {
+        throw new Error('Combatants require one or two elements when elements are provided')
+      }
+      if (new Set(combatant.elements).size !== combatant.elements.length) {
+        throw new Error('Combatant elements must be unique')
+      }
+      if (!combatant.elements.every((element) => isBattleElement(element))) {
+        throw new Error('Combatant has an unsupported element')
+      }
+    }
     this.assertStatus(combatant.status)
     if (combatant.moves.length === 0) throw new Error('Combatants require at least one move')
     for (const move of combatant.moves) {
@@ -330,6 +382,12 @@ export class BattleEngine {
       if (!Number.isFinite(move.power) || move.power <= 0) throw new Error('Move power must be positive')
       if (!Number.isFinite(move.accuracy) || move.accuracy < 0 || move.accuracy > 1) {
         throw new Error('Move accuracy must be between 0 and 1')
+      }
+      if (move.element !== undefined && !isBattleElement(move.element)) {
+        throw new Error(`Unsupported move element: ${String(move.element)}`)
+      }
+      if (move.damageClass !== undefined && !['physical', 'special'].includes(move.damageClass)) {
+        throw new Error(`Unsupported move damage class: ${String(move.damageClass)}`)
       }
       if (move.statusEffect) {
         const effect = move.statusEffect

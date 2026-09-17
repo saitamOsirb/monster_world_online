@@ -14,37 +14,52 @@ interface ParsedNode {
   localPosition: GridPoint
 }
 
+interface Section {
+  header: string
+  body: string
+}
+
 function readVector(body: string, property: string): GridPoint | undefined {
   const match = body.match(new RegExp(`^${property}\\s*=\\s*Vector2\\(\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*\\)`, 'm'))
   if (!match) return undefined
   return { x: Number(match[1]), y: Number(match[2]) }
 }
 
+function parseSections(source: string): Section[] {
+  const starts = [...source.matchAll(/^\[([^\]]+)\]$/gm)]
+  return starts.map((match, index) => {
+    const bodyStart = (match.index ?? 0) + match[0].length + 1
+    const bodyEnd = index + 1 < starts.length ? (starts[index + 1].index ?? source.length) : source.length
+    return {
+      header: match[1],
+      body: source.slice(bodyStart, bodyEnd),
+    }
+  })
+}
+
 function parseRectangleShapes(source: string): Map<number, GridPoint> {
   const result = new Map<number, GridPoint>()
-  const sectionPattern = /^\[sub_resource type="RectangleShape2D" id=(\d+)\]$([\s\S]*?)(?=^\[|\s*$)/gm
-  for (const match of source.matchAll(sectionPattern)) {
-    const extents = readVector(match[2], 'extents')
+  for (const section of parseSections(source)) {
+    const match = section.header.match(/^sub_resource type="RectangleShape2D" id=(\d+)$/)
+    if (!match) continue
+    const extents = readVector(section.body, 'extents')
     if (extents) result.set(Number(match[1]), extents)
   }
   return result
 }
 
 function parseNodes(source: string): ParsedNode[] {
-  const starts = [...source.matchAll(/^\[node\s+([^\]]+)\]$/gm)]
-  return starts.map((match, index) => {
-    const header = match[1]
+  const sections = parseSections(source).filter((section) => section.header.startsWith('node '))
+  return sections.map((section, index) => {
+    const header = section.header.slice('node '.length)
     const name = header.match(/name="([^"]+)"/)?.[1] ?? `Node${index}`
     const parent = header.match(/parent="([^"]+)"/)?.[1]
-    const bodyStart = (match.index ?? 0) + match[0].length + 1
-    const bodyEnd = index + 1 < starts.length ? (starts[index + 1].index ?? source.length) : source.length
-    const body = source.slice(bodyStart, bodyEnd)
     const path = parent === undefined ? '.' : parent === '.' ? name : `${parent}/${name}`
     return {
       path,
       parent,
-      body,
-      localPosition: readVector(body, 'position') ?? { x: 0, y: 0 },
+      body: section.body,
+      localPosition: readVector(section.body, 'position') ?? { x: 0, y: 0 },
     }
   })
 }

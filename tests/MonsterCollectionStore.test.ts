@@ -113,6 +113,8 @@ describe('MonsterCollectionStore', () => {
     const lead = new MonsterCollectionStore(storage).lead
 
     expect(lead?.elements).toEqual(['neutral'])
+    expect(lead?.specialAttack).toBe(lead?.attack)
+    expect(lead?.specialDefense).toBe(lead?.defense)
     expect(lead?.moves[0].element).toBeUndefined()
   })
 

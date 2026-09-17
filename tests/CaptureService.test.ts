@@ -11,6 +11,8 @@ function target(currentHp: number, maxHp = 100): BattleCombatantState {
     currentHp,
     attack: 10,
     defense: 10,
+    specialAttack: 10,
+    specialDefense: 10,
     speed: 10,
     elements: ['neutral'],
     moves: [{ id: 'hit', name: 'Hit', power: 20, accuracy: 1 }],

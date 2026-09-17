@@ -209,6 +209,8 @@ export class MonsterCollectionStore {
     const migrate = (monster: LegacyOwnedMonster): OwnedMonster => ({
       ...monster,
       experience: 0,
+      specialAttack: monster.specialAttack ?? monster.attack,
+      specialDefense: monster.specialDefense ?? monster.defense,
       elements: [...normalizeBattleElements(monster.elements)],
       moves: monster.moves.map((move) => this.cloneMove(move)),
       status: monster.status ? { ...monster.status } : undefined,
@@ -231,6 +233,8 @@ export class MonsterCollectionStore {
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
     return {
       ...monster,
+      specialAttack: monster.specialAttack ?? monster.attack,
+      specialDefense: monster.specialDefense ?? monster.defense,
       elements: [...normalizeBattleElements(monster.elements)],
       moves: monster.moves.map((move) => this.cloneMove(move)),
       status: monster.status ? { ...monster.status } : undefined,
@@ -297,6 +301,10 @@ export class MonsterCollectionStore {
       && [monster.attack, monster.defense, monster.speed].every(
         (stat) => typeof stat === 'number' && Number.isFinite(stat) && stat > 0,
       )
+      && (monster.specialAttack === undefined
+        || (typeof monster.specialAttack === 'number' && Number.isFinite(monster.specialAttack) && monster.specialAttack > 0))
+      && (monster.specialDefense === undefined
+        || (typeof monster.specialDefense === 'number' && Number.isFinite(monster.specialDefense) && monster.specialDefense > 0))
       && (monster.elements === undefined || this.isElements(monster.elements))
       && Array.isArray(monster.moves)
       && monster.moves.every((move) => this.isMove(move))

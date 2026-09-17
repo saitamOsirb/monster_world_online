@@ -269,9 +269,14 @@ export class BattleEngine {
   ): DamageResult {
     const levelFactor = (2 * attacker.level) / 5 + 2
     const damageClass: BattleMoveDamageClass = move.damageClass ?? 'physical'
-    const attack = damageClass === 'physical' && attacker.status?.condition === 'burn'
-      ? attacker.attack * BURN_ATTACK_MULTIPLIER
-      : attacker.attack
+    const attack = damageClass === 'special'
+      ? attacker.specialAttack
+      : attacker.status?.condition === 'burn'
+        ? attacker.attack * BURN_ATTACK_MULTIPLIER
+        : attacker.attack
+    const defense = damageClass === 'special'
+      ? defender.specialDefense
+      : defender.defense
     const moveElement: BattleElement = move.element ?? 'neutral'
     const effectiveness = elementalEffectiveness(moveElement, defender.elements)
     const sameElementBonus = move.element !== undefined && hasSameElementBonus(attacker.elements, moveElement)
@@ -281,7 +286,7 @@ export class BattleEngine {
       return { amount: 0, effectiveness, sameElementBonus, moveElement }
     }
 
-    const raw = ((levelFactor * move.power * attack) / Math.max(1, defender.defense)) / 50 + 2
+    const raw = ((levelFactor * move.power * attack) / Math.max(1, defense)) / 50 + 2
     const variance = 0.85 + this.normalizedRandom() * 0.15
     const amount = Math.max(1, Math.floor(raw * variance * stab * effectiveness))
     return { amount, effectiveness, sameElementBonus, moveElement }
@@ -324,6 +329,8 @@ export class BattleEngine {
       elements: [...normalizeBattleElements(definition.elements)],
       moves: definition.moves.map((move) => this.copyMove(move)),
       currentHp: definition.currentHp ?? definition.maxHp,
+      specialAttack: definition.specialAttack ?? definition.attack,
+      specialDefense: definition.specialDefense ?? definition.defense,
       status: definition.status ? { ...definition.status } : undefined,
     }
   }
@@ -356,7 +363,14 @@ export class BattleEngine {
   private assertCombatant(combatant: BattleCombatantDefinition): void {
     if (!combatant.id || !combatant.displayName) throw new Error('Combatants require id and displayName')
     if (!Number.isInteger(combatant.level) || combatant.level <= 0) throw new Error('Combatant level must be positive')
-    for (const value of [combatant.maxHp, combatant.attack, combatant.defense, combatant.speed]) {
+    for (const value of [
+      combatant.maxHp,
+      combatant.attack,
+      combatant.defense,
+      combatant.specialAttack ?? combatant.attack,
+      combatant.specialDefense ?? combatant.defense,
+      combatant.speed,
+    ]) {
       if (!Number.isFinite(value) || value <= 0) throw new Error('Combatant stats must be positive finite numbers')
     }
     if (combatant.currentHp !== undefined) {

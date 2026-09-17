@@ -1,17 +1,13 @@
-import { AnimatedSprite, Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js'
+import { Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js'
 import { TILE_SIZE, type Direction } from '../constants'
 import { CollisionWorld } from './CollisionWorld'
+import { DoorAnimator } from './DoorAnimator'
 import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionImporter'
 import { LegacyGodotImporter } from './LegacyGodotImporter'
 import { TileMapRenderer } from './TileMapRenderer'
-import type { GridPoint, ImportedSceneDefinition, TileDefinition, WorldObjectDefinition } from './types'
-
-const INSTANCE_TEXTURES: Record<string, string> = {
-  'res://Tree.tscn': '/assets/Trees/tree1.png',
-  'res://Flower.tscn': '/assets/Flowers/red_flower.png',
-  'res://TallGrass.tscn': '/assets/Grass/tall_grass.png',
-  'res://House.tscn': '/assets/Buildings/house1.png',
-}
+import { WorldEffects } from './WorldEffects'
+import { WorldObjectRenderer } from './WorldObjectRenderer'
+import type { DoorDefinition, GridPoint, ImportedSceneDefinition, TileDefinition, WorldObjectDefinition } from './types'
 
 const NON_BLOCKING_SCENES = [
   'Player.tscn',
@@ -37,6 +33,9 @@ export class WorldScene {
   private readonly effectLayer = new Container()
   private readonly importer = new LegacyGodotImporter()
   private readonly collisionImporter = new LegacyCollisionImporter()
+  private readonly objectRenderer = new WorldObjectRenderer(this.objectLayer)
+  private readonly doorAnimator = new DoorAnimator(this.objectLayer)
+  private readonly effects = new WorldEffects(this.effectLayer)
   private readonly actors = new Set<Container>()
   private scene: ImportedSceneDefinition | null = null
 
@@ -44,6 +43,10 @@ export class WorldScene {
     this.objectLayer.sortableChildren = true
     this.effectLayer.sortableChildren = true
     this.view.addChild(this.tileMap.view, this.ledgeLayer, this.objectLayer, this.effectLayer)
+  }
+
+  update(deltaMs: number): void {
+    this.tileMap.update(deltaMs)
   }
 
   addActor(actor: Container): void {
@@ -67,11 +70,20 @@ export class WorldScene {
     }
 
     for (const ledge of this.scene.ledgeTiles) this.collision.setLedge(ledge)
+    for (const object of this.scene.objects) {
+      if (object.instancePath?.endsWith('TallGrass.tscn')) {
+        this.collision.setTallGrass({
+          x: Math.round(object.position.x / TILE_SIZE),
+          y: Math.round(object.position.y / TILE_SIZE),
+        })
+      }
+    }
     await this.renderLedges(this.scene.ledgeTiles)
 
     const playerNode = this.scene.objects.find((object) => object.instancePath?.endsWith('Player.tscn'))
     await Promise.all([
-      this.renderObjects(this.scene.objects),
+      this.objectRenderer.render(this.scene.objects),
+      this.doorAnimator.render(this.scene.doors),
       this.applyImportedCollisions(scenePath, this.scene.objects),
     ])
 
@@ -88,51 +100,24 @@ export class WorldScene {
     }
   }
 
-  async showGrassStep(tile: GridPoint): Promise<void> {
-    const [overlayTexture, effectTexture] = await Promise.all([
-      Assets.load<Texture>('/assets/Grass/stepped_tall_grass.png'),
-      Assets.load<Texture>('/assets/Grass/grass_step_animation.png'),
-    ])
-    overlayTexture.source.scaleMode = 'nearest'
-    effectTexture.source.scaleMode = 'nearest'
-
-    const overlay = new Sprite(overlayTexture)
-    overlay.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
-    overlay.zIndex = tile.y * TILE_SIZE + TILE_SIZE + 1
-    overlay.roundPixels = true
-    this.effectLayer.addChild(overlay)
-
-    const effect = new AnimatedSprite(this.sliceHorizontal(effectTexture, 4))
-    effect.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
-    effect.zIndex = overlay.zIndex + 1
-    effect.roundPixels = true
-    effect.animationSpeed = 10 / 60
-    effect.loop = false
-    effect.onComplete = () => {
-      if (!effect.destroyed) effect.destroy()
-      if (!overlay.destroyed) overlay.destroy()
-    }
-    this.effectLayer.addChild(effect)
-    effect.play()
+  openDoor(door: DoorDefinition): Promise<void> {
+    return this.doorAnimator.open(door)
   }
 
-  async showLandingDust(tile: GridPoint): Promise<void> {
-    const texture = await Assets.load<Texture>('/assets/Player/jump_landing_dust.png')
-    texture.source.scaleMode = 'nearest'
-    const dust = new AnimatedSprite(this.sliceHorizontal(texture, 3))
-    dust.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
-    dust.zIndex = tile.y * TILE_SIZE + TILE_SIZE + 2
-    dust.roundPixels = true
-    dust.animationSpeed = 5 / 60
-    dust.loop = false
-    dust.onComplete = () => {
-      if (!dust.destroyed) dust.destroy()
-    }
-    this.effectLayer.addChild(dust)
-    dust.play()
+  closeDoor(door: DoorDefinition): Promise<void> {
+    return this.doorAnimator.close(door)
+  }
+
+  showGrassStep(tile: GridPoint): Promise<void> {
+    return this.effects.grassStep(tile)
+  }
+
+  showLandingDust(tile: GridPoint): Promise<void> {
+    return this.effects.landingDust(tile)
   }
 
   private clearDynamicLayers(): void {
+    this.doorAnimator.clear()
     this.ledgeLayer.removeChildren().forEach((child) => child.destroy())
 
     const children = this.objectLayer.removeChildren()
@@ -166,50 +151,6 @@ export class WorldScene {
       sprite.roundPixels = true
       this.ledgeLayer.addChild(sprite)
     }
-  }
-
-  private async renderObjects(objects: WorldObjectDefinition[]): Promise<void> {
-    for (const object of objects) {
-      if (object.instancePath?.endsWith('Player.tscn')) continue
-      if (object.instancePath?.endsWith('Door.tscn')) continue
-      if (object.instancePath?.endsWith('OverworldTileMap.tscn')) continue
-      if (object.instancePath?.endsWith('LedgeTileMap.tscn')) continue
-
-      const texturePath = object.texturePath ?? (object.instancePath ? INSTANCE_TEXTURES[object.instancePath] : undefined)
-      const tile = {
-        x: Math.round(object.position.x / TILE_SIZE),
-        y: Math.round(object.position.y / TILE_SIZE),
-      }
-
-      if (object.instancePath?.endsWith('TallGrass.tscn')) this.collision.setTallGrass(tile)
-      if (!texturePath) continue
-
-      const texture = await Assets.load<Texture>(texturePath)
-      texture.source.scaleMode = 'nearest'
-      const displayObject = object.instancePath?.endsWith('Flower.tscn')
-        ? this.createFlower(texture)
-        : new Sprite(texture)
-      displayObject.position.set(object.position.x, object.position.y)
-      displayObject.zIndex = object.zIndex ?? object.position.y + TILE_SIZE
-      displayObject.roundPixels = true
-      this.objectLayer.addChild(displayObject)
-    }
-  }
-
-  private createFlower(texture: Texture): AnimatedSprite {
-    const flower = new AnimatedSprite(this.sliceHorizontal(texture, 5))
-    flower.animationSpeed = 5 / 60
-    flower.loop = true
-    flower.play()
-    return flower
-  }
-
-  private sliceHorizontal(texture: Texture, count: number): Texture[] {
-    const frameWidth = texture.source.width / count
-    return Array.from({ length: count }, (_, index) => new Texture({
-      source: texture.source,
-      frame: new Rectangle(index * frameWidth, 0, frameWidth, texture.source.height),
-    }))
   }
 
   private async applyImportedCollisions(scenePath: string, objects: WorldObjectDefinition[]): Promise<void> {

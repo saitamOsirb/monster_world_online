@@ -55,6 +55,39 @@ export class MonsterCollectionStore {
     return { destination, monster: this.cloneMonster(captured) }
   }
 
+  setLead(instanceId: string): boolean {
+    const index = this.state.party.findIndex((monster) => monster.instanceId === instanceId)
+    if (index < 0) return false
+    if (index === 0) return true
+
+    const [monster] = this.state.party.splice(index, 1)
+    this.state.party.unshift(monster)
+    this.persist()
+    return true
+  }
+
+  movePartyMemberToStorage(instanceId: string): boolean {
+    if (this.state.party.length <= 1) return false
+    const index = this.state.party.findIndex((monster) => monster.instanceId === instanceId)
+    if (index < 0) return false
+
+    const [monster] = this.state.party.splice(index, 1)
+    this.state.storage.push(monster)
+    this.persist()
+    return true
+  }
+
+  moveStorageMonsterToParty(instanceId: string): boolean {
+    if (this.state.party.length >= MAX_PARTY_SIZE) return false
+    const index = this.state.storage.findIndex((monster) => monster.instanceId === instanceId)
+    if (index < 0) return false
+
+    const [monster] = this.state.storage.splice(index, 1)
+    this.state.party.push(monster)
+    this.persist()
+    return true
+  }
+
   updateMonster(updated: OwnedMonster): boolean {
     for (const collection of [this.state.party, this.state.storage]) {
       const index = collection.findIndex((monster) => monster.instanceId === updated.instanceId)

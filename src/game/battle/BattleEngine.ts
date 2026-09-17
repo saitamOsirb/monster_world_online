@@ -11,6 +11,7 @@ import type {
   BattleCombatantDefinition,
   BattleCombatantState,
   BattleEvent,
+  BattleItemResolver,
   BattleMove,
   BattleMoveDamageClass,
   BattleRandomSource,
@@ -51,6 +52,7 @@ export class BattleEngine {
     enemy: BattleCombatantDefinition,
     private readonly random: BattleRandomSource = Math.random,
     private readonly captureResolver?: BattleCaptureResolver,
+    private readonly itemResolver?: BattleItemResolver,
   ) {
     this.assertCombatant(player)
     this.assertCombatant(enemy)
@@ -77,6 +79,10 @@ export class BattleEngine {
 
     if (action.kind === 'capture') {
       return this.resolveCapture(events)
+    }
+
+    if (action.kind === 'item') {
+      return this.resolveItem(action.itemId, events)
     }
 
     const playerMove = this.findMove(this.player, action.moveId)
@@ -111,6 +117,36 @@ export class BattleEngine {
       this.executeMove(queued.side, attacker, defender, queued.move, events)
     }
 
+    if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
+    if (this.phase === 'awaiting-player') this.turn += 1
+    return { state: this.snapshot(), events }
+  }
+
+  private resolveItem(itemId: import('../inventory/types').InventoryItemId, events: BattleEvent[]): BattleTurnResult {
+    if (!this.itemResolver) throw new Error('Battle items are not available in this battle')
+
+    const result = this.itemResolver(itemId, this.copyCombatant(this.player))
+    if (!result.ok) {
+      events.push({ type: 'item-failed', side: 'player', itemId, reason: result.reason })
+      return { state: this.snapshot(), events }
+    }
+
+    this.player.currentHp = Math.max(0, Math.min(this.player.maxHp, result.currentHp))
+    this.player.status = result.status ? { ...result.status } : undefined
+    events.push({
+      type: 'item-used',
+      side: 'player',
+      itemId: result.itemId,
+      itemName: result.itemName,
+      healedHp: result.healedHp,
+      clearedStatus: result.clearedStatus,
+    })
+
+    if (this.enemy.currentHp > 0 && this.player.currentHp > 0) {
+      if (this.canAct('enemy', this.enemy, events)) {
+        this.executeMove('enemy', this.enemy, this.player, this.pickEnemyMove(), events)
+      }
+    }
     if (this.phase === 'awaiting-player') this.applyEndOfTurnStatuses(events)
     if (this.phase === 'awaiting-player') this.turn += 1
     return { state: this.snapshot(), events }

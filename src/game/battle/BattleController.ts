@@ -2,22 +2,30 @@ import { Assets, Container, Graphics, Rectangle, Sprite, Text, Texture } from 'p
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../constants'
 import type { WildEncounter } from '../encounters/types'
 import { InputController } from '../input/InputController'
+import { BattleEngine } from './BattleEngine'
+import { createReferenceBattleSession } from './BattleSessionFactory'
+import type { BattleEvent, BattlePhase, BattleState } from './types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
 const PLAYER_REFERENCE_SPRITE = '/assets/Pokemon/Charmander.png'
 
 export interface BattleControllerHooks {
-  onRunRequested?: () => void
+  onBattleFinished?: (phase: Extract<BattlePhase, 'won' | 'lost' | 'ran'>) => void
 }
 
 export class BattleController {
   readonly view = new Container()
 
   private encounter: WildEncounter | null = null
+  private engine: BattleEngine | null = null
   private enemySprite: Sprite | null = null
-  private encounterText: Text | null = null
+  private messageText: Text | null = null
+  private playerStatusText: Text | null = null
+  private enemyStatusText: Text | null = null
+  private commandText: Text | null = null
   private initialized = false
-  private exitRequested = false
+  private selectedCommand = 0
+  private awaitingExit = false
 
   constructor(private readonly hooks: BattleControllerHooks = {}) {
     this.view.visible = false
@@ -55,26 +63,129 @@ export class BattleController {
     this.enemySprite = enemy
     this.view.addChildAt(enemy, 3)
 
+    const definitions = createReferenceBattleSession(encounter)
+    this.engine = new BattleEngine(definitions.player, definitions.enemy)
     this.encounter = encounter
-    this.exitRequested = false
-    if (this.encounterText) {
-      this.encounterText.text = `A wild ${encounter.displayName} Lv.${encounter.level} appeared!`
-    }
+    this.selectedCommand = 0
+    this.awaitingExit = false
+    this.setMessage(`A wild ${encounter.displayName} Lv.${encounter.level} appeared!`)
+    this.refreshBattleUi(this.engine.state)
     this.view.visible = true
   }
 
   update(input: InputController): void {
-    if (!this.isActive || this.exitRequested) return
-    if (!input.isConfirmPressed() && !input.isCancelPressed()) return
+    if (!this.isActive || !this.engine) return
 
-    this.exitRequested = true
-    this.hooks.onRunRequested?.()
+    if (this.awaitingExit) {
+      if (input.isConfirmPressed() || input.isCancelPressed()) this.finishBattle()
+      return
+    }
+
+    const commands = this.commandCount()
+    if (input.wasPressed('ArrowDown')) {
+      this.selectedCommand = (this.selectedCommand + 1) % commands
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+    if (input.wasPressed('ArrowUp')) {
+      this.selectedCommand = this.selectedCommand === 0 ? commands - 1 : this.selectedCommand - 1
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+
+    if (input.isCancelPressed()) {
+      this.resolveRun()
+      return
+    }
+    if (!input.isConfirmPressed()) return
+
+    const moves = this.engine.state.player.moves
+    if (this.selectedCommand >= moves.length) {
+      this.resolveRun()
+      return
+    }
+    this.resolveMove(moves[this.selectedCommand].id)
   }
 
   hide(): void {
     this.view.visible = false
     this.encounter = null
-    this.exitRequested = false
+    this.engine = null
+    this.awaitingExit = false
+    this.selectedCommand = 0
+  }
+
+  private resolveMove(moveId: string): void {
+    if (!this.engine) return
+    const result = this.engine.resolvePlayerAction({ kind: 'move', moveId })
+    this.refreshBattleUi(result.state)
+    this.setMessage(this.describeEvents(result.events))
+    if (result.state.phase !== 'awaiting-player') this.awaitingExit = true
+  }
+
+  private resolveRun(): void {
+    if (!this.engine) return
+    const result = this.engine.resolvePlayerAction({ kind: 'run' })
+    this.refreshBattleUi(result.state)
+    this.setMessage(this.describeEvents(result.events))
+    this.awaitingExit = true
+  }
+
+  private finishBattle(): void {
+    if (!this.engine) return
+    const phase = this.engine.state.phase
+    if (phase === 'awaiting-player') return
+    this.hooks.onBattleFinished?.(phase)
+  }
+
+  private refreshBattleUi(state: BattleState): void {
+    if (this.playerStatusText) {
+      this.playerStatusText.text = `${state.player.displayName} Lv.${state.player.level}\nHP ${state.player.currentHp}/${state.player.maxHp}`
+    }
+    if (this.enemyStatusText) {
+      this.enemyStatusText.text = `${state.enemy.displayName} Lv.${state.enemy.level}\nHP ${state.enemy.currentHp}/${state.enemy.maxHp}`
+    }
+    this.refreshCommandText(state)
+  }
+
+  private refreshCommandText(state: BattleState): void {
+    if (!this.commandText) return
+    const options = [
+      ...state.player.moves.map((move) => move.name),
+      'RUN',
+    ]
+    this.commandText.text = options
+      .map((option, index) => `${index === this.selectedCommand ? '▶' : ' '} ${option}`)
+      .join('   ')
+  }
+
+  private commandCount(): number {
+    return (this.engine?.state.player.moves.length ?? 0) + 1
+  }
+
+  private describeEvents(events: readonly BattleEvent[]): string {
+    if (events.some((event) => event.type === 'run')) return 'You escaped safely.'
+
+    const messages: string[] = []
+    for (const event of events) {
+      if (event.type === 'move') {
+        messages.push(`${event.side === 'player' ? 'Partner' : this.encounter?.displayName ?? 'Enemy'} used ${event.moveName}.`)
+      } else if (event.type === 'miss') {
+        messages.push('It missed!')
+      } else if (event.type === 'damage') {
+        messages.push(`${event.amount} damage.`)
+      } else if (event.type === 'faint') {
+        messages.push(`${event.side === 'enemy' ? this.encounter?.displayName ?? 'Enemy' : 'Partner'} fainted.`)
+      } else if (event.type === 'battle-end') {
+        if (event.phase === 'won') messages.push('You won the battle!')
+        else if (event.phase === 'lost') messages.push('You lost the battle.')
+      }
+    }
+    return messages.join(' ')
+  }
+
+  private setMessage(message: string): void {
+    if (this.messageText) this.messageText.text = message
   }
 
   private buildStaticScene(playerTexture: Texture): void {
@@ -98,6 +209,10 @@ export class BattleController {
     player.roundPixels = true
     this.view.addChild(player)
 
+    this.enemyStatusText = this.createText('', 106, 8, 9, 0x253b58)
+    this.playerStatusText = this.createText('', 8, 78, 9, 0x253b58)
+    this.view.addChild(this.enemyStatusText, this.playerStatusText)
+
     const messageBox = new Graphics()
       .rect(0, 110, LOGICAL_WIDTH, LOGICAL_HEIGHT - 110)
       .fill(0x253b58)
@@ -105,31 +220,32 @@ export class BattleController {
       .stroke({ width: 2, color: 0xf5f5f5 })
     this.view.addChild(messageBox)
 
-    this.encounterText = new Text({
-      text: '',
-      style: {
-        fontFamily: UI_FONT_FAMILY,
-        fontSize: 10,
-        fill: 0xffffff,
-        wordWrap: true,
-        wordWrapWidth: 218,
-      },
-    })
-    this.encounterText.position.set(10, 119)
-    this.encounterText.roundPixels = true
-    this.view.addChild(this.encounterText)
+    this.messageText = this.createText('', 8, 117, 9, 0xffffff, 224)
+    this.commandText = this.createText('', 8, 145, 8, 0xffffff, 224)
+    this.view.addChild(this.messageText, this.commandText)
+  }
 
-    const command = new Text({
-      text: 'Z / ENTER: RUN   X: RUN',
+  private createText(
+    textValue: string,
+    x: number,
+    y: number,
+    fontSize: number,
+    fill: number,
+    wordWrapWidth?: number,
+  ): Text {
+    const text = new Text({
+      text: textValue,
       style: {
         fontFamily: UI_FONT_FAMILY,
-        fontSize: 9,
-        fill: 0xffffff,
+        fontSize,
+        fill,
+        wordWrap: wordWrapWidth !== undefined,
+        wordWrapWidth,
       },
     })
-    command.position.set(10, 143)
-    command.roundPixels = true
-    this.view.addChild(command)
+    text.position.set(x, y)
+    text.roundPixels = true
+    return text
   }
 
   private creatureFrame(texture: Texture): Texture {

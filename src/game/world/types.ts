@@ -34,6 +34,7 @@ export interface TileDefinition {
 export interface ImportedSceneDefinition {
   name: string
   tiles: TileDefinition[]
+  ledgeTiles: GridPoint[]
   objects: WorldObjectDefinition[]
   doors: DoorDefinition[]
 }

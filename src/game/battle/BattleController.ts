@@ -4,12 +4,12 @@ import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../constants'
 import type { WildEncounter } from '../encounters/types'
 import { InputController } from '../input/InputController'
 import type { OwnedMonster } from '../monsters/types'
+import { findSpeciesDefinition, getSpeciesDefinition, STARTER_SPECIES_ID } from '../species/catalog'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
 import type { BattleEvent, BattlePhase, BattleSide, BattleState, BattleStatusCondition } from './types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
-const PLAYER_REFERENCE_SPRITE = '/assets/Pokemon/Charmander.png'
 
 type TerminalBattlePhase = Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'>
 
@@ -51,7 +51,7 @@ export class BattleController {
   async initialize(): Promise<void> {
     if (this.initialized) return
 
-    const playerTexture = await Assets.load<Texture>(PLAYER_REFERENCE_SPRITE)
+    const playerTexture = await Assets.load<Texture>(getSpeciesDefinition(STARTER_SPECIES_ID).spritePath)
     playerTexture.source.scaleMode = 'nearest'
     this.buildStaticScene(playerTexture)
     this.initialized = true
@@ -82,7 +82,7 @@ export class BattleController {
       definitions.player,
       definitions.enemy,
       Math.random,
-      (target) => capture.attempt(target),
+      (target) => capture.attempt(target, 1, findSpeciesDefinition(encounter.speciesId)?.catchRate ?? 0.5),
     )
     this.encounter = encounter
     this.selectedCommand = 0

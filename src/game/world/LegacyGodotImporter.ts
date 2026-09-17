@@ -142,7 +142,7 @@ export class LegacyGodotImporter {
     const root = nodes[0]
     const objects: WorldObjectDefinition[] = []
     const doors: DoorDefinition[] = []
-    const ledgeTiles: GridPoint[] = []
+    const ledgeTiles: TileDefinition[] = []
     let tiles: TileDefinition[] = []
 
     for (const node of nodes) {
@@ -150,7 +150,7 @@ export class LegacyGodotImporter {
       if (node.name === 'OverworldTileMap' && nodeTiles.length > 0) {
         tiles = nodeTiles
       } else if (node.name.toLowerCase().includes('ledge') && nodeTiles.length > 0) {
-        ledgeTiles.push(...nodeTiles.map(({ x, y }) => ({ x, y })))
+        ledgeTiles.push(...nodeTiles)
       }
 
       const position = readVector(node.body, 'position') ?? { x: 0, y: 0 }

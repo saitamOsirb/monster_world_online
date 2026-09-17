@@ -46,6 +46,15 @@ function readNumber(body: string, property: string): number | undefined {
   return match ? Number(match[1]) : undefined
 }
 
+function readNodePosition(body: string): GridPoint {
+  const position = readVector(body, 'position')
+  if (position) return position
+  return {
+    x: readNumber(body, 'margin_left') ?? 0,
+    y: readNumber(body, 'margin_top') ?? 0,
+  }
+}
+
 function directionFromVector(vector?: GridPoint): Direction {
   if (!vector) return 'down'
   if (vector.x < 0) return 'left'
@@ -153,7 +162,7 @@ export class LegacyGodotImporter {
         ledgeTiles.push(...nodeTiles)
       }
 
-      const position = readVector(node.body, 'position') ?? { x: 0, y: 0 }
+      const position = readNodePosition(node.body)
       const instanceResource = node.instanceId ? resources.get(node.instanceId) : undefined
       const textureId = Number(node.body.match(/^texture\s*=\s*ExtResource\(\s*(\d+)\s*\)/m)?.[1]) || undefined
       const textureResource = textureId ? resources.get(textureId) : undefined

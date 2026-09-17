@@ -8,15 +8,21 @@ import { getEncounterTableForScene } from './encounters/tables'
 import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
+import { InteractionService } from './interaction/InteractionService'
+import { TOWN_SUPPLY_MERCHANT } from './interaction/npcs'
 import { InventoryStore } from './inventory/InventoryStore'
 import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
+import { ShopService } from './shop/ShopService'
+import { TOWN_SUPPLY_SHOP } from './shop/catalog'
 import { BagController } from './ui/BagController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
+import { VendorController } from './ui/VendorController'
+import { NpcWorldLayer } from './world/NpcWorldLayer'
 import type { DoorDefinition, GridPoint } from './world/types'
 import { WorldScene } from './world/WorldScene'
 
@@ -25,6 +31,7 @@ const SCENE_FADE_MS = 1000
 const BATTLE_FADE_MS = 450
 const STARTER_CAPTURE_CAPSULES = 5
 const STARTER_CREDITS = 200
+const START_SCENE = 'res://Town.tscn'
 
 type TerminalBattlePhase = 'won' | 'lost' | 'ran' | 'captured'
 
@@ -37,9 +44,14 @@ export class Game {
   private readonly wallet = new WalletStore()
   private readonly progression = new ProgressionService()
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
+  private readonly shopService = new ShopService(this.inventory, this.wallet)
+  private readonly interaction = new InteractionService()
+  private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
+  private readonly npcWorld: NpcWorldLayer
   private readonly menu: MenuController
   private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
+  private readonly vendor: VendorController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
 
@@ -50,6 +62,7 @@ export class Game {
     this.collection.ensureStarter(createStarterMonster())
     this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
     this.wallet.ensureStarterBalance(STARTER_CREDITS)
+    this.npcWorld = new NpcWorldLayer(this.world, !this.visualTestMode)
 
     this.bag = new BagController({
       getEntries: (category) => this.inventory.getEntries(category),
@@ -63,6 +76,13 @@ export class Game {
       onMoveToStorage: (instanceId) => this.collection.movePartyMemberToStorage(instanceId),
       onMoveToParty: (instanceId) => this.collection.moveStorageMonsterToParty(instanceId),
       onExit: () => void this.transitionBackToPartyFromStorage(),
+    })
+
+    this.vendor = new VendorController({
+      getBalance: () => this.wallet.balance,
+      getItemQuantity: (itemId) => this.inventory.getQuantity(itemId),
+      purchase: (shop, itemId, quantity) => this.shopService.purchase(shop, itemId, quantity),
+      onExit: () => this.vendor.hide(),
     })
 
     this.menu = new MenuController({
@@ -86,6 +106,7 @@ export class Game {
       this.bag.view,
       this.partyStorage.view,
       this.battle.view,
+      this.vendor.view,
       this.fadeOverlay,
     )
   }
@@ -93,7 +114,8 @@ export class Game {
   async start(): Promise<void> {
     await this.menu.initialize()
     await this.battle.initialize()
-    const spawn = await this.world.load('res://Town.tscn')
+    const spawn = await this.world.load(START_SCENE)
+    await this.npcWorld.loadScene(START_SCENE)
     const [playerSheet, shadowTexture] = await Promise.all([
       Assets.load<Texture>('/assets/Player/Male_Spritesheet.png'),
       Assets.load<Texture>('/assets/Player/player_shadow.png'),
@@ -118,11 +140,12 @@ export class Game {
 
   destroy(): void {
     this.input.destroy()
+    this.npcWorld.clear()
     if (this.player) this.world.removeActor(this.player.view)
   }
 
   async loadSceneForVisualTest(scenePath: string): Promise<void> {
-    if (!new URLSearchParams(window.location.search).has('visualTest')) {
+    if (!this.visualTestMode) {
       throw new Error('Visual scene loading is only available in visual-test mode')
     }
     if (!scenePath.startsWith('res://') || !scenePath.endsWith('.tscn')) {
@@ -131,10 +154,21 @@ export class Game {
     const player = this.player
     if (!player) throw new Error('Player is not initialized')
 
+    this.npcWorld.clear()
     const spawn = await this.world.load(scenePath)
+    await this.npcWorld.loadScene(scenePath)
     player.setSpawn(spawn.tile, spawn.direction)
     this.fadeOverlay.alpha = 0
     this.updateCamera()
+    this.app.renderer.render(this.app.stage)
+  }
+
+  openVendorForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual vendor loading is only available in visual-test mode')
+    }
+    this.vendor.show(TOWN_SUPPLY_MERCHANT, TOWN_SUPPLY_SHOP)
+    this.fadeOverlay.alpha = 0
     this.app.renderer.render(this.app.stage)
   }
 
@@ -144,6 +178,12 @@ export class Game {
 
     if (this.battle.isActive) {
       if (!this.transitioning) this.battle.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.vendor.isActive) {
+      if (!this.transitioning) this.vendor.update(this.input)
       this.input.endFrame()
       return
     }
@@ -161,12 +201,32 @@ export class Game {
     }
 
     this.world.update(deltaMs)
+    if (!this.transitioning && !this.menu.inputLocked && !player.isMoving && this.input.isConfirmPressed()) {
+      if (this.tryInteract(player)) {
+        player.update(deltaMs, null, true)
+        this.updateCamera()
+        this.input.endFrame()
+        return
+      }
+    }
+
     if (!this.transitioning) this.menu.update(this.input, player.isMoving)
     const inputLocked = this.transitioning || this.menu.inputLocked
     player.update(deltaMs, this.input.getDirection(), inputLocked)
     player.view.zIndex = player.view.y + TILE_SIZE
     this.updateCamera()
     this.input.endFrame()
+  }
+
+  private tryInteract(player: Player): boolean {
+    const target = this.interaction.facingTile(player.currentTile, player.direction)
+    const npc = this.interaction.findNpc(this.world.currentScenePath, target)
+    if (!npc) return false
+    if (npc.vendorId === TOWN_SUPPLY_SHOP.id) {
+      this.vendor.show(npc, TOWN_SUPPLY_SHOP)
+      return true
+    }
+    return false
   }
 
   private updateCamera(): void {
@@ -276,7 +336,9 @@ export class Game {
       player.view.visible = false
       await this.world.closeDoor(door)
       await this.fadeTo(1, SCENE_FADE_MS)
+      this.npcWorld.clear()
       await this.world.load(door.nextScene)
+      await this.npcWorld.loadScene(door.nextScene)
       player.setSpawn(door.spawnTile, door.spawnDirection)
       player.view.visible = true
       this.updateCamera()

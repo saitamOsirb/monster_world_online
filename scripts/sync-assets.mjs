@@ -3,19 +3,62 @@ import { dirname, extname, join } from 'node:path'
 
 const owner = 'arkeve'
 const repo = 'Godot-Pokemon'
-const branch = 'main'
-const api = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`
-const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${branch}`
+const upstreamRef = 'f0527ebbf3717398d4a980b63993ad4e04c9580d'
+const api = `https://api.github.com/repos/${owner}/${repo}/git/trees/${upstreamRef}?recursive=1`
+const rawBase = `https://raw.githubusercontent.com/${owner}/${repo}/${upstreamRef}`
+const githubToken = process.env.GITHUB_TOKEN?.trim()
 
-const response = await fetch(api, {
-  headers: {
-    Accept: 'application/vnd.github+json',
-    'User-Agent': 'monster-world-online-asset-sync',
-  },
-})
+const apiHeaders = {
+  Accept: 'application/vnd.github+json',
+  'User-Agent': 'monster-world-online-asset-sync',
+  ...(githubToken ? { Authorization: `Bearer ${githubToken}` } : {}),
+}
+
+const rawHeaders = {
+  'User-Agent': 'monster-world-online-asset-sync',
+}
+
+const transientStatuses = new Set([408, 429, 500, 502, 503, 504])
+const maxAttempts = 4
+
+function delay(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds))
+}
+
+async function fetchWithRetry(url, options, label) {
+  let lastResponse
+  let lastError
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    try {
+      const response = await fetch(url, options)
+      lastResponse = response
+      if (response.ok) return response
+
+      const rateLimited = response.status === 403 && response.headers.get('x-ratelimit-remaining') === '0'
+      if (!transientStatuses.has(response.status) && !rateLimited) return response
+    } catch (error) {
+      lastError = error
+    }
+
+    if (attempt < maxAttempts) {
+      await delay(250 * 2 ** (attempt - 1))
+    }
+  }
+
+  if (lastResponse) return lastResponse
+  throw new Error(`Unable to fetch ${label}: ${lastError instanceof Error ? lastError.message : String(lastError)}`)
+}
+
+const response = await fetchWithRetry(api, { headers: apiHeaders }, 'upstream tree')
 
 if (!response.ok) {
-  throw new Error(`Unable to read upstream tree: ${response.status} ${response.statusText}`)
+  const remaining = response.headers.get('x-ratelimit-remaining')
+  const reset = response.headers.get('x-ratelimit-reset')
+  const rateDetail = remaining === '0'
+    ? `; GitHub rate limit exhausted${reset ? ` until ${new Date(Number(reset) * 1000).toISOString()}` : ''}`
+    : ''
+  throw new Error(`Unable to read upstream tree: ${response.status} ${response.statusText}${rateDetail}`)
 }
 
 const tree = await response.json()
@@ -42,9 +85,9 @@ async function download(entry) {
     : join('public', 'legacy', entry.path)
 
   const url = `${rawBase}/${entry.path.split('/').map(encodeURIComponent).join('/')}`
-  const fileResponse = await fetch(url)
+  const fileResponse = await fetchWithRetry(url, { headers: rawHeaders }, entry.path)
   if (!fileResponse.ok) {
-    throw new Error(`Unable to download ${entry.path}: ${fileResponse.status}`)
+    throw new Error(`Unable to download ${entry.path}: ${fileResponse.status} ${fileResponse.statusText}`)
   }
 
   const data = new Uint8Array(await fileResponse.arrayBuffer())
@@ -64,4 +107,4 @@ async function worker() {
 }
 
 await Promise.all(Array.from({ length: Math.min(limit, files.length) }, () => worker()))
-process.stdout.write('\nAsset sync complete.\n')
+process.stdout.write(`\nAsset sync complete from ${owner}/${repo}@${upstreamRef}.\n`)

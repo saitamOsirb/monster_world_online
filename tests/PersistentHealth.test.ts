@@ -18,6 +18,8 @@ const encounter: WildEncounter = {
   displayName: 'Wildling',
   level: 3,
   spritePath: '/test.png',
+  elements: ['neutral'],
+  moveIds: ['basic-strike'],
 }
 
 describe('persistent monster HP', () => {

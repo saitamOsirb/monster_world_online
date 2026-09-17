@@ -2,16 +2,18 @@ import { Application, Assets, Graphics, Texture } from 'pixi.js'
 import { BattleController } from './battle/BattleController'
 import type { BattleState } from './battle/types'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TILE_SIZE } from './constants'
+import { WalletStore } from './economy/WalletStore'
 import { EncounterService } from './encounters/EncounterService'
 import { getEncounterTableForScene } from './encounters/tables'
 import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
 import { InventoryStore } from './inventory/InventoryStore'
-import { CAPTURE_CAPSULE_ID } from './inventory/types'
+import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
+import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
 import { BagController } from './ui/BagController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
@@ -22,6 +24,7 @@ const PLAYER_DISAPPEAR_MS = 100
 const SCENE_FADE_MS = 1000
 const BATTLE_FADE_MS = 450
 const STARTER_CAPTURE_CAPSULES = 5
+const STARTER_CREDITS = 200
 
 type TerminalBattlePhase = 'won' | 'lost' | 'ran' | 'captured'
 
@@ -31,7 +34,9 @@ export class Game {
   private readonly encounters = new EncounterService()
   private readonly collection = new MonsterCollectionStore()
   private readonly inventory = new InventoryStore()
+  private readonly wallet = new WalletStore()
   private readonly progression = new ProgressionService()
+  private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly menu: MenuController
   private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
@@ -44,6 +49,7 @@ export class Game {
   constructor(private readonly app: Application) {
     this.collection.ensureStarter(createStarterMonster())
     this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
+    this.wallet.ensureStarterBalance(STARTER_CREDITS)
 
     this.bag = new BagController({
       getEntries: (category) => this.inventory.getEntries(category),
@@ -188,18 +194,28 @@ export class Game {
     const lead = this.collection.lead
     if (!lead) return
 
-    const result = this.progression.applyVictory(lead, state.enemy)
-    this.collection.updateMonster(result.monster)
+    const progressionResult = this.progression.applyVictory(lead, state.enemy)
+    this.collection.updateMonster(progressionResult.monster)
+    const battleReward = this.rewards.grantVictory(state.enemy)
+    const rewardText = this.formatBattleReward(battleReward)
 
-    if (result.levelsGained > 0) {
-      return `${lead.displayName} gained ${result.experienceAwarded} EXP and reached Lv.${result.newLevel}!`
+    if (progressionResult.levelsGained > 0) {
+      return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP and reached Lv.${progressionResult.newLevel}! ${rewardText}`
     }
 
-    const required = this.progression.experienceRequiredForNextLevel(result.newLevel)
+    const required = this.progression.experienceRequiredForNextLevel(progressionResult.newLevel)
     if (required <= 0) {
-      return `${lead.displayName} gained ${result.experienceAwarded} EXP. Max level reached.`
+      return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. Max level reached. ${rewardText}`
     }
-    return `${lead.displayName} gained ${result.experienceAwarded} EXP. EXP ${result.monster.experience}/${required}.`
+    return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
+  }
+
+  private formatBattleReward(reward: BattleRewardGrant): string {
+    const parts = [`+${reward.credits} credits`]
+    for (const drop of reward.drops) {
+      parts.push(`+${drop.quantity} ${INVENTORY_ITEMS[drop.itemId].displayName}`)
+    }
+    return `Rewards: ${parts.join(', ')}.`
   }
 
   private async handleGrassStep(tile: GridPoint): Promise<void> {

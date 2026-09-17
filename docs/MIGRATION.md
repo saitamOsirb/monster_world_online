@@ -20,6 +20,9 @@ src/
       types.ts                    battle domain contracts/events
     capture/
       CaptureService.ts           renderer-independent capture probability
+    economy/
+      WalletStore.ts              versioned persistent currency repository
+      types.ts                    wallet/currency contracts
     encounters/
       EncounterService.ts         weighted encounter RNG
       tables.ts                   scene-scoped encounter tables
@@ -27,6 +30,10 @@ src/
     inventory/
       InventoryStore.ts           versioned persistent item repository + categorized entries
       types.ts                    item IDs/catalog/categories/inventory state
+    loot/
+      LootService.ts              deterministic RNG-driven loot resolver
+      tables.ts                   item drop tables
+      types.ts                    loot contracts
     monsters/
       MonsterCollectionStore.ts   versioned party/storage repository + transfer rules
       MonsterFactory.ts           starter/captured-monster adapters
@@ -34,6 +41,12 @@ src/
     progression/
       ProgressionService.ts       EXP/reward/level/stat growth rules
       types.ts                    progression result contracts
+    rewards/
+      BattleRewardService.ts      victory currency + item reward orchestration
+    shop/
+      ShopService.ts              transaction-safe wallet → inventory purchase rules
+      catalog.ts                  shop definitions/offers
+      types.ts                    shop contracts/results
     entities/Player.ts            player state machine and animation slicing
     input/InputController.ts      keyboard edge/held state
     ui/
@@ -80,7 +93,7 @@ visual-tests/
 | Tall grass | Migrated | Step hook + four-frame effect. |
 | Flowers/trees | Migrated | Source animation/offset behavior retained. |
 | Enter/Z/X controls | Migrated | Keyboard contract retained. |
-| Menu | Migrated | Original labels/resources/layout; product BAG option is now functional. |
+| Menu | Migrated | Original labels/resources/layout; product BAG option is functional. |
 | Party screen | Migrated | Original visual baseline; runtime data now comes from owned monsters. |
 | Godot autotile `PoolIntArray` | Migrated | Signed coordinates, autotile coords and transform flags decoded. |
 
@@ -100,22 +113,24 @@ The upstream prototype does not contain these systems. They are original Monster
 | Capture probability | Implemented foundation | Health-sensitive, injectable RNG, capped at 90%; not a Pokémon formula. |
 | Persistent monster collection | Implemented | Six active party slots plus storage overflow. |
 | Runtime Party Screen | Implemented | Displays actual persisted monster name/level/HP/sprite. |
-| Party/Storage management | Implemented | Runtime two-column manager can change lead and transfer monsters between active party and storage. |
+| Party/Storage management | Implemented | Runtime two-column manager can change lead and transfer monsters. |
 | Party safety rules | Implemented | Active party is capped at 6 and cannot be reduced below one monster. |
-| Storage paging | Implemented | Manager scrolls storage independently when collection exceeds the visible page. |
+| Storage paging | Implemented | Manager scrolls storage independently when collection exceeds visible page. |
 | Victory EXP | Implemented | Only victories grant EXP. |
 | Leveling | Implemented foundation | Multi-level gains, cap 100. |
 | Persistent stat growth | Implemented | +4 max HP, +2 ATK, +2 DEF, +1 SPD per level. |
 | Persistent inventory | Implemented foundation | Separate versioned `InventoryStore` in `localStorage`. |
-| Capture Capsule | Implemented | First inventory item; starter receives 5 exactly once. |
+| Capture Capsule | Implemented | Starter receives 5 exactly once. |
 | Capture item consumption | Implemented | Every real capture attempt consumes exactly one capsule. |
-| Zero-stock guard | Implemented | `CAPTURE x0` is shown and selecting it does not consume a turn. |
-| Capture stock display | Implemented | Battle command renders `CAPTURE xN` from live inventory state. |
+| Zero-stock guard | Implemented | `CAPTURE x0` does not consume a turn. |
 | Bag UI | Implemented | Categorized runtime Bag reads live quantities from `InventoryStore`. |
-| Bag categories | Implemented foundation | Capture, healing, battle and key categories are available for future item definitions. |
-| Bag selection | Implemented | Z/Enter inspects the selected item and respects its declared use context. |
-| Status effects/elements | Not implemented | Add only after Monster World Online rules are defined. |
-| Shop/loot item sources | Not implemented | Inventory APIs are ready; acquisition rules come next. |
+| Persistent wallet | Implemented | Separate `WalletStore`; starter credits granted once. |
+| Victory currency | Implemented | Victories persist credits through `BattleRewardService`. |
+| Wild loot | Implemented foundation | RNG-driven loot tables persist item drops into inventory. |
+| Shop purchase rules | Implemented foundation | `ShopService` validates funds/quantity and atomically moves credits to items. |
+| Town Supplies catalog | Implemented foundation | Capture Capsules currently cost 50 credits. |
+| NPC/vendor interaction UI | Not implemented | Shop domain is ready; overworld interaction comes next. |
+| Status effects/elements | Not implemented | Add after Monster World Online rules are defined. |
 
 ## Progression rules
 
@@ -134,7 +149,7 @@ Current progression is intentionally simple Monster World Online foundation logi
 
 ## Inventory and Bag rules
 
-The first inventory implementation intentionally has one concrete item: `capture-capsule` / **Capture Capsule**.
+The first concrete item is `capture-capsule` / **Capture Capsule**.
 
 - A new inventory receives **5** Capture Capsules exactly once.
 - The initialized flag is independent from quantity, so spending all capsules and restarting does not refill them.
@@ -142,49 +157,59 @@ The first inventory implementation intentionally has one concrete item: `capture
 - `add()` only accepts positive integer quantities.
 - `consume()` only accepts positive integer quantities and never drives stock below zero.
 - Corrupt/invalid persisted inventory payloads fall back to an empty, uninitialized inventory.
-- A capture attempt consumes the capsule **before** the battle engine resolves success/failure.
-- Both successful and failed capture attempts therefore spend one capsule.
-- Selecting capture at zero stock shows `No Capture Capsules left.` and leaves the battle turn untouched.
+- A capture attempt consumes the capsule **before** battle resolves success/failure.
+- Successful and failed capture attempts both spend one capsule.
+- Selecting capture at zero stock leaves the battle turn untouched.
 - `InventoryStore.getEntries(category)` returns defensive catalog snapshots and hides zero-stock items by default.
 - The Bag exposes `capture`, `healing`, `battle` and `key` categories.
-- Left/Right changes category; Up/Down changes item; Z/Enter selects/inspects; X/Escape returns to the menu.
-- The Capture Capsule is declared `battle` use-context, so inspecting it in the overworld does **not** consume it.
+- Left/Right changes category; Up/Down changes item; Z/Enter inspects; X/Escape returns to menu.
+- Capture Capsule is `battle` use-context, so inspecting it in the overworld does not consume it.
 
-Future NPC/shop/loot systems can call the same repository without coupling economy rules to Pixi.
+## Economy, loot and shop rules
+
+The current economy layer is deliberately small but fully persistent and renderer-independent.
+
+- A new wallet receives **200 credits exactly once**.
+- Wallet amounts are safe, non-negative integers.
+- `credit()` requires a positive integer amount.
+- `debit()` rejects overdrafts without mutating balance.
+- Wild victory credits use `8 + enemyLevel × 4 + floor(enemyMaxHp / 10)`.
+- The default wild-victory loot table has a **20%** chance to grant **1 Capture Capsule**.
+- `LootService` receives an injectable RNG, making reward resolution deterministic in tests.
+- `BattleRewardService` persists both credits and resolved item drops only on victory.
+- Capture, run and defeat do not grant these victory rewards.
+- `Town Supplies` currently sells Capture Capsules for **50 credits each**.
+- `ShopService` rejects unknown items, invalid quantities and insufficient funds.
+- A successful purchase debits the wallet and adds inventory stock as one transaction boundary.
+- If inventory mutation throws after a debit, `ShopService` restores the wallet charge before rethrowing.
+
+The runtime does not yet have an overworld NPC interaction layer, so `ShopService` is intentionally not exposed through a fake menu shortcut. The first vendor UI should call the same service.
 
 ## Party and storage rules
 
-`MonsterCollectionStore` owns all collection mutations; `PartyStorageController` only presents them and reacts to success/failure.
+`MonsterCollectionStore` owns all collection mutations; `PartyStorageController` only presents them.
 
 - Active party capacity is **6**.
-- `setLead(instanceId)` moves an existing active member to slot 0 while preserving the relative order of the other members.
-- `movePartyMemberToStorage(instanceId)` is rejected when only one active monster remains.
-- `moveStorageMonsterToParty(instanceId)` is rejected when all six party slots are occupied.
-- Unknown monster instance IDs never mutate collection state.
-- Every successful lead/transfer change is persisted immediately.
-- The battle session already reads `collection.lead`, so selecting a new lead affects subsequent battles without additional battle-specific state.
-- Confirming a runtime Party Screen member opens the manager focused on that monster.
-- Returning from the manager rebuilds the Party Screen from persisted collection state.
-
-Manager controls:
-
-- Left/Right: switch Party and Storage columns.
-- Up/Down: move selection.
-- Z/Enter: open or confirm the contextual action menu.
-- X/Escape: go back.
+- `setLead(instanceId)` moves an active member to slot 0 while preserving the other members' relative order.
+- Moving a party member to storage is rejected when only one active monster remains.
+- Moving a stored monster to party is rejected when all six slots are occupied.
+- Unknown monster IDs never mutate collection state.
+- Every successful mutation persists immediately.
+- Battle reads `collection.lead`, so changing lead automatically affects subsequent battles.
 
 ## Persistence boundaries
 
-Monster ownership/progression and item inventory are intentionally separate repositories:
+Gameplay ownership/progression, inventory and currency are separate repositories:
 
 - `MonsterCollectionStore` → `monster-world.collection.v2`
 - `InventoryStore` → `monster-world.inventory.v1`
+- `WalletStore` → `monster-world.wallet.v1`
 
-`Game` coordinates these repositories while battle/UI code consumes narrow callbacks/snapshots. This keeps a clean seam for replacing browser persistence with server-authoritative persistence later.
+`Game` coordinates these repositories while battle/UI/domain services consume narrow callbacks or store APIs. This keeps a clean seam for replacing browser persistence with server-authoritative persistence later.
 
 Collection schema `version: 2` migrates legacy `version: 1` party/storage data in place and adds `experience: 0` to legacy monsters.
 
-Inventory schema `version: 1` tracks an explicit `initialized` flag plus item quantities so starter grants cannot be recreated by merely reaching quantity zero.
+Inventory and wallet schema `version: 1` both keep explicit `initialized` state so starter grants cannot be recreated by reducing stock/balance to zero.
 
 ## Regression protection
 
@@ -195,21 +220,21 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **52 tests across 9 test files** covering import/collision, encounters, battle resolution, capture, monster persistence/migration, party/storage mutation rules, progression and inventory persistence/catalog behavior.
+The unit suite now contains **68 tests across 13 test files** covering import/collision, encounters, battle resolution, capture, monster persistence/migration, party/storage rules, progression, inventory/Bag behavior, wallet persistence, loot resolution, shop purchases and battle rewards.
 
-Visual tests keep deterministic fixtures for Town, menu, Party Screen, Bag, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product state such as local storage is deliberately isolated so legacy baselines remain stable. The Bag fixture has its own locked hash and existing Town/Menu/Party/interior hashes remain unchanged.
+Visual tests keep deterministic fixtures for Town, menu, Party Screen, Bag, Oak's Lab, Player Home Floor 1 and Rival Home Floor. The new economy/reward layer does not alter any existing visual baseline hash.
 
 ## Intentional architecture cleanups
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
-- Rendering does not decide movement, collision, capture, rewards, inventory or collection legality.
+- Rendering does not decide movement, collision, capture, rewards, inventory, economy or collection legality.
 - Battle terminal results are applied once before UI acknowledgement, preventing duplicate capture/reward side effects.
 - `ProgressionService` owns EXP/level/stat rules.
-- `MonsterCollectionStore` owns party/storage persistence, transfer legality and schema migration.
-- `PartyStorageController` receives narrow collection callbacks and never writes browser storage directly.
-- `InventoryStore` owns item quantities, catalog snapshots and starter-stock initialization.
+- `BattleRewardService` owns victory currency/item rewards.
+- `LootService` owns probabilistic item resolution and accepts injected RNG.
+- `ShopService` owns purchase legality and wallet/inventory transaction coordination.
+- `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own their persistence boundaries.
 - `BagController` reads categorized snapshots and does not consume battle-only items from the overworld.
-- Battle receives capture stock through hooks rather than reading `localStorage` directly.
 - Scene transitions preserve the existing world object instead of reloading for battle exit.
 - Animated water uses one shared clock rather than a ticker per tile.
 - Visual regression mode remains deterministic and isolated from player save state.
@@ -221,14 +246,15 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures when new maps/scenes are imported.
 3. Replace temporary third-party Pokémon resources before any distribution requiring original/licensed assets.
-4. Add actual item acquisition sources: NPC/shop/loot/rewards.
+4. Add overworld NPC interaction and connect the first vendor UI to `ShopService`.
 5. Define persistent post-battle HP/healing rules and field-use healing items.
-6. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
-7. Replace browser persistence and local battle/encounter authority with server-backed multiplayer authority.
+6. Add additional item sources/tables as maps, NPCs and quests are introduced.
+7. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
+8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system, inventory economy, Bag or party/storage manager. Encounter, battle, capture, collection, progression, inventory, Bag and collection-management modules described above are Monster World Online product code.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system, inventory economy, Bag, wallet/shop/loot system or party/storage manager. Those modules are Monster World Online product code.
 
 ## Resource and licensing note
 

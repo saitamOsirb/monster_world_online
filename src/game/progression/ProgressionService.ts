@@ -9,6 +9,8 @@ const FALLBACK_LEVEL_GROWTH: StatGrowth = {
   maxHp: 4,
   attack: 2,
   defense: 2,
+  specialAttack: 2,
+  specialDefense: 2,
   speed: 1,
 }
 
@@ -33,7 +35,14 @@ export class ProgressionService {
     const experienceAwarded = Math.max(0, Math.trunc(Number.isFinite(amount) ? amount : 0))
     const updated = this.cloneMonster(monster)
     const previousLevel = updated.level
-    const statGrowth: StatGrowth = { maxHp: 0, attack: 0, defense: 0, speed: 0 }
+    const statGrowth: StatGrowth = {
+      maxHp: 0,
+      attack: 0,
+      defense: 0,
+      specialAttack: 0,
+      specialDefense: 0,
+      speed: 0,
+    }
     const growth = findSpeciesDefinition(updated.speciesId)?.statGrowth ?? FALLBACK_LEVEL_GROWTH
 
     if (updated.level >= MAX_MONSTER_LEVEL) {
@@ -62,11 +71,15 @@ export class ProgressionService {
       updated.currentHp = Math.min(updated.maxHp, updated.currentHp + growth.maxHp)
       updated.attack += growth.attack
       updated.defense += growth.defense
+      updated.specialAttack = (updated.specialAttack ?? updated.attack) + growth.specialAttack
+      updated.specialDefense = (updated.specialDefense ?? updated.defense) + growth.specialDefense
       updated.speed += growth.speed
 
       statGrowth.maxHp += growth.maxHp
       statGrowth.attack += growth.attack
       statGrowth.defense += growth.defense
+      statGrowth.specialAttack += growth.specialAttack
+      statGrowth.specialDefense += growth.specialDefense
       statGrowth.speed += growth.speed
     }
 
@@ -89,6 +102,8 @@ export class ProgressionService {
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
     return {
       ...monster,
+      specialAttack: monster.specialAttack ?? monster.attack,
+      specialDefense: monster.specialDefense ?? monster.defense,
       elements: [...monster.elements],
       moves: monster.moves.map((move) => ({
         ...move,

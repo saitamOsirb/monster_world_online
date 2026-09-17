@@ -38,11 +38,16 @@ export class WorldScene {
   private readonly effects = new WorldEffects(this.effectLayer)
   private readonly actors = new Set<Container>()
   private scene: ImportedSceneDefinition | null = null
+  private scenePath: string | null = null
 
   constructor() {
     this.objectLayer.sortableChildren = true
     this.effectLayer.sortableChildren = true
     this.view.addChild(this.tileMap.view, this.ledgeLayer, this.objectLayer, this.effectLayer)
+  }
+
+  get currentScenePath(): string | null {
+    return this.scenePath
   }
 
   update(deltaMs: number): void {
@@ -62,7 +67,9 @@ export class WorldScene {
   async load(scenePath: string): Promise<SceneSpawn> {
     this.clearDynamicLayers()
     this.collision.clear()
+    this.scenePath = null
     this.scene = await this.importer.loadScene(scenePath)
+    this.scenePath = scenePath
 
     await this.tileMap.render(this.scene.tiles)
     for (const tile of this.scene.tiles) {

@@ -8,12 +8,14 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:visual": "playwright test",
     "assets:sync": "node scripts/sync-assets.mjs"
   },
   "dependencies": {
     "pixi.js": "^8.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "typescript": "^5.9.0",
     "vite": "^7.0.0",
     "vitest": "^3.2.4"

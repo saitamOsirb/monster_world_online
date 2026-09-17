@@ -16,11 +16,14 @@ export interface SpeciesLearnsetEntry {
 }
 
 export type SpeciesGrowthCurve = 'standard'
+export type SpeciesArtStatus = 'original' | 'temporary-reference'
 
 export interface MonsterSpeciesDefinition {
   id: string
+  legacyIds?: readonly string[]
   displayName: string
   spritePath: string
+  artStatus: SpeciesArtStatus
   elements: readonly BattleElement[]
   baseStats: SpeciesStats
   statGrowth: SpeciesStats

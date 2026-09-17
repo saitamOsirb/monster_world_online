@@ -14,6 +14,7 @@ export interface BattleCombatantDefinition {
   displayName: string
   level: number
   maxHp: number
+  currentHp?: number
   attack: number
   defense: number
   speed: number

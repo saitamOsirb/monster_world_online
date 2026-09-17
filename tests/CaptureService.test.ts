@@ -30,6 +30,15 @@ describe('CaptureService', () => {
     expect(new CaptureService(() => 0.95).attempt(target(1), 10)).toEqual({ success: false, chance: 0.9 })
   })
 
+  it('scales capture chance by species catch rate', () => {
+    const service = new CaptureService(() => 0.99)
+    const easy = service.attempt(target(50), 1, 0.9).chance
+    const hard = service.attempt(target(50), 1, 0.1).chance
+
+    expect(easy).toBeGreaterThan(hard)
+    expect(hard).toBeGreaterThanOrEqual(0.05)
+  })
+
   it('does not capture a fainted target', () => {
     expect(new CaptureService(() => 0).attempt(target(0))).toEqual({ success: false, chance: 0 })
   })

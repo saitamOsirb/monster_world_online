@@ -11,13 +11,16 @@ import type { BattleEvent, BattlePhase, BattleState } from './types'
 const UI_FONT_FAMILY = 'PokemonFL'
 const PLAYER_REFERENCE_SPRITE = '/assets/Pokemon/Charmander.png'
 
+type TerminalBattlePhase = Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'>
+
 export interface BattleControllerHooks {
   getLeadMonster?: () => OwnedMonster | null
-  onBattleFinished?: (
-    phase: Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'>,
+  onBattleResolved?: (
+    phase: TerminalBattlePhase,
     state: BattleState,
     encounter: WildEncounter,
-  ) => void
+  ) => string | void
+  onBattleFinished?: () => void
 }
 
 export class BattleController {
@@ -33,6 +36,7 @@ export class BattleController {
   private initialized = false
   private selectedCommand = 0
   private awaitingExit = false
+  private resolutionApplied = false
 
   constructor(private readonly hooks: BattleControllerHooks = {}) {
     this.view.visible = false
@@ -81,6 +85,7 @@ export class BattleController {
     this.encounter = encounter
     this.selectedCommand = 0
     this.awaitingExit = false
+    this.resolutionApplied = false
     this.setMessage(`A wild ${encounter.displayName} Lv.${encounter.level} appeared!`)
     this.refreshBattleUi(this.engine.state)
     this.view.visible = true
@@ -129,6 +134,7 @@ export class BattleController {
     this.encounter = null
     this.engine = null
     this.awaitingExit = false
+    this.resolutionApplied = false
     this.selectedCommand = 0
   }
 
@@ -152,15 +158,24 @@ export class BattleController {
 
   private applyTurnResult(state: BattleState, events: readonly BattleEvent[]): void {
     this.refreshBattleUi(state)
-    this.setMessage(this.describeEvents(events))
-    if (state.phase !== 'awaiting-player') this.awaitingExit = true
+    let message = this.describeEvents(events)
+
+    if (state.phase !== 'awaiting-player') {
+      this.awaitingExit = true
+      if (!this.resolutionApplied && this.encounter) {
+        const summary = this.hooks.onBattleResolved?.(state.phase, state, this.encounter)
+        this.resolutionApplied = true
+        if (summary) message = `${message} ${summary}`.trim()
+      }
+    }
+
+    this.setMessage(message)
   }
 
   private finishBattle(): void {
-    if (!this.engine || !this.encounter) return
-    const state = this.engine.state
-    if (state.phase === 'awaiting-player') return
-    this.hooks.onBattleFinished?.(state.phase, state, this.encounter)
+    if (!this.engine) return
+    if (this.engine.state.phase === 'awaiting-player') return
+    this.hooks.onBattleFinished?.()
   }
 
   private refreshBattleUi(state: BattleState): void {

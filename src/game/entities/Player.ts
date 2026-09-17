@@ -18,6 +18,7 @@ export interface PlayerHooks {
   onMoveEnd?: (tile: GridPoint) => void
   onDoorEntered?: (door: DoorDefinition) => void
   onGrassStep?: (tile: GridPoint) => void
+  onLanded?: (tile: GridPoint) => void
 }
 
 interface Motion {
@@ -181,6 +182,7 @@ export class Player {
 
     if (motion.progress < motion.distanceTiles) return
 
+    const landed = this.state === 'jumping'
     this.tile = { ...motion.to }
     this.view.position.set(this.tile.x * TILE_SIZE, this.tile.y * TILE_SIZE)
     this.motion = null
@@ -189,6 +191,7 @@ export class Player {
     this.state = 'idle'
     this.refreshVisual()
     this.hooks.onMoveEnd?.(this.tile)
+    if (landed) this.hooks.onLanded?.(this.tile)
     if (this.collision.isTallGrass(this.tile)) this.hooks.onGrassStep?.(this.tile)
     if (completedDoor) this.hooks.onDoorEntered?.(completedDoor)
   }

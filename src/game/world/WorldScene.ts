@@ -26,11 +26,23 @@ export class WorldScene {
   private readonly objectLayer = new Container()
   private readonly effectLayer = new Container()
   private readonly importer = new LegacyGodotImporter()
+  private readonly actors = new Set<Container>()
   private scene: ImportedSceneDefinition | null = null
 
   constructor() {
     this.objectLayer.sortableChildren = true
+    this.effectLayer.sortableChildren = true
     this.view.addChild(this.tileMap.view, this.ledgeLayer, this.objectLayer, this.effectLayer)
+  }
+
+  addActor(actor: Container): void {
+    this.actors.add(actor)
+    this.objectLayer.addChild(actor)
+  }
+
+  removeActor(actor: Container): void {
+    this.actors.delete(actor)
+    if (actor.parent === this.objectLayer) this.objectLayer.removeChild(actor)
   }
 
   async load(scenePath: string): Promise<SceneSpawn> {
@@ -83,6 +95,7 @@ export class WorldScene {
     })
     const effect = new Sprite(effectFrame)
     effect.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
+    effect.zIndex = overlay.zIndex + 1
     effect.roundPixels = true
     this.effectLayer.addChild(effect)
 
@@ -94,7 +107,13 @@ export class WorldScene {
 
   private clearDynamicLayers(): void {
     this.ledgeLayer.removeChildren().forEach((child) => child.destroy())
-    this.objectLayer.removeChildren().forEach((child) => child.destroy())
+
+    const children = this.objectLayer.removeChildren()
+    for (const child of children) {
+      if (this.actors.has(child as Container)) this.objectLayer.addChild(child)
+      else child.destroy()
+    }
+
     this.effectLayer.removeChildren().forEach((child) => child.destroy())
   }
 

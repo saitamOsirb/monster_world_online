@@ -1,5 +1,6 @@
 import { AnimatedSprite, Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import { InputController } from '../input/InputController'
+import type { OwnedMonster } from '../monsters/types'
 
 const MENU_OPTIONS = ['POKeMON', 'BAG', 'Arkeve', 'SAVE', 'OPTION', 'EXIT']
 const MENU_TEXT_COLOR = 0x6f6f88
@@ -39,6 +40,15 @@ interface PartySlotLayout {
   healthBarX: number
   healthBarY: number
   main: boolean
+}
+
+interface PartyUiResources {
+  partyBackground: Texture
+  mainPokemonBackground: Texture
+  standbyPokemonBackground: Texture
+  genderIcons: Texture
+  healthBar: Texture
+  cancelButton: Texture
 }
 
 const PARTY_SLOT_LAYOUTS: PartySlotLayout[] = [
@@ -101,6 +111,7 @@ export class MenuController {
   private mainBackgroundFrames: Texture[] = []
   private standbyBackgroundFrames: Texture[] = []
   private cancelFrames: Texture[] = []
+  private partyUiResources: PartyUiResources | null = null
   private initialized = false
 
   constructor(private readonly hooks: MenuControllerHooks = {}) {
@@ -152,16 +163,17 @@ export class MenuController {
       texture.source.scaleMode = 'nearest'
     }
 
-    this.buildMenu(menuBox, menuArrow)
-    this.buildParty(
+    this.partyUiResources = {
       partyBackground,
       mainPokemonBackground,
       standbyPokemonBackground,
       genderIcons,
       healthBar,
       cancelButton,
-      pokemonTextures,
-    )
+    }
+
+    this.buildMenu(menuBox, menuArrow)
+    this.buildLegacyParty(this.partyUiResources, pokemonTextures)
     this.refreshMenuSelection()
     this.refreshPartySelection()
     this.initialized = true
@@ -219,7 +231,12 @@ export class MenuController {
     }
   }
 
-  showParty(): void {
+  async showParty(party?: readonly OwnedMonster[]): Promise<void> {
+    if (!this.visualTestMode && party && this.partyUiResources) {
+      await this.buildOwnedParty(this.partyUiResources, party)
+      this.selectedParty = 0
+      this.refreshPartySelection()
+    }
     this.state = 'party'
     this.syncVisibility()
   }
@@ -263,37 +280,14 @@ export class MenuController {
     this.menuPanel.addChild(this.menuArrow)
   }
 
-  private buildParty(
-    partyBackground: Texture,
-    mainPokemonBackground: Texture,
-    standbyPokemonBackground: Texture,
-    genderIcons: Texture,
-    healthBar: Texture,
-    cancelButton: Texture,
-    pokemonTextures: Texture[],
-  ): void {
-    this.partyPanel.removeChildren().forEach((child) => child.destroy())
-    this.partySelectionSprites.length = 0
-
-    const background = new Sprite(partyBackground)
-    background.position.set(0, 0)
-    background.roundPixels = true
-    this.partyPanel.addChild(background)
-
-    this.mainBackgroundFrames = this.splitHorizontal(mainPokemonBackground, 2)
-    this.standbyBackgroundFrames = this.splitHorizontal(standbyPokemonBackground, 2)
-    this.cancelFrames = this.splitHorizontal(cancelButton, 2)
-    const genderFrames = this.splitHorizontal(genderIcons, 2)
-    const healthBarFrame = this.cropTexture(healthBar, 24, 0, 24, 3)
+  private buildLegacyParty(resources: PartyUiResources, pokemonTextures: Texture[]): void {
+    this.preparePartyPanel(resources)
+    const genderFrames = this.splitHorizontal(resources.genderIcons, 2)
+    const healthBarFrame = this.cropTexture(resources.healthBar, 24, 0, 24, 3)
 
     PARTY_SLOT_LAYOUTS.forEach((layout, index) => {
       const speciesTexture = pokemonTextures[index]
-      const backgroundFrames = layout.main ? this.mainBackgroundFrames : this.standbyBackgroundFrames
-      const slotBackground = new Sprite(backgroundFrames[0])
-      slotBackground.anchor.set(0.5)
-      slotBackground.position.set(layout.groupX + layout.backgroundX, layout.groupY + layout.backgroundY)
-      slotBackground.roundPixels = true
-      this.partyPanel.addChild(slotBackground)
+      const slotBackground = this.addSlotBackground(layout)
       this.partySelectionSprites.push(slotBackground)
 
       const creature = new AnimatedSprite(this.regionFrames(speciesTexture, 30, 9, 70, 24, 2))
@@ -330,6 +324,93 @@ export class MenuController {
       this.partyPanel.addChild(hp)
     })
 
+    this.addCancelButton()
+  }
+
+  private async buildOwnedParty(resources: PartyUiResources, party: readonly OwnedMonster[]): Promise<void> {
+    const members = party.slice(0, 6)
+    const textures = await Promise.all(members.map((member) => Assets.load<Texture>(member.spritePath)))
+    textures.forEach((texture) => { texture.source.scaleMode = 'nearest' })
+
+    this.preparePartyPanel(resources)
+    const genderFrames = this.splitHorizontal(resources.genderIcons, 2)
+    const healthBarFrame = this.cropTexture(resources.healthBar, 24, 0, 24, 3)
+
+    PARTY_SLOT_LAYOUTS.forEach((layout, index) => {
+      const slotBackground = this.addSlotBackground(layout)
+      this.partySelectionSprites.push(slotBackground)
+      const member = members[index]
+      const texture = textures[index]
+      if (!member || !texture) return
+
+      const creature = new AnimatedSprite(this.regionFrames(texture, 30, 9, 70, 24, 2))
+      creature.anchor.set(0.5)
+      creature.position.set(layout.groupX + layout.creatureX, layout.groupY + layout.creatureY)
+      creature.animationSpeed = 2 / 60
+      creature.loop = true
+      creature.roundPixels = true
+      creature.play()
+      this.partyPanel.addChild(creature)
+
+      const name = new Text({
+        text: member.displayName,
+        style: {
+          fontFamily: UI_FONT_FAMILY,
+          fontSize: layout.main ? 9 : 8,
+          fill: 0x2f2f3a,
+        },
+      })
+      name.anchor.set(0.5)
+      name.position.set(layout.groupX + layout.nameX, layout.groupY + layout.nameY)
+      name.roundPixels = true
+      this.partyPanel.addChild(name)
+
+      this.addPartyLabel(String(member.level), layout.groupX + layout.levelX, layout.groupY + layout.levelY)
+      this.addPartyLabel(String(member.currentHp), layout.groupX + layout.healthX, layout.groupY + layout.healthY)
+      this.addPartyLabel(String(member.maxHp), layout.groupX + layout.maxHealthX, layout.groupY + layout.maxHealthY)
+
+      const gender = new Sprite(genderFrames[0])
+      gender.anchor.set(0.5)
+      gender.position.set(layout.groupX + layout.genderX, layout.groupY + layout.genderY)
+      gender.roundPixels = true
+      this.partyPanel.addChild(gender)
+
+      const hp = new Sprite(healthBarFrame)
+      hp.anchor.set(0.5)
+      hp.position.set(layout.groupX + layout.healthBarX, layout.groupY + layout.healthBarY)
+      hp.scale.x = 2 * Math.max(0, Math.min(1, member.currentHp / Math.max(1, member.maxHp)))
+      hp.roundPixels = true
+      this.partyPanel.addChild(hp)
+    })
+
+    this.addCancelButton()
+  }
+
+  private preparePartyPanel(resources: PartyUiResources): void {
+    this.partyPanel.removeChildren().forEach((child) => child.destroy())
+    this.partySelectionSprites.length = 0
+
+    const background = new Sprite(resources.partyBackground)
+    background.position.set(0, 0)
+    background.roundPixels = true
+    this.partyPanel.addChild(background)
+
+    this.mainBackgroundFrames = this.splitHorizontal(resources.mainPokemonBackground, 2)
+    this.standbyBackgroundFrames = this.splitHorizontal(resources.standbyPokemonBackground, 2)
+    this.cancelFrames = this.splitHorizontal(resources.cancelButton, 2)
+  }
+
+  private addSlotBackground(layout: PartySlotLayout): Sprite {
+    const backgroundFrames = layout.main ? this.mainBackgroundFrames : this.standbyBackgroundFrames
+    const slotBackground = new Sprite(backgroundFrames[0])
+    slotBackground.anchor.set(0.5)
+    slotBackground.position.set(layout.groupX + layout.backgroundX, layout.groupY + layout.backgroundY)
+    slotBackground.roundPixels = true
+    this.partyPanel.addChild(slotBackground)
+    return slotBackground
+  }
+
+  private addCancelButton(): void {
     this.cancelSprite = new Sprite(this.cancelFrames[0])
     this.cancelSprite.anchor.set(0.5)
     this.cancelSprite.position.set(211, 144)

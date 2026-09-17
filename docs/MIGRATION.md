@@ -13,6 +13,11 @@ src/
   game/
     Game.ts                       application loop, camera, transitions
     constants.ts                  preserved 240x160 / 16px gameplay contracts
+    battle/BattleController.ts    Pixi battle presentation + battle exit contract
+    encounters/
+      EncounterService.ts         renderer-independent weighted encounter RNG
+      tables.ts                   scene-scoped encounter tables
+      types.ts                    encounter domain contracts
     entities/Player.ts            player state machine and animation slicing
     input/InputController.ts      keyboard edge/held state
     ui/MenuController.ts          source-asset menu + party UI/state
@@ -65,12 +70,29 @@ visual-tests/
 | Party selection + cancel | Migrated | Original 7-state navigation contract and selected frames are retained. |
 | Godot autotile `PoolIntArray` | Migrated | Signed cell coordinates, autotile coordinates and flip/transpose flags decoded. |
 
+## New Monster World Online foundation
+
+These systems are intentionally **new product code**, not claims of migrated Godot behavior. The upstream prototype does not contain them.
+
+| New system | Status | Notes |
+| --- | --- | --- |
+| Scene-scoped wild encounter tables | Foundation implemented | `Town.tscn` currently has a reference grass table; interiors without tables never roll encounters. |
+| Weighted encounter selection | Implemented | Renderer-independent `EncounterService` supports weighted species, inclusive level ranges and injectable RNG. |
+| Step-based encounter checks | Implemented | Rolls happen only after a completed movement step in tall grass, never from elapsed time or held input alone. |
+| Post-encounter cooldown | Implemented | Prevents immediate back-to-back rolls and is unit-tested deterministically. |
+| Overworld → battle transition | Implemented | Short fade locks input, hides the world and opens a dedicated Pixi battle layer. |
+| Battle presentation shell | Foundation implemented | Displays the encountered creature and level using temporary synced reference resources. |
+| Battle exit / return to world | Implemented | Z/Enter/X exits the current foundation battle and restores the exact overworld state/camera. |
+| Damage, turns, moves, capture, rewards | Not implemented | These belong to the next battle-domain module and are not inferred from the Godot prototype. |
+
+The initial encounter table and battle creature art still use the synced Pokémon reference resources so the vertical slice is executable. They are temporary content adapters; the encounter/battle domain APIs are resource-name agnostic and should receive original Monster World Online species data later.
+
 ## Regression protection
 
 CI now runs four independent gates:
 
 1. `pnpm assets:sync` — proves all required reference resources can still be materialized.
-2. `pnpm test` — validates TSCN, hierarchy and collision-transform parsing.
+2. `pnpm test` — validates TSCN/hierarchy/collision parsing plus deterministic encounter probability, weighted selection, inclusive levels and cooldown behavior. The current suite contains 14 unit tests.
 3. `pnpm test:visual` — launches the game in deterministic visual-test mode and compares SHA-256 hashes of the 240×160 canvas for Town, the menu, Party Screen, Oak's Lab, Player Home Floor 1 and Rival Home Floor.
 4. `pnpm build` — validates strict TypeScript and the Vite production bundle.
 
@@ -90,19 +112,23 @@ The current visual regression protects the migrated Pixi baseline. It is **not**
 - Animated water uses a single global frame clock so large maps do not create a ticker per tile.
 - Door, effects and object rendering are isolated modules rather than responsibilities of the scene manager.
 - Menu and Party rendering are Pixi-native while preserving the source assets/layout instead of recreating the Godot scene graph at runtime.
+- Encounter probability/selection is isolated from Pixi and world rendering, so server-authoritative RNG can replace the local random source later without rewriting battle presentation.
+- Battle presentation is a separate layer; leaving battle restores the existing world object rather than reloading the map.
 
-## Remaining migration work
+## Remaining migration/product work
 
-The upstream repository does not expose another major gameplay subsystem beyond the overworld/menu prototype. Remaining work is therefore validation and productization rather than hidden Godot logic:
+The upstream repository does not expose another major gameplay subsystem beyond the overworld/menu prototype. Remaining work is therefore validation and new Monster World Online product development rather than hidden Godot logic:
 
 1. Add controlled cross-engine golden screenshots if an environment running the original Godot project is available.
 2. Extend the deterministic visual fixture set whenever another legacy scene or future map is imported.
 3. Replace third-party Pokémon resources before any distribution that requires original/licensed art.
-4. Design battle, encounters, capture, progression and multiplayer as new Monster World Online systems rather than presenting them as migrated functionality.
+4. Build a renderer-independent battle domain: combatants, stats, moves, turn resolution, status effects, win/lose/run results and battle tests.
+5. Add capture, owned-monster/party persistence and progression on top of that battle result model.
+6. Move encounter/battle authority to the multiplayer server when networking is introduced.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. Those systems should be designed as new modules rather than presented as migrated functionality.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. The new encounter/battle foundation in this branch is Monster World Online code and should not be presented as migrated upstream functionality.
 
 ## Resource and licensing note
 

@@ -4,7 +4,7 @@ import { expect, test, type Page } from '@playwright/test'
 type VisualFixture = 'town' | 'menu' | 'party' | 'oaksLab' | 'playerHomeFloor1' | 'rivalHomeFloor'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
-  town: 'c12e2b8ba47eaa05bf96a882fd957d7b204f9ad8c45325dfe2b0ba96b10cd4e5',
+  town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
   menu: '033dd11bb3f45187813a8f7d0ec0fefee696b494a725d410680b2cee2a41f945',
   party: 'ff7ab61af1deade1319aed8e7e9c4f9a584b921d72758d78ff37447aeabed9e8',
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',

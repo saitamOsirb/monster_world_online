@@ -1,4 +1,4 @@
-import { Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js'
+import { AnimatedSprite, Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js'
 import { TILE_SIZE, type Direction } from '../constants'
 import { CollisionWorld } from './CollisionWorld'
 import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionImporter'
@@ -102,28 +102,34 @@ export class WorldScene {
     overlay.roundPixels = true
     this.effectLayer.addChild(overlay)
 
-    const frameWidth = effectTexture.source.width / 4
-    const frames = Array.from({ length: 4 }, (_, index) => new Texture({
-      source: effectTexture.source,
-      frame: new Rectangle(index * frameWidth, 0, frameWidth, effectTexture.source.height),
-    }))
-    const effect = new Sprite(frames[0])
+    const effect = new AnimatedSprite(this.sliceHorizontal(effectTexture, 4))
     effect.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
     effect.zIndex = overlay.zIndex + 1
     effect.roundPixels = true
+    effect.animationSpeed = 10 / 60
+    effect.loop = false
+    effect.onComplete = () => {
+      if (!effect.destroyed) effect.destroy()
+      if (!overlay.destroyed) overlay.destroy()
+    }
     this.effectLayer.addChild(effect)
+    effect.play()
+  }
 
-    let frame = 0
-    const interval = window.setInterval(() => {
-      frame += 1
-      if (frame >= frames.length) {
-        window.clearInterval(interval)
-        if (!effect.destroyed) effect.destroy()
-        if (!overlay.destroyed) overlay.destroy()
-        return
-      }
-      effect.texture = frames[frame]
-    }, 100)
+  async showLandingDust(tile: GridPoint): Promise<void> {
+    const texture = await Assets.load<Texture>('/assets/Player/jump_landing_dust.png')
+    texture.source.scaleMode = 'nearest'
+    const dust = new AnimatedSprite(this.sliceHorizontal(texture, 3))
+    dust.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
+    dust.zIndex = tile.y * TILE_SIZE + TILE_SIZE + 2
+    dust.roundPixels = true
+    dust.animationSpeed = 5 / 60
+    dust.loop = false
+    dust.onComplete = () => {
+      if (!dust.destroyed) dust.destroy()
+    }
+    this.effectLayer.addChild(dust)
+    dust.play()
   }
 
   private clearDynamicLayers(): void {
@@ -180,12 +186,30 @@ export class WorldScene {
 
       const texture = await Assets.load<Texture>(texturePath)
       texture.source.scaleMode = 'nearest'
-      const sprite = new Sprite(texture)
-      sprite.position.set(object.position.x, object.position.y)
-      sprite.zIndex = object.zIndex ?? object.position.y + texture.source.height
-      sprite.roundPixels = true
-      this.objectLayer.addChild(sprite)
+      const displayObject = object.instancePath?.endsWith('Flower.tscn')
+        ? this.createFlower(texture)
+        : new Sprite(texture)
+      displayObject.position.set(object.position.x, object.position.y)
+      displayObject.zIndex = object.zIndex ?? object.position.y + TILE_SIZE
+      displayObject.roundPixels = true
+      this.objectLayer.addChild(displayObject)
     }
+  }
+
+  private createFlower(texture: Texture): AnimatedSprite {
+    const flower = new AnimatedSprite(this.sliceHorizontal(texture, 5))
+    flower.animationSpeed = 5 / 60
+    flower.loop = true
+    flower.play()
+    return flower
+  }
+
+  private sliceHorizontal(texture: Texture, count: number): Texture[] {
+    const frameWidth = texture.source.width / count
+    return Array.from({ length: count }, (_, index) => new Texture({
+      source: texture.source,
+      frame: new Rectangle(index * frameWidth, 0, frameWidth, texture.source.height),
+    }))
   }
 
   private async applyImportedCollisions(scenePath: string, objects: WorldObjectDefinition[]): Promise<void> {

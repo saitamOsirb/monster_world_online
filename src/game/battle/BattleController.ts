@@ -219,7 +219,7 @@ export class BattleController {
     if (!this.commandText) return
     const captureCount = Math.max(0, Math.trunc(this.hooks.getCaptureItemCount?.() ?? 0))
     const options = [
-      ...state.player.moves.map((move) => move.name),
+      ...state.player.moves.map((move) => `${move.name}${move.element ? ` [${move.element.toUpperCase()}]` : ''}`),
       `CAPTURE x${captureCount}`,
       'RUN',
     ]
@@ -243,6 +243,11 @@ export class BattleController {
         messages.push(`${this.sideName(event.side)} used ${event.moveName}.`)
       } else if (event.type === 'miss') {
         messages.push('It missed!')
+      } else if (event.type === 'effectiveness') {
+        if (event.multiplier === 0) messages.push('It had no effect.')
+        else if (event.multiplier === 0.5) messages.push('The attack was resisted.')
+        else if (event.multiplier === 2) messages.push('It was super effective!')
+        else if (event.multiplier === 4) messages.push('It was devastatingly effective!')
       } else if (event.type === 'damage') {
         messages.push(`${event.amount} damage.`)
       } else if (event.type === 'status-applied') {

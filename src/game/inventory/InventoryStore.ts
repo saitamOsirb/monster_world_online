@@ -1,4 +1,11 @@
-import { CAPTURE_CAPSULE_ID, type InventoryItemId, type InventoryState } from './types'
+import {
+  CAPTURE_CAPSULE_ID,
+  INVENTORY_ITEMS,
+  type InventoryCategory,
+  type InventoryEntry,
+  type InventoryItemId,
+  type InventoryState,
+} from './types'
 
 const DEFAULT_KEY = 'monster-world.inventory.v1'
 
@@ -18,6 +25,14 @@ export class InventoryStore {
 
   getQuantity(itemId: InventoryItemId): number {
     return this.state.quantities[itemId] ?? 0
+  }
+
+  getEntries(category?: InventoryCategory, includeZero = false): readonly InventoryEntry[] {
+    return Object.values(INVENTORY_ITEMS)
+      .filter((item) => !category || item.category === category)
+      .map((item) => ({ item: { ...item }, quantity: this.getQuantity(item.id) }))
+      .filter((entry) => includeZero || entry.quantity > 0)
+      .sort((left, right) => left.item.displayName.localeCompare(right.item.displayName))
   }
 
   ensureStarterStock(quantity: number): void {

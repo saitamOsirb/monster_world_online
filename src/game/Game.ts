@@ -13,6 +13,7 @@ import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
 import { MenuController } from './ui/MenuController'
+import { PartyStorageController } from './ui/PartyStorageController'
 import type { DoorDefinition, GridPoint } from './world/types'
 import { WorldScene } from './world/WorldScene'
 
@@ -31,6 +32,7 @@ export class Game {
   private readonly inventory = new InventoryStore()
   private readonly progression = new ProgressionService()
   private readonly menu: MenuController
+  private readonly partyStorage: PartyStorageController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
 
@@ -40,9 +42,20 @@ export class Game {
   constructor(private readonly app: Application) {
     this.collection.ensureStarter(createStarterMonster())
     this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
+
+    this.partyStorage = new PartyStorageController({
+      getParty: () => this.collection.party,
+      getStorage: () => this.collection.storageMonsters,
+      onSetLead: (instanceId) => this.collection.setLead(instanceId),
+      onMoveToStorage: (instanceId) => this.collection.movePartyMemberToStorage(instanceId),
+      onMoveToParty: (instanceId) => this.collection.moveStorageMonsterToParty(instanceId),
+      onExit: () => void this.transitionBackToPartyFromStorage(),
+    })
+
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
       onPartyExitRequested: () => void this.transitionBackToMenu(),
+      onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
@@ -53,7 +66,13 @@ export class Game {
     })
     this.fadeOverlay.alpha = 0
     this.fadeOverlay.eventMode = 'none'
-    this.app.stage.addChild(this.world.view, this.menu.view, this.battle.view, this.fadeOverlay)
+    this.app.stage.addChild(
+      this.world.view,
+      this.menu.view,
+      this.partyStorage.view,
+      this.battle.view,
+      this.fadeOverlay,
+    )
   }
 
   async start(): Promise<void> {
@@ -110,6 +129,12 @@ export class Game {
 
     if (this.battle.isActive) {
       if (!this.transitioning) this.battle.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.partyStorage.isActive) {
+      if (!this.transitioning) this.partyStorage.update(this.input)
       this.input.endFrame()
       return
     }
@@ -239,6 +264,34 @@ export class Game {
       await this.menu.showParty(this.collection.party)
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionToPartyStorage(instanceId: string): Promise<void> {
+    if (this.transitioning || this.battle.isActive || this.partyStorage.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.menu.view.visible = false
+      this.partyStorage.show(instanceId)
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionBackToPartyFromStorage(): Promise<void> {
+    if (this.transitioning || !this.partyStorage.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.partyStorage.hide()
+      this.menu.view.visible = true
+      await this.menu.showParty(this.collection.party)
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.menu.view.visible = true
       this.transitioning = false
     }
   }

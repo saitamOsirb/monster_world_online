@@ -9,5 +9,6 @@ export interface InteractableNpcDefinition {
   displayName: string
   dialogue: string
   vendorId?: string
+  serviceId?: string
   texturePath: string
 }

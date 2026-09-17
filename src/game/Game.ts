@@ -12,6 +12,7 @@ import { InteractionService } from './interaction/InteractionService'
 import { TOWN_SUPPLY_MERCHANT } from './interaction/npcs'
 import { InventoryStore } from './inventory/InventoryStore'
 import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
+import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
@@ -45,6 +46,7 @@ export class Game {
   private readonly progression = new ProgressionService()
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly shopService = new ShopService(this.inventory, this.wallet)
+  private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
   private readonly interaction = new InteractionService()
   private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
   private readonly npcWorld: NpcWorldLayer
@@ -66,6 +68,8 @@ export class Game {
 
     this.bag = new BagController({
       getEntries: (category) => this.inventory.getEntries(category),
+      getParty: () => this.collection.party,
+      useItem: (itemId, targetInstanceId) => this.fieldItems.use(itemId, targetInstanceId),
       onExit: () => void this.transitionBackToMenuFromBag(),
     })
 
@@ -244,6 +248,8 @@ export class Game {
     state: BattleState,
     encounter: WildEncounter,
   ): string | void {
+    this.persistBattleHp(state)
+
     if (phase === 'captured') {
       const captured = createCapturedMonster(encounter, state.enemy)
       const result = this.collection.addCaptured(captured)
@@ -270,6 +276,13 @@ export class Game {
     return `${lead.displayName} gained ${progressionResult.experienceAwarded} EXP. EXP ${progressionResult.monster.experience}/${required}. ${rewardText}`
   }
 
+  private persistBattleHp(state: BattleState): void {
+    const lead = this.collection.lead
+    if (!lead || lead.instanceId !== state.player.id) return
+    const nextHp = Math.max(0, Math.min(lead.maxHp, Math.trunc(state.player.currentHp)))
+    this.collection.updateCurrentHp(lead.instanceId, nextHp)
+  }
+
   private formatBattleReward(reward: BattleRewardGrant): string {
     const parts = [`+${reward.credits} credits`]
     for (const drop of reward.drops) {
@@ -281,6 +294,8 @@ export class Game {
   private async handleGrassStep(tile: GridPoint): Promise<void> {
     void this.world.showGrassStep(tile)
     if (this.transitioning || this.battle.isActive || this.menu.inputLocked) return
+    const lead = this.collection.lead
+    if (!lead || lead.currentHp <= 0) return
 
     const table = getEncounterTableForScene(this.world.currentScenePath)
     if (!table) return

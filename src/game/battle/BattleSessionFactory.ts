@@ -1,6 +1,11 @@
 import type { WildEncounter } from '../encounters/types'
 import type { OwnedMonster } from '../monsters/types'
-import { createBattleMove } from './moves'
+import {
+  STARTER_SPECIES_ID,
+  calculateSpeciesStats,
+  createSpeciesMovesAtLevel,
+  getSpeciesDefinition,
+} from '../species/catalog'
 import type { BattleCombatantDefinition, BattleMove } from './types'
 
 export interface BattleSessionDefinitions {
@@ -13,6 +18,9 @@ export function createReferenceBattleSession(
   lead?: OwnedMonster | null,
 ): BattleSessionDefinitions {
   const enemyLevel = Math.max(1, encounter.level)
+  const enemySpecies = getSpeciesDefinition(encounter.speciesId)
+  const enemyStats = calculateSpeciesStats(enemySpecies, enemyLevel)
+
   const player: BattleCombatantDefinition = lead
     ? {
         id: lead.instanceId,
@@ -27,36 +35,39 @@ export function createReferenceBattleSession(
         moves: lead.moves.map(cloneMove),
         status: lead.status ? { ...lead.status } : undefined,
       }
-    : {
-        id: 'reference-player-creature',
-        displayName: 'Partner',
-        level: 5,
-        maxHp: 26,
-        currentHp: 26,
-        attack: 13,
-        defense: 11,
-        speed: 12,
-        elements: ['fire'],
-        moves: [
-          createBattleMove('basic-strike'),
-          createBattleMove('ember-burst'),
-          createBattleMove('quick-hit'),
-        ],
-      }
+    : createReferencePlayer()
 
   return {
     player,
     enemy: {
-      id: encounter.speciesId,
-      displayName: encounter.displayName,
+      id: enemySpecies.id,
+      displayName: enemySpecies.displayName,
       level: enemyLevel,
-      maxHp: 12 + enemyLevel * 3,
-      attack: 7 + enemyLevel * 2,
-      defense: 7 + enemyLevel * 2,
-      speed: 6 + enemyLevel * 2,
-      elements: [...encounter.elements],
-      moves: encounter.moveIds.map(createBattleMove),
+      maxHp: enemyStats.maxHp,
+      attack: enemyStats.attack,
+      defense: enemyStats.defense,
+      speed: enemyStats.speed,
+      elements: [...enemySpecies.elements],
+      moves: createSpeciesMovesAtLevel(enemySpecies, enemyLevel),
     },
+  }
+}
+
+function createReferencePlayer(): BattleCombatantDefinition {
+  const species = getSpeciesDefinition(STARTER_SPECIES_ID)
+  const level = 5
+  const stats = calculateSpeciesStats(species, level)
+  return {
+    id: species.id,
+    displayName: species.displayName,
+    level,
+    maxHp: stats.maxHp,
+    currentHp: stats.maxHp,
+    attack: stats.attack,
+    defense: stats.defense,
+    speed: stats.speed,
+    elements: [...species.elements],
+    moves: createSpeciesMovesAtLevel(species, level),
   }
 }
 

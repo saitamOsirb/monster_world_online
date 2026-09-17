@@ -1,27 +1,31 @@
-import { createBattleMove } from '../battle/moves'
 import type { BattleCombatantState, BattleMove } from '../battle/types'
 import type { WildEncounter } from '../encounters/types'
+import {
+  STARTER_SPECIES_ID,
+  calculateSpeciesStats,
+  createSpeciesMovesAtLevel,
+  getSpeciesDefinition,
+} from '../species/catalog'
 import type { OwnedMonster } from './types'
 
 export function createStarterMonster(now: Date = new Date()): OwnedMonster {
+  const species = getSpeciesDefinition(STARTER_SPECIES_ID)
+  const level = 5
+  const stats = calculateSpeciesStats(species, level)
   return {
     instanceId: createInstanceId(),
-    speciesId: 'charmander-reference',
-    displayName: 'Partner',
-    level: 5,
+    speciesId: species.id,
+    displayName: species.displayName,
+    level,
     experience: 0,
-    maxHp: 26,
-    currentHp: 26,
-    attack: 13,
-    defense: 11,
-    speed: 12,
-    elements: ['fire'],
-    moves: [
-      createBattleMove('basic-strike'),
-      createBattleMove('ember-burst'),
-      createBattleMove('quick-hit'),
-    ],
-    spritePath: '/assets/Pokemon/Charmander.png',
+    maxHp: stats.maxHp,
+    currentHp: stats.maxHp,
+    attack: stats.attack,
+    defense: stats.defense,
+    speed: stats.speed,
+    elements: [...species.elements],
+    moves: createSpeciesMovesAtLevel(species, level),
+    spritePath: species.spritePath,
     capturedAt: now.toISOString(),
   }
 }
@@ -31,10 +35,11 @@ export function createCapturedMonster(
   enemy: BattleCombatantState,
   now: Date = new Date(),
 ): OwnedMonster {
+  const species = getSpeciesDefinition(encounter.speciesId)
   return {
     instanceId: createInstanceId(),
-    speciesId: encounter.speciesId,
-    displayName: encounter.displayName,
+    speciesId: species.id,
+    displayName: species.displayName,
     level: enemy.level,
     experience: 0,
     maxHp: enemy.maxHp,
@@ -45,7 +50,7 @@ export function createCapturedMonster(
     elements: [...enemy.elements],
     moves: enemy.moves.map(cloneMove),
     status: enemy.status ? { ...enemy.status } : undefined,
-    spritePath: encounter.spritePath,
+    spritePath: species.spritePath,
     capturedAt: now.toISOString(),
   }
 }

@@ -1,10 +1,11 @@
 import type { BattleCombatantState } from '../battle/types'
 import type { OwnedMonster } from '../monsters/types'
+import { findSpeciesDefinition } from '../species/catalog'
 import type { ProgressionResult, StatGrowth } from './types'
 
 export const MAX_MONSTER_LEVEL = 100
 
-const LEVEL_GROWTH: StatGrowth = {
+const FALLBACK_LEVEL_GROWTH: StatGrowth = {
   maxHp: 4,
   attack: 2,
   defense: 2,
@@ -33,6 +34,7 @@ export class ProgressionService {
     const updated = this.cloneMonster(monster)
     const previousLevel = updated.level
     const statGrowth: StatGrowth = { maxHp: 0, attack: 0, defense: 0, speed: 0 }
+    const growth = findSpeciesDefinition(updated.speciesId)?.statGrowth ?? FALLBACK_LEVEL_GROWTH
 
     if (updated.level >= MAX_MONSTER_LEVEL) {
       updated.level = MAX_MONSTER_LEVEL
@@ -56,16 +58,16 @@ export class ProgressionService {
 
       updated.experience -= required
       updated.level += 1
-      updated.maxHp += LEVEL_GROWTH.maxHp
-      updated.currentHp = Math.min(updated.maxHp, updated.currentHp + LEVEL_GROWTH.maxHp)
-      updated.attack += LEVEL_GROWTH.attack
-      updated.defense += LEVEL_GROWTH.defense
-      updated.speed += LEVEL_GROWTH.speed
+      updated.maxHp += growth.maxHp
+      updated.currentHp = Math.min(updated.maxHp, updated.currentHp + growth.maxHp)
+      updated.attack += growth.attack
+      updated.defense += growth.defense
+      updated.speed += growth.speed
 
-      statGrowth.maxHp += LEVEL_GROWTH.maxHp
-      statGrowth.attack += LEVEL_GROWTH.attack
-      statGrowth.defense += LEVEL_GROWTH.defense
-      statGrowth.speed += LEVEL_GROWTH.speed
+      statGrowth.maxHp += growth.maxHp
+      statGrowth.attack += growth.attack
+      statGrowth.defense += growth.defense
+      statGrowth.speed += growth.speed
     }
 
     if (updated.level >= MAX_MONSTER_LEVEL) {

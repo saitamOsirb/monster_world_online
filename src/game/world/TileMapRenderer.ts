@@ -8,6 +8,11 @@ interface TileSource {
   originY: number
 }
 
+interface AnimatedWaterTile {
+  sprite: Sprite
+  frames: Texture[]
+}
+
 const TILE_SOURCES: Record<number, TileSource> = {
   0: { path: '/assets/Tilesets/grass1_tileset.png', originX: 48, originY: 0 },
   1: { path: '/assets/Tilesets/grass1_tileset.png', originX: 0, originY: 0 },
@@ -15,19 +20,35 @@ const TILE_SOURCES: Record<number, TileSource> = {
   3: { path: '/assets/Tilesets/grass2_tileset.png', originX: 0, originY: 0 },
 }
 
+const WATER_PATHS = Array.from({ length: 8 }, (_, index) => `/assets/Water/water_tileset${index + 1}.png`)
+const WATER_FRAME_DURATION_MS = 250
+
 export class TileMapRenderer {
   readonly view = new Container()
 
+  private readonly animatedWater: AnimatedWaterTile[] = []
+  private waterElapsedMs = 0
+  private waterFrame = 0
+
   async render(tiles: TileDefinition[]): Promise<void> {
     this.view.removeChildren().forEach((child) => child.destroy())
-    const uniquePaths = [...new Set(tiles.map((tile) => TILE_SOURCES[tile.tileId]?.path).filter((path): path is string => Boolean(path)))]
-    const textures = new Map<string, Texture>()
+    this.animatedWater.length = 0
+    this.waterElapsedMs = 0
+    this.waterFrame = 0
 
-    await Promise.all(uniquePaths.map(async (path) => {
+    const paths = new Set(tiles.map((tile) => TILE_SOURCES[tile.tileId]?.path).filter((path): path is string => Boolean(path)))
+    if (tiles.some((tile) => tile.tileId === 2)) {
+      WATER_PATHS.forEach((path) => paths.add(path))
+    }
+
+    const textures = new Map<string, Texture>()
+    await Promise.all([...paths].map(async (path) => {
       const texture = await Assets.load<Texture>(path)
       texture.source.scaleMode = 'nearest'
       textures.set(path, texture)
     }))
+
+    const waterFrameCache = new Map<string, Texture[]>()
 
     for (const tile of tiles) {
       const source = TILE_SOURCES[tile.tileId]
@@ -35,15 +56,24 @@ export class TileMapRenderer {
       const base = textures.get(source.path)
       if (!base) continue
 
-      const frame = new Texture({
-        source: base.source,
-        frame: new Rectangle(
-          source.originX + tile.autotileX * TILE_SIZE,
-          source.originY + tile.autotileY * TILE_SIZE,
-          TILE_SIZE,
-          TILE_SIZE,
-        ),
-      })
+      let frame: Texture
+      let waterFrames: Texture[] | undefined
+      if (tile.tileId === 2) {
+        const cacheKey = `${tile.autotileX},${tile.autotileY}`
+        waterFrames = waterFrameCache.get(cacheKey)
+        if (!waterFrames) {
+          waterFrames = WATER_PATHS.map((path) => {
+            const waterBase = textures.get(path)
+            if (!waterBase) throw new Error(`Missing synchronized water texture: ${path}`)
+            return this.createFrame(waterBase, source, tile)
+          })
+          waterFrameCache.set(cacheKey, waterFrames)
+        }
+        frame = waterFrames[0]
+      } else {
+        frame = this.createFrame(base, source, tile)
+      }
+
       const sprite = new Sprite(frame)
       sprite.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
       sprite.roundPixels = true
@@ -58,7 +88,33 @@ export class TileMapRenderer {
         sprite.y += TILE_SIZE
       }
 
+      if (waterFrames) this.animatedWater.push({ sprite, frames: waterFrames })
       this.view.addChild(sprite)
     }
+  }
+
+  update(deltaMs: number): void {
+    if (this.animatedWater.length === 0) return
+    this.waterElapsedMs += deltaMs
+    if (this.waterElapsedMs < WATER_FRAME_DURATION_MS) return
+
+    const advance = Math.floor(this.waterElapsedMs / WATER_FRAME_DURATION_MS)
+    this.waterElapsedMs %= WATER_FRAME_DURATION_MS
+    this.waterFrame = (this.waterFrame + advance) % WATER_PATHS.length
+    for (const water of this.animatedWater) {
+      water.sprite.texture = water.frames[this.waterFrame]
+    }
+  }
+
+  private createFrame(base: Texture, source: TileSource, tile: TileDefinition): Texture {
+    return new Texture({
+      source: base.source,
+      frame: new Rectangle(
+        source.originX + tile.autotileX * TILE_SIZE,
+        source.originY + tile.autotileY * TILE_SIZE,
+        TILE_SIZE,
+        TILE_SIZE,
+      ),
+    })
   }
 }

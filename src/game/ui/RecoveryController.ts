@@ -60,9 +60,17 @@ export class RecoveryController {
   }
 
   private resultMessage(result: PartyRecoveryResult): string {
-    if (result.alreadyHealthy) return 'Your active party is already at full health.'
-    const noun = result.recoveredMonsters === 1 ? 'monster' : 'monsters'
-    return `Recovered ${result.recoveredMonsters} ${noun} and restored ${result.totalHpRestored} HP.`
+    if (result.alreadyHealthy) return 'Your active party is already fully recovered.'
+    const parts: string[] = []
+    if (result.recoveredMonsters > 0) {
+      const noun = result.recoveredMonsters === 1 ? 'monster' : 'monsters'
+      parts.push(`restored ${result.totalHpRestored} HP across ${result.recoveredMonsters} ${noun}`)
+    }
+    if (result.clearedStatuses > 0) {
+      const noun = result.clearedStatuses === 1 ? 'condition' : 'conditions'
+      parts.push(`cleared ${result.clearedStatuses} status ${noun}`)
+    }
+    return `Recovery complete: ${parts.join(' and ')}.`
   }
 
   private render(): void {
@@ -84,8 +92,9 @@ export class RecoveryController {
       const y = 56 + index * ROW_HEIGHT
       const fainted = monster.currentHp <= 0
       this.addText(monster.displayName, 12, y, 9, fainted ? 0x9a3f3f : 0x242938)
-      this.addText(`Lv.${monster.level}`, 124, y, 8, 0x505563)
-      this.addText(`HP ${monster.currentHp}/${monster.maxHp}`, 158, y, 8, fainted ? 0x9a3f3f : 0x30384f)
+      this.addText(`Lv.${monster.level}`, 112, y, 8, 0x505563)
+      this.addText(`HP ${monster.currentHp}/${monster.maxHp}`, 145, y, 8, fainted ? 0x9a3f3f : 0x30384f)
+      if (monster.status) this.addText(monster.status.condition.toUpperCase(), 198, y, 7, 0x8a5a2b)
     })
 
     if (party.length === 0) this.addText('No active monsters.', 12, 68, 9, 0x777777)

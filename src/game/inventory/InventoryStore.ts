@@ -1,5 +1,6 @@
 import {
   CAPTURE_CAPSULE_ID,
+  HEALING_TONIC_ID,
   INVENTORY_ITEMS,
   type InventoryCategory,
   type InventoryEntry,
@@ -88,6 +89,7 @@ export class InventoryStore {
       initialized: false,
       quantities: {
         [CAPTURE_CAPSULE_ID]: 0,
+        [HEALING_TONIC_ID]: 0,
       },
     }
   }
@@ -97,7 +99,8 @@ export class InventoryStore {
       version: 1,
       initialized: state.initialized,
       quantities: {
-        [CAPTURE_CAPSULE_ID]: state.quantities[CAPTURE_CAPSULE_ID],
+        [CAPTURE_CAPSULE_ID]: state.quantities[CAPTURE_CAPSULE_ID] ?? 0,
+        [HEALING_TONIC_ID]: state.quantities[HEALING_TONIC_ID] ?? 0,
       },
     }
   }
@@ -108,10 +111,16 @@ export class InventoryStore {
     if (candidate.version !== 1 || typeof candidate.initialized !== 'boolean') return false
     if (!candidate.quantities || typeof candidate.quantities !== 'object') return false
 
-    const captureQuantity = (candidate.quantities as Partial<Record<InventoryItemId, unknown>>)[CAPTURE_CAPSULE_ID]
-    return typeof captureQuantity === 'number'
-      && Number.isInteger(captureQuantity)
-      && captureQuantity >= 0
+    const quantities = candidate.quantities as Partial<Record<InventoryItemId, unknown>>
+    const captureQuantity = quantities[CAPTURE_CAPSULE_ID]
+    if (!this.isStoredQuantity(captureQuantity)) return false
+
+    const healingQuantity = quantities[HEALING_TONIC_ID]
+    return healingQuantity === undefined || this.isStoredQuantity(healingQuantity)
+  }
+
+  private isStoredQuantity(value: unknown): value is number {
+    return typeof value === 'number' && Number.isInteger(value) && value >= 0
   }
 
   private assertQuantity(quantity: number): void {

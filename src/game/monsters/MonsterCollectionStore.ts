@@ -100,6 +100,22 @@ export class MonsterCollectionStore {
     return false
   }
 
+  updateCurrentHp(instanceId: string, currentHp: number): boolean {
+    for (const collection of [this.state.party, this.state.storage]) {
+      const index = collection.findIndex((monster) => monster.instanceId === instanceId)
+      if (index < 0) continue
+
+      const monster = collection[index]
+      if (!Number.isInteger(currentHp) || currentHp < 0 || currentHp > monster.maxHp) {
+        throw new Error(`Current HP must be an integer between 0 and ${monster.maxHp}`)
+      }
+      collection[index] = this.cloneMonster({ ...monster, currentHp })
+      this.persist()
+      return true
+    }
+    return false
+  }
+
   clear(): void {
     this.state = this.emptyState()
     this.storage.removeItem(this.storageKey)

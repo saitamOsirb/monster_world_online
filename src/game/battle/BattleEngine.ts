@@ -185,7 +185,7 @@ export class BattleEngine {
     return {
       ...definition,
       moves: definition.moves.map((move) => ({ ...move })),
-      currentHp: definition.maxHp,
+      currentHp: definition.currentHp ?? definition.maxHp,
     }
   }
 
@@ -210,6 +210,11 @@ export class BattleEngine {
     if (!Number.isInteger(combatant.level) || combatant.level <= 0) throw new Error('Combatant level must be positive')
     for (const value of [combatant.maxHp, combatant.attack, combatant.defense, combatant.speed]) {
       if (!Number.isFinite(value) || value <= 0) throw new Error('Combatant stats must be positive finite numbers')
+    }
+    if (combatant.currentHp !== undefined) {
+      if (!Number.isFinite(combatant.currentHp) || combatant.currentHp <= 0 || combatant.currentHp > combatant.maxHp) {
+        throw new Error('Combatant current HP must be greater than zero and at most max HP')
+      }
     }
     if (combatant.moves.length === 0) throw new Error('Combatants require at least one move')
     for (const move of combatant.moves) {

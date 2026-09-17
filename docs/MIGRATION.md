@@ -34,12 +34,14 @@ src/
     inventory/
       InventoryStore.ts           versioned persistent item repository + categorized entries
       types.ts                    item IDs/catalog/categories/inventory state
+    items/
+      FieldItemService.ts         validated persistent field-item/healing orchestration
     loot/
       LootService.ts              deterministic RNG-driven loot resolver
       tables.ts                   item drop tables
       types.ts                    loot contracts
     monsters/
-      MonsterCollectionStore.ts   versioned party/storage repository + transfer rules
+      MonsterCollectionStore.ts   versioned party/storage repository + HP/transfer mutations
       MonsterFactory.ts           starter/captured-monster adapters
       types.ts                    owned-monster contracts
     progression/
@@ -55,7 +57,7 @@ src/
     input/InputController.ts      keyboard edge/held state
     ui/
       MenuController.ts           migrated menu + persistent Party UI
-      BagController.ts            categorized runtime inventory presentation
+      BagController.ts            categorized inventory + field target selection
       PartyStorageController.ts   runtime Party/Storage management presentation
       VendorController.ts         runtime NPC shop presentation and purchase input
     world/
@@ -115,6 +117,8 @@ The upstream prototype does not contain these systems. They are original Monster
 | Encounter cooldown | Implemented | Prevents immediate back-to-back rolls. |
 | Battle engine | Implemented foundation | Stats, moves, priority, speed ordering, accuracy, damage, KO and terminal phases. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
+| Persistent battle HP | Implemented | Battles start from owned-monster `currentHp`; terminal HP persists for win/loss/run/capture. |
+| Fainted battle guard | Implemented | A lead at 0 HP cannot roll another wild battle until recovered. |
 | Capture action | Implemented | Failed capture consumes a turn; success ends battle as `captured`. |
 | Capture probability | Implemented foundation | Health-sensitive, injectable RNG, capped at 90%; not a Pokémon formula. |
 | Persistent monster collection | Implemented | Six active party slots plus storage overflow. |
@@ -129,19 +133,21 @@ The upstream prototype does not contain these systems. They are original Monster
 | Capture Capsule | Implemented | Starter receives 5 exactly once. |
 | Capture item consumption | Implemented | Every real capture attempt consumes exactly one capsule. |
 | Zero-stock guard | Implemented | `CAPTURE x0` does not consume a turn. |
-| Bag UI | Implemented | Categorized runtime Bag reads live quantities from `InventoryStore`. |
+| Healing Tonic | Implemented | Field item restores up to 20 HP and can recover a monster from 0 HP. |
+| Field item orchestration | Implemented foundation | `FieldItemService` validates target/stock/effect and persists item + HP mutations. |
+| Bag UI | Implemented | Categorized Bag supports active-party target selection for field healing. |
 | Persistent wallet | Implemented | Separate `WalletStore`; starter credits granted once. |
 | Victory currency | Implemented | Victories persist credits through `BattleRewardService`. |
 | Wild loot | Implemented foundation | RNG-driven loot tables persist item drops into inventory. |
 | Shop purchase rules | Implemented foundation | `ShopService` validates funds/quantity and atomically moves credits to items. |
-| Town Supplies catalog | Implemented foundation | Capture Capsules currently cost 50 credits. |
+| Town Supplies catalog | Implemented foundation | Capture Capsules cost 50 credits; Healing Tonics cost 30 credits. |
 | Scene-scoped NPC registry | Implemented foundation | NPCs declare scene, tile, facing, dialogue, art and optional vendor id. |
 | Front-tile interaction | Implemented | Z/Enter checks the tile the idle player is facing before opening the normal menu. |
 | NPC collision | Implemented | Loaded NPC tiles are injected into world collision and cannot be walked through. |
 | NPC/vendor interaction UI | Implemented | First Town merchant opens a real purchase screen backed by `ShopService`. |
 | Status effects/elements | Not implemented | Add after Monster World Online rules are defined. |
 
-## Progression rules
+## Battle HP and progression rules
 
 Current progression is intentionally simple Monster World Online foundation logic:
 
@@ -152,27 +158,39 @@ Current progression is intentionally simple Monster World Online foundation logi
 - One reward may grant multiple levels.
 - Level 100 clears unusable overflow EXP.
 - Capture, run and defeat grant no EXP.
-- HP growth preserves existing damage rather than full-healing.
+- A battle begins from the lead monster's persisted `currentHp`; it is no longer reset to `maxHp`.
+- Terminal battle HP is persisted for victory, defeat, run and capture outcomes before reward/progression handling.
+- Defeat therefore persists **0 HP**.
+- A 0 HP lead cannot trigger another wild encounter until healed.
+- Level-up max-HP growth preserves existing damage by increasing current HP by the same max-HP growth amount rather than full-healing.
 
-`ProgressionService` owns these rules. `Game` persists the returned owned-monster snapshot through `MonsterCollectionStore`.
+`ProgressionService` owns EXP/level/stat rules. `MonsterCollectionStore.updateCurrentHp()` owns direct health persistence and `Game` coordinates the terminal battle write before applying progression/rewards.
 
-## Inventory and Bag rules
+## Inventory, Bag and field-item rules
 
-The first concrete item is `capture-capsule` / **Capture Capsule**.
+Concrete items currently include `capture-capsule` / **Capture Capsule** and `healing-tonic` / **Healing Tonic**.
 
 - A new inventory receives **5** Capture Capsules exactly once.
-- The initialized flag is independent from quantity, so spending all capsules and restarting does not refill them.
+- Healing Tonic is not granted retroactively or as starter stock; it is currently purchased from Town Supplies.
+- The initialized flag is independent from quantity, so spending all starter capsules and restarting does not refill them.
 - Quantities are non-negative integers.
 - `add()` only accepts positive integer quantities.
 - `consume()` only accepts positive integer quantities and never drives stock below zero.
 - Corrupt/invalid persisted inventory payloads fall back to an empty, uninitialized inventory.
+- Legacy inventory-v1 payloads that predate Healing Tonic remain valid; the missing tonic quantity normalizes to **0** instead of manufacturing stock.
 - A capture attempt consumes the capsule **before** battle resolves success/failure.
 - Successful and failed capture attempts both spend one capsule.
 - Selecting capture at zero stock leaves the battle turn untouched.
 - `InventoryStore.getEntries(category)` returns defensive catalog snapshots and hides zero-stock items by default.
 - The Bag exposes `capture`, `healing`, `battle` and `key` categories.
-- Left/Right changes category; Up/Down changes item; Z/Enter inspects; X/Escape returns to menu.
-- Capture Capsule is `battle` use-context, so inspecting it in the overworld does not consume it.
+- Left/Right changes category; Up/Down changes item; Z/Enter selects; X/Escape backs out.
+- Capture Capsule is `battle` use-context, so it cannot be consumed from the overworld Bag.
+- Selecting Healing Tonic enters an active-party target step in the Bag.
+- Healing Tonic restores `min(20, maxHp - currentHp)` HP and can restore a monster from 0 HP.
+- A successful heal consumes exactly **1** Healing Tonic and persists the target HP immediately.
+- Full-HP targets, missing targets, unsupported field items and zero-stock attempts consume nothing.
+
+`FieldItemService` owns field-use legality and coordinates the inventory/monster persistence boundary. `BagController` only selects an item/target and presents the returned result.
 
 ## Economy, loot and shop rules
 
@@ -187,7 +205,7 @@ The current economy layer is deliberately small but fully persistent and rendere
 - `LootService` receives an injectable RNG, making reward resolution deterministic in tests.
 - `BattleRewardService` persists both credits and resolved item drops only on victory.
 - Capture, run and defeat do not grant these victory rewards.
-- `Town Supplies` currently sells Capture Capsules for **50 credits each**.
+- `Town Supplies` sells Capture Capsules for **50 credits each** and Healing Tonics for **30 credits each**.
 - `ShopService` rejects unknown items, invalid quantities and insufficient funds.
 - A successful purchase debits the wallet and adds inventory stock as one transaction boundary.
 - If inventory mutation throws after a debit, `ShopService` restores the wallet charge before rethrowing.
@@ -215,6 +233,7 @@ The Godot reference does not include an NPC/dialogue/vendor subsystem or NPC-spe
 - Moving a party member to storage is rejected when only one active monster remains.
 - Moving a stored monster to party is rejected when all six slots are occupied.
 - Unknown monster IDs never mutate collection state.
+- `updateCurrentHp(instanceId, currentHp)` validates `0 <= currentHp <= maxHp` and persists immediately.
 - Every successful mutation persists immediately.
 - Battle reads `collection.lead`, so changing lead automatically affects subsequent battles.
 
@@ -222,15 +241,15 @@ The Godot reference does not include an NPC/dialogue/vendor subsystem or NPC-spe
 
 Gameplay ownership/progression, inventory and currency are separate repositories:
 
-- `MonsterCollectionStore` → `monster-world.collection.v2`
+- `MonsterCollectionStore` storage key → `monster-world.collection.v1` with collection payload schema `version: 2`
 - `InventoryStore` → `monster-world.inventory.v1`
 - `WalletStore` → `monster-world.wallet.v1`
 
 `Game` coordinates these repositories while battle/UI/domain services consume narrow callbacks or store APIs. This keeps a clean seam for replacing browser persistence with server-authoritative persistence later.
 
-Collection schema `version: 2` migrates legacy `version: 1` party/storage data in place and adds `experience: 0` to legacy monsters.
+Collection payload schema `version: 2` migrates legacy `version: 1` party/storage data in place and adds `experience: 0` to legacy monsters.
 
-Inventory and wallet schema `version: 1` both keep explicit `initialized` state so starter grants cannot be recreated by reducing stock/balance to zero.
+Inventory and wallet payload schema `version: 1` both keep explicit `initialized` state so starter grants cannot be recreated by reducing stock/balance to zero. Inventory-v1 loading tolerates the Healing Tonic key being absent and normalizes it to zero.
 
 ## Regression protection
 
@@ -241,24 +260,26 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **71 tests across 14 test files** covering import/collision, encounters, battle resolution, capture, monster persistence/migration, party/storage rules, progression, inventory/Bag behavior, wallet persistence, loot resolution, shop purchases, battle rewards and directional NPC interaction.
+The unit suite now contains **82 tests across 16 test files** covering import/collision, encounters, battle resolution, persistent battle HP, capture, monster persistence/migration, party/storage rules, progression, inventory/Bag behavior, field healing, wallet persistence, loot resolution, shop purchases, battle rewards and directional NPC interaction.
 
-Visual tests keep deterministic fixtures for Town, menu, Party Screen, Bag, vendor, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product NPC rendering is intentionally disabled in the legacy visual-test world so existing migration hashes remain unchanged; the vendor has a dedicated fixture with hash `36f39485a7c7ba2c101f6093ad3219d8312986309ed83156678686c451f767d9`.
+Visual tests keep deterministic fixtures for Town, menu, Party Screen, Bag, vendor, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product NPC rendering is intentionally disabled in the legacy visual-test world so existing migration hashes remain unchanged; the vendor has a dedicated fixture with hash `007904cc2e8225b85551b889ae6cffb0a39b9cafb03e0170369269c3fa7a6921` after adding Healing Tonic to the catalog.
 
 ## Intentional architecture cleanups
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
-- Rendering does not decide movement, collision, capture, rewards, inventory, economy or collection legality.
-- Battle terminal results are applied once before UI acknowledgement, preventing duplicate capture/reward side effects.
+- Rendering does not decide movement, collision, capture, rewards, inventory, economy, healing or collection legality.
+- Battle terminal results are applied once before UI acknowledgement, preventing duplicate capture/reward/HP-persistence side effects.
+- `BattleEngine` accepts validated starting HP but does not persist browser state itself.
 - `ProgressionService` owns EXP/level/stat rules.
 - `BattleRewardService` owns victory currency/item rewards.
 - `LootService` owns probabilistic item resolution and accepts injected RNG.
 - `ShopService` owns purchase legality and wallet/inventory transaction coordination.
+- `FieldItemService` owns field-use legality and coordinates persistent item/HP mutations.
 - `InteractionService` owns facing-tile lookup and scene-scoped NPC resolution.
 - `NpcWorldLayer` owns NPC presentation/dynamic world collision without putting merchant rules in `WorldScene`.
 - `VendorController` consumes narrow shop/wallet/inventory callbacks and never writes persistence directly.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own their persistence boundaries.
-- `BagController` reads categorized snapshots and does not consume battle-only items from the overworld.
+- `BagController` selects field-item targets but does not mutate inventory or monsters directly.
 - Scene transitions preserve the existing world object instead of reloading for battle exit.
 - Animated water uses one shared clock rather than a ticker per tile.
 - Visual regression mode remains deterministic and isolated from player save state.
@@ -270,14 +291,15 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures when new maps/scenes are imported.
 3. Replace temporary third-party Pokémon resources and temporary reused NPC art before distribution requiring original/licensed assets.
-4. Define persistent post-battle HP/healing rules and field-use healing items.
+4. Add a dedicated recovery/healing NPC or service so a player with a fainted party and no healing stock cannot become economy-blocked.
 5. Add additional NPCs, shop catalogs, dialogue flows and item sources as maps/quests are introduced.
-6. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
-7. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Extend field items with status recovery/revive rules after those product rules are defined.
+7. Extend battle with statuses/elements/richer move metadata after game-design rules are defined.
+8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system, inventory economy, Bag, wallet/shop/loot system, NPC/vendor system or party/storage manager. Those modules are Monster World Online product code.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter system, capture system, progression system, inventory economy, Bag, wallet/shop/loot system, NPC/vendor system, persistent battle-health system, field-item system or party/storage manager. Those modules are Monster World Online product code.
 
 ## Resource and licensing note
 

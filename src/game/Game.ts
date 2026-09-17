@@ -208,8 +208,8 @@ export class Game {
     this.menu.view.visible = false
     await this.battle.start({
       tableId: 'visual-battle',
-      speciesId: 'pidgey',
-      displayName: 'Pidgey',
+      speciesId: 'skyrill',
+      displayName: 'Skyrill',
       level: 3,
       spritePath: '/assets/Pokemon/Pidgey.png',
     })

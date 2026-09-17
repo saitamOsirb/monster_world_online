@@ -52,6 +52,42 @@ describe('InventoryStore', () => {
     expect(new InventoryStore(storage).getQuantity(CAPTURE_CAPSULE_ID)).toBe(4)
   })
 
+  it('returns categorized bag entries with live quantities', () => {
+    const storage = new MemoryStorage()
+    const store = new InventoryStore(storage)
+    store.ensureStarterStock(5)
+
+    const entries = store.getEntries('capture')
+    expect(entries).toHaveLength(1)
+    expect(entries[0].item.id).toBe(CAPTURE_CAPSULE_ID)
+    expect(entries[0].item.displayName).toBe('Capture Capsule')
+    expect(entries[0].quantity).toBe(5)
+    expect(entries[0].item.useContext).toBe('battle')
+    expect(store.getEntries('healing')).toEqual([])
+  })
+
+  it('hides zero-stock entries unless explicitly requested', () => {
+    const storage = new MemoryStorage()
+    const store = new InventoryStore(storage)
+    store.ensureStarterStock(0)
+
+    expect(store.getEntries('capture')).toEqual([])
+    const entries = store.getEntries('capture', true)
+    expect(entries).toHaveLength(1)
+    expect(entries[0].quantity).toBe(0)
+  })
+
+  it('returns defensive item definitions for bag consumers', () => {
+    const storage = new MemoryStorage()
+    const store = new InventoryStore(storage)
+    store.ensureStarterStock(2)
+
+    const entry = store.getEntries('capture')[0]
+    entry.item.displayName = 'Changed externally'
+
+    expect(store.getEntries('capture')[0].item.displayName).toBe('Capture Capsule')
+  })
+
   it('rejects invalid inventory mutations', () => {
     const storage = new MemoryStorage()
     const store = new InventoryStore(storage)

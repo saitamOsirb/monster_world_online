@@ -14,12 +14,10 @@ class MemoryStorage {
 
 const encounter: WildEncounter = {
   tableId: 'test-table',
-  speciesId: 'test-wild',
-  displayName: 'Wildling',
+  speciesId: 'pidgey',
+  displayName: 'Pidgey',
   level: 3,
-  spritePath: '/test.png',
-  elements: ['neutral'],
-  moveIds: ['basic-strike'],
+  spritePath: '/assets/Pokemon/Pidgey.png',
 }
 
 describe('persistent monster HP', () => {

@@ -2,9 +2,11 @@ import { createBattleMove, type BattleMoveId } from '../battle/moves'
 import type { BattleMove } from '../battle/types'
 import type { MonsterSpeciesDefinition, SpeciesStats } from './types'
 
+export const STARTER_SPECIES_ID = 'charmander-reference'
+
 const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
-    id: 'charmander-reference',
+    id: STARTER_SPECIES_ID,
     displayName: 'Partner',
     spritePath: '/assets/Pokemon/Charmander.png',
     elements: ['fire'],

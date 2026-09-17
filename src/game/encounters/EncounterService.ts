@@ -42,6 +42,8 @@ export class EncounterService {
       displayName: selected.displayName,
       level,
       spritePath: selected.spritePath,
+      elements: [...selected.elements],
+      moveIds: [...selected.moveIds],
     }
   }
 

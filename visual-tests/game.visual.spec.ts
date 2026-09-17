@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto'
 import { expect, test, type Page } from '@playwright/test'
 
-type VisualFixture = 'town' | 'menu' | 'party' | 'bag' | 'vendor' | 'recovery' | 'oaksLab' | 'playerHomeFloor1' | 'rivalHomeFloor'
+type VisualFixture = 'town' | 'menu' | 'party' | 'bag' | 'vendor' | 'recovery' | 'battle' | 'oaksLab' | 'playerHomeFloor1' | 'rivalHomeFloor'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
@@ -10,6 +10,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   bag: 'd2df940aa96cdbf22e6f2ab9c57c5d71fa7fa5cb08e48c7cefdb0bef1cf97228',
   vendor: '4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2',
   recovery: 'a8904ce9ecf7a85df7e5b8fe9fb022a80f1ef882d6494d6a12734afa3c47645b',
+  battle: '__BATTLE_HASH__',
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',
   playerHomeFloor1: '25305efbe948aa9ba74af1c91399803ae37a6ee64194f8d8f48d897bd3d7b692',
   rivalHomeFloor: '73a8386930802d4363579797ee7e2cf966760d25378bdff1fe155898538ffdfa',
@@ -141,6 +142,21 @@ test('Recovery remains pixel-stable', async ({ page }) => {
   })
   await setTickers(page, false)
   verifyHash('recovery', await hashCanvas(page))
+
+  expect(browserErrors).toEqual([])
+})
+
+test('Battle remains pixel-stable', async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page)
+  await bootVisualTest(page)
+
+  await page.evaluate(async () => {
+    const harness = window.__MONSTER_WORLD_VISUAL_TEST__
+    if (!harness) throw new Error('Visual test harness was not initialized')
+    await harness.game.openBattleForVisualTest()
+  })
+  await setTickers(page, false)
+  verifyHash('battle', await hashCanvas(page))
 
   expect(browserErrors).toEqual([])
 })

@@ -1,10 +1,22 @@
-import type { BattleMove, BattleStatus, BattleStatusCondition } from '../battle/types'
+import {
+  isBattleElement,
+  normalizeBattleElements,
+  type BattleElement,
+} from '../battle/elements'
+import type {
+  BattleMove,
+  BattleMoveDamageClass,
+  BattleStatus,
+  BattleStatusCondition,
+} from '../battle/types'
 import type { AddMonsterResult, MonsterCollectionState, OwnedMonster } from './types'
 
 const DEFAULT_KEY = 'monster-world.collection.v1'
 const MAX_PARTY_SIZE = 6
 
-type LegacyOwnedMonster = Omit<OwnedMonster, 'experience'>
+type LegacyOwnedMonster = Omit<OwnedMonster, 'experience' | 'elements'> & {
+  elements?: readonly BattleElement[]
+}
 
 interface LegacyMonsterCollectionState {
   version: 1
@@ -197,6 +209,7 @@ export class MonsterCollectionStore {
     const migrate = (monster: LegacyOwnedMonster): OwnedMonster => ({
       ...monster,
       experience: 0,
+      elements: [...normalizeBattleElements(monster.elements)],
       moves: monster.moves.map((move) => this.cloneMove(move)),
       status: monster.status ? { ...monster.status } : undefined,
     })
@@ -218,6 +231,7 @@ export class MonsterCollectionStore {
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
     return {
       ...monster,
+      elements: [...normalizeBattleElements(monster.elements)],
       moves: monster.moves.map((move) => this.cloneMove(move)),
       status: monster.status ? { ...monster.status } : undefined,
     }
@@ -283,9 +297,18 @@ export class MonsterCollectionStore {
       && [monster.attack, monster.defense, monster.speed].every(
         (stat) => typeof stat === 'number' && Number.isFinite(stat) && stat > 0,
       )
+      && (monster.elements === undefined || this.isElements(monster.elements))
       && Array.isArray(monster.moves)
       && monster.moves.every((move) => this.isMove(move))
       && (monster.status === undefined || this.isStatus(monster.status))
+  }
+
+  private isElements(value: unknown): value is readonly BattleElement[] {
+    return Array.isArray(value)
+      && value.length >= 1
+      && value.length <= 2
+      && new Set(value).size === value.length
+      && value.every((element) => isBattleElement(element))
   }
 
   private isMove(value: unknown): value is BattleMove {
@@ -293,6 +316,8 @@ export class MonsterCollectionStore {
     const move = value as Partial<BattleMove>
     if (typeof move.id !== 'string' || typeof move.name !== 'string') return false
     if (typeof move.power !== 'number' || typeof move.accuracy !== 'number') return false
+    if (move.element !== undefined && !isBattleElement(move.element)) return false
+    if (move.damageClass !== undefined && !this.isDamageClass(move.damageClass)) return false
     const effect = move.statusEffect
     if (effect === undefined) return true
     return this.isStatusCondition(effect.condition)
@@ -302,6 +327,10 @@ export class MonsterCollectionStore {
       && effect.chance <= 1
       && (effect.durationTurns === undefined
         || (effect.condition === 'sleep' && Number.isInteger(effect.durationTurns) && effect.durationTurns > 0))
+  }
+
+  private isDamageClass(value: unknown): value is BattleMoveDamageClass {
+    return value === 'physical' || value === 'special'
   }
 
   private isStatus(value: unknown): value is BattleStatus {

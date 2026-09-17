@@ -207,7 +207,7 @@ export class Game {
     this.transitioning = true
     try {
       await this.fadeTo(1, SCENE_FADE_MS)
-      this.menu.showParty()
+      await this.menu.showParty(this.collection.party)
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
       this.transitioning = false

@@ -1,3 +1,4 @@
+import type { InventoryItemId } from '../inventory/types'
 import type { BattleElement, ElementEffectiveness } from './elements'
 
 export type BattleSide = 'player' | 'enemy'
@@ -64,10 +65,36 @@ export interface BattleCaptureResult {
 
 export type BattleCaptureResolver = (target: BattleCombatantState) => BattleCaptureResult
 
+export type BattleItemFailureReason =
+  | 'not-battle-usable'
+  | 'no-stock'
+  | 'already-full'
+  | 'fainted-requires-revive'
+  | 'no-status'
+  | 'not-fainted'
+
+export type BattleItemResolution =
+  | {
+      ok: true
+      itemId: InventoryItemId
+      itemName: string
+      currentHp: number
+      status?: BattleStatus
+      healedHp?: number
+      clearedStatus?: BattleStatusCondition
+    }
+  | { ok: false; reason: BattleItemFailureReason }
+
+export type BattleItemResolver = (
+  itemId: InventoryItemId,
+  target: BattleCombatantState,
+) => BattleItemResolution
+
 export type PlayerBattleAction =
   | { kind: 'move'; moveId: string }
   | { kind: 'run' }
   | { kind: 'capture' }
+  | { kind: 'item'; itemId: InventoryItemId }
 
 export type BattleEvent =
   | { type: 'move'; side: BattleSide; moveId: string; moveName: string }
@@ -77,6 +104,8 @@ export type BattleEvent =
   | { type: 'faint'; side: BattleSide }
   | { type: 'run'; side: 'player' }
   | { type: 'capture-attempt'; success: boolean; chance: number }
+  | { type: 'item-used'; side: 'player'; itemId: InventoryItemId; itemName: string; healedHp?: number; clearedStatus?: BattleStatusCondition }
+  | { type: 'item-failed'; side: 'player'; itemId: InventoryItemId; reason: BattleItemFailureReason }
   | { type: 'status-applied'; target: BattleSide; condition: BattleStatusCondition; remainingTurns?: number }
   | { type: 'status-blocked'; side: BattleSide; condition: Extract<BattleStatusCondition, 'paralysis' | 'sleep'> }
   | { type: 'status-cleared'; side: BattleSide; condition: BattleStatusCondition }

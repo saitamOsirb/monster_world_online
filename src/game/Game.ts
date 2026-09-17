@@ -12,19 +12,24 @@ const SCENE_FADE_MS = 1000
 export class Game {
   private readonly input = new InputController()
   private readonly world = new WorldScene()
-  private readonly menu = new MenuController()
+  private readonly menu: MenuController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
 
   private player: Player | null = null
   private transitioning = false
 
   constructor(private readonly app: Application) {
+    this.menu = new MenuController({
+      onPartyRequested: () => void this.transitionToParty(),
+      onPartyExitRequested: () => void this.transitionBackToMenu(),
+    })
     this.fadeOverlay.alpha = 0
     this.fadeOverlay.eventMode = 'none'
     this.app.stage.addChild(this.world.view, this.menu.view, this.fadeOverlay)
   }
 
   async start(): Promise<void> {
+    await this.menu.initialize()
     const spawn = await this.world.load('res://Town.tscn')
     const [playerSheet, shadowTexture] = await Promise.all([
       Assets.load<Texture>('/assets/Player/Male_Spritesheet.png'),
@@ -58,7 +63,7 @@ export class Game {
     if (!player) return
 
     this.world.update(deltaMs)
-    this.menu.update(this.input, player.isMoving)
+    if (!this.transitioning) this.menu.update(this.input, player.isMoving)
     const inputLocked = this.transitioning || this.menu.inputLocked
     player.update(deltaMs, this.input.getDirection(), inputLocked)
     player.view.zIndex = player.view.y + TILE_SIZE
@@ -92,6 +97,30 @@ export class Game {
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
       player.view.visible = true
+      this.transitioning = false
+    }
+  }
+
+  private async transitionToParty(): Promise<void> {
+    if (this.transitioning) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.menu.showParty()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionBackToMenu(): Promise<void> {
+    if (this.transitioning) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.menu.showMenu()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
       this.transitioning = false
     }
   }

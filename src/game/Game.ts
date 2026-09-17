@@ -16,6 +16,7 @@ import {
 } from './interaction/npcs'
 import { InventoryStore } from './inventory/InventoryStore'
 import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
+import { BattleItemService } from './items/BattleItemService'
 import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
@@ -53,6 +54,7 @@ export class Game {
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly shopService = new ShopService(this.inventory, this.wallet)
   private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
+  private readonly battleItems = new BattleItemService(this.inventory)
   private readonly recoveryService = new PartyRecoveryService(this.collection)
   private readonly interaction = new InteractionService()
   private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
@@ -113,6 +115,10 @@ export class Game {
       getLeadMonster: () => this.collection.lead,
       getCaptureItemCount: () => this.inventory.getQuantity(CAPTURE_CAPSULE_ID),
       consumeCaptureItem: () => this.inventory.consume(CAPTURE_CAPSULE_ID),
+      getBattleItems: () => this.inventory.getEntries()
+        .filter((entry) => entry.item.id !== CAPTURE_CAPSULE_ID)
+        .filter((entry) => entry.item.useContext === 'battle' || entry.item.useContext === 'both'),
+      useBattleItem: (itemId, target) => this.battleItems.use(itemId, target),
       onBattleResolved: (phase, state, encounter) => this.applyBattleResult(phase, state, encounter),
       onBattleFinished: () => void this.transitionOutOfBattle(),
     })

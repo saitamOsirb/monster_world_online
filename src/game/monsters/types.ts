@@ -1,4 +1,4 @@
-import type { BattleMove } from '../battle/types'
+import type { BattleMove, BattleStatus } from '../battle/types'
 
 export interface OwnedMonster {
   instanceId: string
@@ -12,6 +12,7 @@ export interface OwnedMonster {
   defense: number
   speed: number
   moves: readonly BattleMove[]
+  status?: BattleStatus
   spritePath: string
   capturedAt: string
 }

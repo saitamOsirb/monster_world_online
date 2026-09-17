@@ -168,6 +168,14 @@ export class WorldScene {
 
   private blockRects(rects: CollisionRect[], offset: GridPoint): void {
     for (const rect of rects) {
+      if (rect.points && rect.points.length >= 3) {
+        this.blockPolygon(rect.points.map((point) => ({
+          x: point.x + offset.x,
+          y: point.y + offset.y,
+        })))
+        continue
+      }
+
       const minX = Math.floor((rect.x + offset.x) / TILE_SIZE)
       const minY = Math.floor((rect.y + offset.y) / TILE_SIZE)
       const maxX = Math.ceil((rect.x + offset.x + rect.width) / TILE_SIZE)
@@ -178,5 +186,47 @@ export class WorldScene {
         }
       }
     }
+  }
+
+  private blockPolygon(points: GridPoint[]): void {
+    const xs = points.map((point) => point.x)
+    const ys = points.map((point) => point.y)
+    const minTileX = Math.floor(Math.min(...xs) / TILE_SIZE)
+    const minTileY = Math.floor(Math.min(...ys) / TILE_SIZE)
+    const maxTileX = Math.ceil(Math.max(...xs) / TILE_SIZE)
+    const maxTileY = Math.ceil(Math.max(...ys) / TILE_SIZE)
+
+    for (let y = minTileY; y < maxTileY; y += 1) {
+      for (let x = minTileX; x < maxTileX; x += 1) {
+        const left = x * TILE_SIZE
+        const top = y * TILE_SIZE
+        const tilePolygon: GridPoint[] = [
+          { x: left, y: top },
+          { x: left + TILE_SIZE, y: top },
+          { x: left + TILE_SIZE, y: top + TILE_SIZE },
+          { x: left, y: top + TILE_SIZE },
+        ]
+        if (this.polygonsOverlap(points, tilePolygon)) this.collision.setBlocked({ x, y })
+      }
+    }
+  }
+
+  private polygonsOverlap(first: GridPoint[], second: GridPoint[]): boolean {
+    const polygons = [first, second]
+    for (const polygon of polygons) {
+      for (let index = 0; index < polygon.length; index += 1) {
+        const current = polygon[index]
+        const next = polygon[(index + 1) % polygon.length]
+        const axis = { x: -(next.y - current.y), y: next.x - current.x }
+        const firstProjection = first.map((point) => point.x * axis.x + point.y * axis.y)
+        const secondProjection = second.map((point) => point.x * axis.x + point.y * axis.y)
+        const firstMin = Math.min(...firstProjection)
+        const firstMax = Math.max(...firstProjection)
+        const secondMin = Math.min(...secondProjection)
+        const secondMax = Math.max(...secondProjection)
+        if (firstMax <= secondMin || secondMax <= firstMin) return false
+      }
+    }
+    return true
   }
 }

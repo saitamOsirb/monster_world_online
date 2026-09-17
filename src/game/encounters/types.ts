@@ -1,3 +1,6 @@
+import type { BattleElement } from '../battle/elements'
+import type { BattleMoveId } from '../battle/moves'
+
 export interface EncounterEntry {
   speciesId: string
   displayName: string
@@ -5,6 +8,8 @@ export interface EncounterEntry {
   maxLevel: number
   weight: number
   spritePath: string
+  elements: readonly BattleElement[]
+  moveIds: readonly BattleMoveId[]
 }
 
 export interface EncounterTable {
@@ -20,4 +25,6 @@ export interface WildEncounter {
   displayName: string
   level: number
   spritePath: string
+  elements: readonly BattleElement[]
+  moveIds: readonly BattleMoveId[]
 }

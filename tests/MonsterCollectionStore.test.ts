@@ -118,6 +118,42 @@ describe('MonsterCollectionStore', () => {
     expect(lead?.moves[0].element).toBeUndefined()
   })
 
+  it('canonicalizes legacy reference species identities without changing progression state', () => {
+    const storage = new MemoryStorage()
+    const legacy = monster('legacy-species')
+    storage.setItem('monster-world.collection.v1', JSON.stringify({
+      version: 2,
+      party: [{
+        ...legacy,
+        speciesId: 'pidgey',
+        displayName: 'Pidgey',
+        spritePath: '/assets/Pokemon/Pidgey.png',
+        experience: 77,
+        level: 6,
+        currentHp: 9,
+      }],
+      storage: [],
+    }))
+
+    const store = new MonsterCollectionStore(storage)
+    const lead = store.lead
+
+    expect(lead).toMatchObject({
+      speciesId: 'skyrill',
+      displayName: 'Skyrill',
+      experience: 77,
+      level: 6,
+      currentHp: 9,
+    })
+
+    const persisted = JSON.parse(storage.getItem('monster-world.collection.v1') ?? '{}')
+    expect(persisted.party[0].speciesId).toBe('skyrill')
+    expect(persisted.party[0].displayName).toBe('Skyrill')
+    expect(persisted.party[0].experience).toBe(77)
+    expect(persisted.party[0].level).toBe(6)
+    expect(persisted.party[0].currentHp).toBe(9)
+  })
+
   it('promotes any party member to lead and persists the order', () => {
     const storage = new MemoryStorage()
     const store = new MonsterCollectionStore(storage)

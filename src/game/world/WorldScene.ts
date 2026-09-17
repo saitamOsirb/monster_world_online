@@ -1,6 +1,7 @@
 import { Assets, Container, Rectangle, Sprite, Texture } from 'pixi.js'
 import { TILE_SIZE, type Direction } from '../constants'
 import { CollisionWorld } from './CollisionWorld'
+import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionImporter'
 import { LegacyGodotImporter } from './LegacyGodotImporter'
 import { TileMapRenderer } from './TileMapRenderer'
 import type { GridPoint, ImportedSceneDefinition, TileDefinition, WorldObjectDefinition } from './types'
@@ -11,6 +12,15 @@ const INSTANCE_TEXTURES: Record<string, string> = {
   'res://TallGrass.tscn': '/assets/Grass/tall_grass.png',
   'res://House.tscn': '/assets/Buildings/house1.png',
 }
+
+const NON_BLOCKING_SCENES = [
+  'Player.tscn',
+  'Door.tscn',
+  'TallGrass.tscn',
+  'Flower.tscn',
+  'OverworldTileMap.tscn',
+  'LedgeTileMap.tscn',
+]
 
 export interface SceneSpawn {
   tile: GridPoint
@@ -26,6 +36,7 @@ export class WorldScene {
   private readonly objectLayer = new Container()
   private readonly effectLayer = new Container()
   private readonly importer = new LegacyGodotImporter()
+  private readonly collisionImporter = new LegacyCollisionImporter()
   private readonly actors = new Set<Container>()
   private scene: ImportedSceneDefinition | null = null
 
@@ -59,7 +70,10 @@ export class WorldScene {
     await this.renderLedges(this.scene.ledgeTiles)
 
     const playerNode = this.scene.objects.find((object) => object.instancePath?.endsWith('Player.tscn'))
-    await this.renderObjects(this.scene.objects)
+    await Promise.all([
+      this.renderObjects(this.scene.objects),
+      this.applyImportedCollisions(scenePath, this.scene.objects),
+    ])
 
     for (const door of this.scene.doors) {
       this.collision.setDoor(door)
@@ -88,21 +102,28 @@ export class WorldScene {
     overlay.roundPixels = true
     this.effectLayer.addChild(overlay)
 
-    const frameWidth = effectTexture.source.width / 2
-    const effectFrame = new Texture({
+    const frameWidth = effectTexture.source.width / 4
+    const frames = Array.from({ length: 4 }, (_, index) => new Texture({
       source: effectTexture.source,
-      frame: new Rectangle(0, 0, frameWidth, effectTexture.source.height),
-    })
-    const effect = new Sprite(effectFrame)
+      frame: new Rectangle(index * frameWidth, 0, frameWidth, effectTexture.source.height),
+    }))
+    const effect = new Sprite(frames[0])
     effect.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
     effect.zIndex = overlay.zIndex + 1
     effect.roundPixels = true
     this.effectLayer.addChild(effect)
 
-    window.setTimeout(() => {
-      if (!overlay.destroyed) overlay.destroy()
-      if (!effect.destroyed) effect.destroy()
-    }, 220)
+    let frame = 0
+    const interval = window.setInterval(() => {
+      frame += 1
+      if (frame >= frames.length) {
+        window.clearInterval(interval)
+        if (!effect.destroyed) effect.destroy()
+        if (!overlay.destroyed) overlay.destroy()
+        return
+      }
+      effect.texture = frames[frame]
+    }, 100)
   }
 
   private clearDynamicLayers(): void {
@@ -155,7 +176,6 @@ export class WorldScene {
       }
 
       if (object.instancePath?.endsWith('TallGrass.tscn')) this.collision.setTallGrass(tile)
-      if (object.instancePath?.endsWith('Tree.tscn')) this.collision.setBlocked(tile)
       if (!texturePath) continue
 
       const texture = await Assets.load<Texture>(texturePath)
@@ -165,20 +185,33 @@ export class WorldScene {
       sprite.zIndex = object.zIndex ?? object.position.y + texture.source.height
       sprite.roundPixels = true
       this.objectLayer.addChild(sprite)
-
-      if (object.instancePath?.endsWith('House.tscn') || object.name.toLowerCase().includes('lab')) {
-        this.markBuildingFootprint(object.position, texture)
-      }
     }
   }
 
-  private markBuildingFootprint(position: GridPoint, texture: Texture): void {
-    const width = Math.max(1, Math.ceil(texture.source.width / TILE_SIZE))
-    const height = Math.max(1, Math.ceil(texture.source.height / TILE_SIZE))
-    const startX = Math.floor(position.x / TILE_SIZE)
-    const baseY = Math.floor(position.y / TILE_SIZE) + height - 1
-    for (let x = 0; x < width; x += 1) {
-      this.collision.setBlocked({ x: startX + x, y: baseY })
+  private async applyImportedCollisions(scenePath: string, objects: WorldObjectDefinition[]): Promise<void> {
+    const localRects = await this.collisionImporter.load(scenePath)
+    this.blockRects(localRects, { x: 0, y: 0 })
+
+    await Promise.all(objects.map(async (object) => {
+      const instancePath = object.instancePath
+      if (!instancePath?.endsWith('.tscn')) return
+      if (NON_BLOCKING_SCENES.some((name) => instancePath.endsWith(name))) return
+      const rects = await this.collisionImporter.load(instancePath)
+      this.blockRects(rects, object.position)
+    }))
+  }
+
+  private blockRects(rects: CollisionRect[], offset: GridPoint): void {
+    for (const rect of rects) {
+      const minX = Math.floor((rect.x + offset.x) / TILE_SIZE)
+      const minY = Math.floor((rect.y + offset.y) / TILE_SIZE)
+      const maxX = Math.ceil((rect.x + offset.x + rect.width) / TILE_SIZE)
+      const maxY = Math.ceil((rect.y + offset.y + rect.height) / TILE_SIZE)
+      for (let y = minY; y < maxY; y += 1) {
+        for (let x = minX; x < maxX; x += 1) {
+          this.collision.setBlocked({ x, y })
+        }
+      }
     }
   }
 }

@@ -52,7 +52,7 @@ export const INVENTORY_ITEMS: Record<InventoryItemId, InventoryItemDefinition> =
     displayName: 'Healing Tonic',
     category: 'healing',
     description: 'Restores up to 20 HP to one conscious active monster.',
-    useContext: 'field',
+    useContext: 'both',
     healingAmount: 20,
   },
   [STATUS_REMEDY_ID]: {
@@ -60,7 +60,7 @@ export const INVENTORY_ITEMS: Record<InventoryItemId, InventoryItemDefinition> =
     displayName: 'Status Remedy',
     category: 'healing',
     description: 'Clears poison, burn, paralysis or sleep from one active monster.',
-    useContext: 'field',
+    useContext: 'both',
     clearsStatus: true,
   },
   [REVIVE_KIT_ID]: {
@@ -68,7 +68,7 @@ export const INVENTORY_ITEMS: Record<InventoryItemId, InventoryItemDefinition> =
     displayName: 'Revive Kit',
     category: 'healing',
     description: 'Revives one fainted active monster at 50% of max HP.',
-    useContext: 'field',
+    useContext: 'both',
     reviveFraction: 0.5,
   },
 }

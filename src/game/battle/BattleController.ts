@@ -3,11 +3,19 @@ import { CaptureService } from '../capture/CaptureService'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH } from '../constants'
 import type { WildEncounter } from '../encounters/types'
 import { InputController } from '../input/InputController'
+import type { InventoryEntry, InventoryItemId } from '../inventory/types'
 import type { OwnedMonster } from '../monsters/types'
 import { findSpeciesDefinition, getSpeciesDefinition, STARTER_SPECIES_ID } from '../species/catalog'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
-import type { BattleEvent, BattlePhase, BattleSide, BattleState, BattleStatusCondition } from './types'
+import type {
+  BattleEvent,
+  BattleItemResolver,
+  BattlePhase,
+  BattleSide,
+  BattleState,
+  BattleStatusCondition,
+} from './types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
 
@@ -17,6 +25,8 @@ export interface BattleControllerHooks {
   getLeadMonster?: () => OwnedMonster | null
   getCaptureItemCount?: () => number
   consumeCaptureItem?: () => boolean
+  getBattleItems?: () => readonly InventoryEntry[]
+  useBattleItem?: BattleItemResolver
   onBattleResolved?: (
     phase: TerminalBattlePhase,
     state: BattleState,
@@ -37,6 +47,8 @@ export class BattleController {
   private commandText: Text | null = null
   private initialized = false
   private selectedCommand = 0
+  private selectedItem = 0
+  private itemMode = false
   private awaitingExit = false
   private resolutionApplied = false
 
@@ -83,9 +95,12 @@ export class BattleController {
       definitions.enemy,
       Math.random,
       (target) => capture.attempt(target, 1, findSpeciesDefinition(encounter.speciesId)?.catchRate ?? 0.5),
+      this.hooks.useBattleItem,
     )
     this.encounter = encounter
     this.selectedCommand = 0
+    this.selectedItem = 0
+    this.itemMode = false
     this.awaitingExit = false
     this.resolutionApplied = false
     this.setMessage(`A wild ${encounter.displayName} Lv.${encounter.level} appeared!`)
@@ -98,6 +113,11 @@ export class BattleController {
 
     if (this.awaitingExit) {
       if (input.isConfirmPressed() || input.isCancelPressed()) this.finishBattle()
+      return
+    }
+
+    if (this.itemMode) {
+      this.updateItemMode(input)
       return
     }
 
@@ -128,6 +148,10 @@ export class BattleController {
       this.resolveCapture()
       return
     }
+    if (this.selectedCommand === moves.length + 1) {
+      this.openItemMode()
+      return
+    }
     this.resolveRun()
   }
 
@@ -138,6 +162,68 @@ export class BattleController {
     this.awaitingExit = false
     this.resolutionApplied = false
     this.selectedCommand = 0
+    this.selectedItem = 0
+    this.itemMode = false
+  }
+
+  private openItemMode(): void {
+    const items = this.battleItems()
+    if (items.length === 0) {
+      this.setMessage('No battle-usable items available.')
+      return
+    }
+    this.itemMode = true
+    this.selectedItem = 0
+    if (this.engine) this.refreshCommandText(this.engine.state)
+  }
+
+  private updateItemMode(input: InputController): void {
+    if (!this.engine) return
+    const items = this.battleItems()
+    const options = items.length + 1
+
+    if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) {
+      this.selectedItem = (this.selectedItem + 1) % options
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+    if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) {
+      this.selectedItem = this.selectedItem === 0 ? options - 1 : this.selectedItem - 1
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+    if (input.isCancelPressed()) {
+      this.itemMode = false
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+    if (!input.isConfirmPressed()) return
+
+    if (this.selectedItem >= items.length) {
+      this.itemMode = false
+      this.refreshCommandText(this.engine.state)
+      return
+    }
+    this.resolveItem(items[this.selectedItem].item.id)
+  }
+
+  private resolveItem(itemId: InventoryItemId): void {
+    if (!this.engine) return
+    const beforeTurn = this.engine.state.turn
+    const result = this.engine.resolvePlayerAction({ kind: 'item', itemId })
+    const succeeded = result.events.some((event) => event.type === 'item-used')
+    if (succeeded) {
+      this.itemMode = false
+      this.selectedItem = 0
+    }
+    this.applyTurnResult(result.state, result.events)
+    if (!succeeded && result.state.turn === beforeTurn) {
+      this.refreshCommandText(result.state)
+    }
+  }
+
+  private battleItems(): readonly InventoryEntry[] {
+    return this.hooks.getBattleItems?.() ?? []
   }
 
   private resolveMove(moveId: string): void {
@@ -217,10 +303,24 @@ export class BattleController {
 
   private refreshCommandText(state: BattleState): void {
     if (!this.commandText) return
+    if (this.itemMode) {
+      const items = this.battleItems()
+      const options = [
+        ...items.map((entry) => `${entry.item.displayName} x${entry.quantity}`),
+        'BACK',
+      ]
+      this.selectedItem = Math.min(this.selectedItem, Math.max(0, options.length - 1))
+      this.commandText.text = options
+        .map((option, index) => `${index === this.selectedItem ? '▶' : ' '} ${option}`)
+        .join('   ')
+      return
+    }
+
     const captureCount = Math.max(0, Math.trunc(this.hooks.getCaptureItemCount?.() ?? 0))
     const options = [
       ...state.player.moves.map((move) => `${move.name}${move.element ? ` [${move.element.toUpperCase()}]` : ''}`),
       `CAPTURE x${captureCount}`,
+      'BAG',
       'RUN',
     ]
     this.commandText.text = options
@@ -229,7 +329,7 @@ export class BattleController {
   }
 
   private commandCount(): number {
-    return (this.engine?.state.player.moves.length ?? 0) + 2
+    return (this.engine?.state.player.moves.length ?? 0) + 3
   }
 
   private describeEvents(events: readonly BattleEvent[]): string {
@@ -239,6 +339,12 @@ export class BattleController {
     for (const event of events) {
       if (event.type === 'capture-attempt') {
         messages.push(event.success ? 'Capture successful!' : 'The monster broke free!')
+      } else if (event.type === 'item-used') {
+        if (event.healedHp) messages.push(`Used ${event.itemName}. Restored ${event.healedHp} HP.`)
+        else if (event.clearedStatus) messages.push(`Used ${event.itemName}. Status cleared.`)
+        else messages.push(`Used ${event.itemName}.`)
+      } else if (event.type === 'item-failed') {
+        messages.push(this.itemFailureMessage(event.reason))
       } else if (event.type === 'move') {
         messages.push(`${this.sideName(event.side)} used ${event.moveName}.`)
       } else if (event.type === 'miss') {
@@ -276,6 +382,15 @@ export class BattleController {
   private sideName(side: BattleSide): string {
     if (side === 'enemy') return this.encounter?.displayName ?? 'Enemy'
     return this.hooks.getLeadMonster?.()?.displayName ?? 'Partner'
+  }
+
+  private itemFailureMessage(reason: import('./types').BattleItemFailureReason): string {
+    if (reason === 'no-stock') return 'No stock left.'
+    if (reason === 'already-full') return 'HP is already full.'
+    if (reason === 'fainted-requires-revive') return 'A fainted monster needs a Revive Kit.'
+    if (reason === 'no-status') return 'There is no status condition to cure.'
+    if (reason === 'not-fainted') return 'Revive Kit only works on a fainted monster.'
+    return 'That item cannot be used in battle.'
   }
 
   private statusLabel(condition: BattleStatusCondition): string {

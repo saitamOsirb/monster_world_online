@@ -1,3 +1,4 @@
+import type { BattleElement } from '../battle/elements'
 import type { BattleMove, BattleStatus } from '../battle/types'
 
 export interface OwnedMonster {
@@ -11,6 +12,7 @@ export interface OwnedMonster {
   attack: number
   defense: number
   speed: number
+  elements: readonly BattleElement[]
   moves: readonly BattleMove[]
   status?: BattleStatus
   spritePath: string

@@ -14,6 +14,7 @@ function monster(overrides: Partial<OwnedMonster> = {}): OwnedMonster {
     attack: 13,
     defense: 11,
     speed: 12,
+    elements: ['fire'],
     moves: [{ id: 'strike', name: 'Strike', power: 40, accuracy: 1 }],
     spritePath: '/assets/test.png',
     capturedAt: '2026-09-17T00:00:00.000Z',
@@ -42,6 +43,7 @@ describe('ProgressionService', () => {
     expect(result.monster.experience).toBe(90)
     expect(result.levelsGained).toBe(0)
     expect(result.statGrowth).toEqual({ maxHp: 0, attack: 0, defense: 0, speed: 0 })
+    expect(result.monster.elements).toEqual(['fire'])
     expect(source.experience).toBe(0)
   })
 

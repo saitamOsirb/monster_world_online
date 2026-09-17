@@ -1,6 +1,9 @@
+import type { BattleElement, ElementEffectiveness } from './elements'
+
 export type BattleSide = 'player' | 'enemy'
 export type BattlePhase = 'awaiting-player' | 'won' | 'lost' | 'ran' | 'captured'
 export type BattleStatusCondition = 'poison' | 'burn' | 'paralysis' | 'sleep'
+export type BattleMoveDamageClass = 'physical' | 'special'
 
 export interface BattleStatus {
   condition: BattleStatusCondition
@@ -19,6 +22,8 @@ export interface BattleMove {
   power: number
   accuracy: number
   priority?: number
+  element?: BattleElement
+  damageClass?: BattleMoveDamageClass
   statusEffect?: BattleStatusEffect
 }
 
@@ -31,12 +36,14 @@ export interface BattleCombatantDefinition {
   attack: number
   defense: number
   speed: number
+  elements?: readonly BattleElement[]
   moves: readonly BattleMove[]
   status?: BattleStatus
 }
 
 export interface BattleCombatantState extends BattleCombatantDefinition {
   currentHp: number
+  elements: readonly BattleElement[]
 }
 
 export interface BattleState {
@@ -61,6 +68,7 @@ export type PlayerBattleAction =
 export type BattleEvent =
   | { type: 'move'; side: BattleSide; moveId: string; moveName: string }
   | { type: 'miss'; side: BattleSide; moveId: string }
+  | { type: 'effectiveness'; target: BattleSide; moveElement: BattleElement; multiplier: ElementEffectiveness; sameElementBonus: boolean }
   | { type: 'damage'; side: BattleSide; target: BattleSide; amount: number; remainingHp: number }
   | { type: 'faint'; side: BattleSide }
   | { type: 'run'; side: 'player' }

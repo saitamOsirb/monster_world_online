@@ -21,6 +21,7 @@ function monster(id: string): OwnedMonster {
     attack: 9,
     defense: 8,
     speed: 7,
+    elements: ['water'],
     moves: [{ id: 'hit', name: 'Hit', power: 20, accuracy: 1 }],
     spritePath: '/assets/test.png',
     capturedAt: '2026-09-17T00:00:00.000Z',
@@ -33,7 +34,9 @@ describe('MonsterCollectionStore', () => {
     const store = new MonsterCollectionStore(storage)
     store.ensureStarter(monster('starter'))
 
-    expect(new MonsterCollectionStore(storage).lead?.instanceId).toBe('starter')
+    const reloaded = new MonsterCollectionStore(storage).lead
+    expect(reloaded?.instanceId).toBe('starter')
+    expect(reloaded?.elements).toEqual(['water'])
   })
 
   it('fills the six party slots then overflows to storage', () => {
@@ -58,9 +61,11 @@ describe('MonsterCollectionStore', () => {
     const snapshot = store.snapshot
     snapshot.party[0].currentHp = 1
     snapshot.party[0].experience = 999
+    ;(snapshot.party[0].elements as string[])[0] = 'fire'
 
     expect(store.lead?.currentHp).toBe(20)
     expect(store.lead?.experience).toBe(0)
+    expect(store.lead?.elements).toEqual(['water'])
   })
 
   it('persists experience updates', () => {
@@ -91,7 +96,24 @@ describe('MonsterCollectionStore', () => {
     expect(store.snapshot.version).toBe(2)
     expect(store.lead?.instanceId).toBe('legacy')
     expect(store.lead?.experience).toBe(0)
+    expect(store.lead?.elements).toEqual(['water'])
     expect(JSON.parse(storage.getItem('monster-world.collection.v1') ?? '{}').version).toBe(2)
+  })
+
+  it('normalizes pre-element version 2 monsters to neutral without inventing move typing', () => {
+    const storage = new MemoryStorage()
+    const current = monster('legacy-v2')
+    const { elements: _elements, ...withoutElements } = current
+    storage.setItem('monster-world.collection.v1', JSON.stringify({
+      version: 2,
+      party: [withoutElements],
+      storage: [],
+    }))
+
+    const lead = new MonsterCollectionStore(storage).lead
+
+    expect(lead?.elements).toEqual(['neutral'])
+    expect(lead?.moves[0].element).toBeUndefined()
   })
 
   it('promotes any party member to lead and persists the order', () => {

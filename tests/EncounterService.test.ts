@@ -23,6 +23,8 @@ const table: EncounterTable = {
       maxLevel: 4,
       weight: 1,
       spritePath: '/common.png',
+      elements: ['grass'],
+      moveIds: ['basic-strike'],
     },
     {
       speciesId: 'rare',
@@ -31,6 +33,8 @@ const table: EncounterTable = {
       maxLevel: 7,
       weight: 3,
       spritePath: '/rare.png',
+      elements: ['electric', 'air'],
+      moveIds: ['basic-strike', 'spark-jolt'],
     },
   ],
 }
@@ -41,7 +45,7 @@ describe('EncounterService', () => {
     expect(service.tryEncounter(table)).toBeNull()
   })
 
-  it('uses weighted selection and inclusive level ranges', () => {
+  it('uses weighted selection, inclusive levels and species battle metadata', () => {
     const service = new EncounterService(sequence([0.1, 0.5, 0.999999]))
     const encounter = service.tryEncounter(table)
 
@@ -51,6 +55,8 @@ describe('EncounterService', () => {
       displayName: 'Rare',
       level: 7,
       spritePath: '/rare.png',
+      elements: ['electric', 'air'],
+      moveIds: ['basic-strike', 'spark-jolt'],
     })
   })
 
@@ -77,6 +83,8 @@ describe('EncounterService', () => {
         maxLevel: 1,
         weight: 0,
         spritePath: '/disabled.png',
+        elements: ['neutral'],
+        moveIds: ['basic-strike'],
       }],
     }
     const service = new EncounterService(() => 0)

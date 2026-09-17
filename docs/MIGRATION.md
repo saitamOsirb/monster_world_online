@@ -15,16 +15,18 @@ src/
     constants.ts                  240x160 / 16px gameplay contracts
     battle/
       BattleController.ts         Pixi battle presentation + input adapter
-      BattleEngine.ts             renderer-independent turns, capture and status resolution
-      BattleSessionFactory.ts     owned-monster → battle definition adapter
-      types.ts                    battle/status domain contracts and events
+      BattleEngine.ts             renderer-independent turns, damage, capture and statuses
+      BattleSessionFactory.ts     owned-monster/encounter → battle definitions
+      elements.ts                 elemental chart, normalization and same-element helpers
+      moves.ts                    typed move catalog
+      types.ts                    battle/status/element domain contracts and events
     capture/
       CaptureService.ts           renderer-independent capture probability
     economy/
       WalletStore.ts              versioned persistent currency repository
     encounters/
-      EncounterService.ts         weighted encounter RNG
-      tables.ts                   scene-scoped encounter tables
+      EncounterService.ts         weighted encounter RNG + species battle metadata
+      tables.ts                   scene-scoped encounter tables/loadouts
     interaction/
       InteractionService.ts       front-tile NPC lookup from position/facing
       npcs.ts                     scene-scoped NPC/vendor/service definitions
@@ -37,7 +39,7 @@ src/
       LootService.ts              deterministic RNG-driven loot resolver
       tables.ts                   item drop tables
     monsters/
-      MonsterCollectionStore.ts   party/storage + HP/status/transfer persistence
+      MonsterCollectionStore.ts   party/storage + HP/status/elements persistence
       MonsterFactory.ts           starter/captured-monster adapters
       types.ts                    owned-monster contracts
     progression/
@@ -101,11 +103,15 @@ The upstream prototype does not contain these systems. They are original Monster
 | --- | --- | --- |
 | Scene-scoped encounters | Implemented foundation | Town has the reference grass table. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
-| Battle engine | Implemented foundation | Stats, priority, speed, accuracy, damage, KO, capture and statuses. |
+| Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture and statuses. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
+| Elemental typing | Implemented foundation | Ten Monster World elements, up to two per monster. |
+| Elemental effectiveness | Implemented | Immunity/resistance/weakness/dual weakness at `0×/0.5×/2×/4×`. |
+| Same-element attack bonus | Implemented | Explicit typed moves gain `1.25×` when matching an attacker element. |
+| Typed move catalog | Implemented foundation | Central move metadata for element, physical/special class, priority and status effects. |
 | Persistent HP/status | Implemented | Terminal HP + condition persist for win/loss/run/capture. |
 | Poison | Implemented | End-turn `max(1, floor(maxHp / 8))` damage. |
-| Burn | Implemented | 25% outgoing ATK penalty + `max(1, floor(maxHp / 16))` residual damage. |
+| Burn | Implemented | 25% outgoing physical-ATK penalty + `max(1, floor(maxHp / 16))` residual damage. |
 | Paralysis | Implemented | 50% effective speed + 25% action-block chance. |
 | Sleep | Implemented | Turn countdown; blocked actions until wake-up. |
 | Status move metadata | Implemented | Moves declare condition/chance and optional sleep duration. |
@@ -127,7 +133,38 @@ The upstream prototype does not contain these systems. They are original Monster
 | Vendor UI | Implemented | Mira uses `ShopService`. |
 | Party recovery | Implemented | Nia restores active-party HP and clears statuses for free. |
 
-## Battle, status and progression rules
+## Battle, elemental, status and progression rules
+
+### Elemental model
+
+Monster World currently defines these ten elements:
+
+`neutral`, `fire`, `water`, `grass`, `electric`, `earth`, `air`, `ice`, `toxic`, `spirit`.
+
+- Monsters may carry **one or two unique elements**.
+- A move may declare an explicit element and damage class (`physical` or `special`).
+- Legacy moves without element metadata remain valid and resolve as neutral damage **without** same-element bonus. This avoids changing old saves merely because their monster normalized to `neutral`.
+- Explicit typed moves receive **1.25× same-element attack bonus** when their element matches either attacker element.
+- Elemental effectiveness stacks across dual-element defenders and resolves to `0×`, `0.5×`, `1×`, `2×` or `4×`.
+- Immunity (`0×`) deals **0 damage** and prevents the move's secondary status effect from applying.
+- A double weakness may reach **4×**.
+- Double resistance is intentionally floored at **0.5×** for this Monster World foundation rather than stacking below that value.
+- Example immunity: `electric → earth = 0×`.
+- `effectiveness` battle events drive presentation feedback such as resisted, super-effective and immune messages; Pixi does not calculate multipliers.
+- Physical/special metadata is now explicit. Both classes still use the current shared ATK/DEF stats; splitting physical/special offensive and defensive stats is future product work.
+- Burn's outgoing attack penalty applies to **physical** damage only.
+
+The first centralized move catalog contains:
+
+- **Strike** — neutral / physical.
+- **Quick Hit** — neutral / physical / priority +1 / 20% paralysis.
+- **Ember Burst** — fire / special / 15% burn.
+- **Spark Jolt** — electric / special / 20% paralysis.
+- **Gust Cut** — air / physical.
+
+Encounter entries now carry `elements` and `moveIds`. `BattleSessionFactory` materializes those move IDs from the catalog instead of duplicating move definitions in the encounter/battle/monster factories. The current starter is fire-aligned and uses Strike, Ember Burst and Quick Hit. Current Town reference encounters expose air/neutral and electric loadouts respectively.
+
+### Status and progression
 
 - Max level: **100**.
 - EXP required for next level: `60 + currentLevel × 30`.
@@ -138,16 +175,15 @@ The upstream prototype does not contain these systems. They are original Monster
 - Battles begin from persisted `currentHp` and persisted `status`.
 - Terminal player HP + status are written through `MonsterCollectionStore.updateBattleState()` before progression/reward side effects.
 - Defeat persists **0 HP**.
-- Captured monsters preserve the status they had at capture time.
+- Captured monsters preserve their battle elements, move metadata and status at capture time.
 - Level-up HP growth preserves existing damage; it does not full-heal.
 - A combatant can hold one status at a time; status moves do not overwrite an existing condition.
 - Poison and burn resolve at end of turn and can cause a KO.
-- Burn multiplies the attack stat by **0.75** for outgoing damage.
+- Burn multiplies the physical attack stat by **0.75** for outgoing physical damage.
 - Paralysis multiplies effective speed by **0.5** and has a **25%** action-block roll.
 - Sleep stores `remainingTurns`, blocks the action, decrements its counter and clears when it reaches zero.
-- `Quick Hit` on newly generated starter data currently has a **20% paralysis chance** as the first status-enabled move.
 
-`BattleEngine` owns these rules and receives injected RNG in tests. `Game` persists only the terminal state returned by the engine.
+`BattleEngine` owns elemental/status/turn rules and receives injected RNG in tests. `Game` persists only the terminal state returned by the engine.
 
 ## Inventory, Bag and field-item rules
 
@@ -213,6 +249,7 @@ Inventory rules:
 - Unknown IDs never mutate collection state.
 - `updateCurrentHp()` remains available for HP-only mutations.
 - `updateBattleState()` validates and persists HP + optional status together.
+- Monster element arrays and move metadata are persisted with the owned monster.
 - Battle reads `collection.lead`, so changing lead affects subsequent battles automatically.
 
 ## Persistence boundaries
@@ -221,7 +258,12 @@ Inventory rules:
 - `InventoryStore` → `monster-world.inventory.v1`
 - `WalletStore` → `monster-world.wallet.v1`
 
-Collection payload `version: 2` continues to accept older records without a `status` field; missing status means healthy/clear. Legacy collection `version: 1` still migrates with `experience: 0`.
+Collection payload `version: 2` remains backward compatible with records created before status or elements existed:
+
+- missing `status` means healthy/clear;
+- missing `elements` normalizes to `['neutral']`;
+- existing moves without `element`/`damageClass` remain untyped rather than being silently rewritten, so they do not receive accidental STAB;
+- legacy collection `version: 1` still migrates with `experience: 0` and normalized elements.
 
 Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and Revive Kit keys and normalizes each missing quantity to zero. No migration manufactures new stock.
 
@@ -234,9 +276,9 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **101 tests across 19 test files** covering import/collision, encounters, battle/capture/status resolution, HP/status persistence, party/storage/recovery, progression, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **107 tests across 20 test files** covering import/collision, encounters, battle/capture/status/elemental resolution, HP/status/element persistence, party/storage/recovery, progression, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
-Legacy/product-neutral visual hashes remain unchanged for Town, menu, Party Screen, Bag, Oak's Lab, Player Home Floor 1 and Rival Home Floor. Product-screen baselines after the status phase are:
+All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `a8904ce9ecf7a85df7e5b8fe9fb022a80f1ef882d6494d6a12734afa3c47645b`
@@ -244,8 +286,10 @@ Legacy/product-neutral visual hashes remain unchanged for Town, menu, Party Scre
 ## Intentional architecture cleanups
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
-- Rendering does not decide movement, collision, capture, status, rewards, inventory, economy, recovery or collection legality.
-- `BattleEngine` owns turn/status rules but never browser persistence.
+- Rendering does not decide movement, collision, capture, elemental effectiveness, status, rewards, inventory, economy, recovery or collection legality.
+- `BattleEngine` owns turn/status/elemental damage rules but never browser persistence.
+- `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
+- `moves.ts` is the centralized typed move catalog; encounters and factories reference move IDs rather than re-declaring move metadata.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService`, `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
@@ -259,17 +303,18 @@ Legacy/product-neutral visual hashes remain unchanged for Town, menu, Party Scre
 The original Godot repository does not expose another major gameplay subsystem beyond the migrated overworld/UI prototype. Remaining work is original Monster World Online development:
 
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
-2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
+2. Extend deterministic visual fixtures as maps/scenes/product screens are added, including a deterministic battle fixture when battle presentation stabilizes.
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
-4. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-5. Add elemental/type metadata, effectiveness and richer move definitions after Monster World rules are finalized.
-6. Decide whether battle-side bag use should allow healing/status/revive actions and define turn-consumption rules.
-7. Add broader status interactions/immunities only when element/species rules exist.
-8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+4. Add a proper species catalog with original Monster World species IDs, base stats, elements, learnsets/catch metadata and sprite references; remove reference-species data from encounter tables.
+5. Split physical/special offensive/defensive stats if the final combat design requires that distinction beyond move metadata.
+6. Decide whether battle-side Bag use should allow healing/status/revive actions and define turn-consumption rules.
+7. Add broader element/status interactions, abilities or immunities only when species rules are finalized.
+8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter/capture/progression system, inventory/economy/Bag, NPC/vendor/recovery system, persistent HP/status system, field-item system or party/storage manager. Those modules are Monster World Online product code.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete battle engine, encounter/capture/progression system, inventory/economy/Bag, NPC/vendor/recovery system, persistent HP/status/element system, field-item system or party/storage manager. Those modules are Monster World Online product code.
 
 ## Resource and licensing note
 

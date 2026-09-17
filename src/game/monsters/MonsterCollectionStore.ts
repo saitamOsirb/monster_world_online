@@ -1,4 +1,4 @@
-import type { BattleMove } from '../battle/types'
+import type { BattleMove, BattleStatus, BattleStatusCondition } from '../battle/types'
 import type { AddMonsterResult, MonsterCollectionState, OwnedMonster } from './types'
 
 const DEFAULT_KEY = 'monster-world.collection.v1'
@@ -15,6 +15,7 @@ interface LegacyMonsterCollectionState {
 export interface PartyHealthRestoreResult {
   recoveredMonsters: number
   totalHpRestored: number
+  clearedStatuses: number
 }
 
 export class MonsterCollectionStore {
@@ -111,10 +112,23 @@ export class MonsterCollectionStore {
       if (index < 0) continue
 
       const monster = collection[index]
-      if (!Number.isInteger(currentHp) || currentHp < 0 || currentHp > monster.maxHp) {
-        throw new Error(`Current HP must be an integer between 0 and ${monster.maxHp}`)
-      }
+      this.assertCurrentHp(currentHp, monster.maxHp)
       collection[index] = this.cloneMonster({ ...monster, currentHp })
+      this.persist()
+      return true
+    }
+    return false
+  }
+
+  updateBattleState(instanceId: string, currentHp: number, status?: BattleStatus): boolean {
+    for (const collection of [this.state.party, this.state.storage]) {
+      const index = collection.findIndex((monster) => monster.instanceId === instanceId)
+      if (index < 0) continue
+
+      const monster = collection[index]
+      this.assertCurrentHp(currentHp, monster.maxHp)
+      if (status && !this.isStatus(status)) throw new Error('Invalid monster status state')
+      collection[index] = this.cloneMonster({ ...monster, currentHp, status })
       this.persist()
       return true
     }
@@ -124,18 +138,28 @@ export class MonsterCollectionStore {
   restorePartyToFullHealth(): PartyHealthRestoreResult {
     let recoveredMonsters = 0
     let totalHpRestored = 0
+    let clearedStatuses = 0
 
     for (let index = 0; index < this.state.party.length; index += 1) {
       const monster = this.state.party[index]
-      if (monster.currentHp >= monster.maxHp) continue
+      const missingHp = Math.max(0, monster.maxHp - monster.currentHp)
+      const hadStatus = Boolean(monster.status)
+      if (missingHp <= 0 && !hadStatus) continue
 
-      totalHpRestored += monster.maxHp - monster.currentHp
-      recoveredMonsters += 1
-      this.state.party[index] = this.cloneMonster({ ...monster, currentHp: monster.maxHp })
+      if (missingHp > 0) {
+        totalHpRestored += missingHp
+        recoveredMonsters += 1
+      }
+      if (hadStatus) clearedStatuses += 1
+      this.state.party[index] = this.cloneMonster({
+        ...monster,
+        currentHp: monster.maxHp,
+        status: undefined,
+      })
     }
 
-    if (recoveredMonsters > 0) this.persist()
-    return { recoveredMonsters, totalHpRestored }
+    if (recoveredMonsters > 0 || clearedStatuses > 0) this.persist()
+    return { recoveredMonsters, totalHpRestored, clearedStatuses }
   }
 
   clear(): void {
@@ -173,7 +197,8 @@ export class MonsterCollectionStore {
     const migrate = (monster: LegacyOwnedMonster): OwnedMonster => ({
       ...monster,
       experience: 0,
-      moves: monster.moves.map((move) => ({ ...move })),
+      moves: monster.moves.map((move) => this.cloneMove(move)),
+      status: monster.status ? { ...monster.status } : undefined,
     })
     return {
       version: 2,
@@ -193,7 +218,15 @@ export class MonsterCollectionStore {
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
     return {
       ...monster,
-      moves: monster.moves.map((move) => ({ ...move })),
+      moves: monster.moves.map((move) => this.cloneMove(move)),
+      status: monster.status ? { ...monster.status } : undefined,
+    }
+  }
+
+  private cloneMove(move: BattleMove): BattleMove {
+    return {
+      ...move,
+      statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,
     }
   }
 
@@ -252,14 +285,40 @@ export class MonsterCollectionStore {
       )
       && Array.isArray(monster.moves)
       && monster.moves.every((move) => this.isMove(move))
+      && (monster.status === undefined || this.isStatus(monster.status))
   }
 
   private isMove(value: unknown): value is BattleMove {
     if (!value || typeof value !== 'object') return false
     const move = value as Partial<BattleMove>
-    return typeof move.id === 'string'
-      && typeof move.name === 'string'
-      && typeof move.power === 'number'
-      && typeof move.accuracy === 'number'
+    if (typeof move.id !== 'string' || typeof move.name !== 'string') return false
+    if (typeof move.power !== 'number' || typeof move.accuracy !== 'number') return false
+    const effect = move.statusEffect
+    if (effect === undefined) return true
+    return this.isStatusCondition(effect.condition)
+      && typeof effect.chance === 'number'
+      && Number.isFinite(effect.chance)
+      && effect.chance >= 0
+      && effect.chance <= 1
+      && (effect.durationTurns === undefined
+        || (effect.condition === 'sleep' && Number.isInteger(effect.durationTurns) && effect.durationTurns > 0))
+  }
+
+  private isStatus(value: unknown): value is BattleStatus {
+    if (!value || typeof value !== 'object') return false
+    const status = value as Partial<BattleStatus>
+    if (!this.isStatusCondition(status.condition)) return false
+    return status.remainingTurns === undefined
+      || (status.condition === 'sleep' && Number.isInteger(status.remainingTurns) && status.remainingTurns > 0)
+  }
+
+  private isStatusCondition(value: unknown): value is BattleStatusCondition {
+    return value === 'poison' || value === 'burn' || value === 'paralysis' || value === 'sleep'
+  }
+
+  private assertCurrentHp(currentHp: number, maxHp: number): void {
+    if (!Number.isInteger(currentHp) || currentHp < 0 || currentHp > maxHp) {
+      throw new Error(`Current HP must be an integer between 0 and ${maxHp}`)
+    }
   }
 }

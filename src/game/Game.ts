@@ -70,7 +70,6 @@ export class Game {
 
     const spawn = await this.world.load(scenePath)
     player.setSpawn(spawn.tile, spawn.direction)
-    this.menu.showClosedForVisualTest()
     this.fadeOverlay.alpha = 0
     this.updateCamera()
   }

@@ -18,6 +18,7 @@ const PARTY_SPECIES = [
 interface MenuControllerHooks {
   onPartyRequested?: () => void
   onPartyExitRequested?: () => void
+  onPartyManageRequested?: (instanceId: string) => void
 }
 
 interface PartySlotLayout {
@@ -102,6 +103,7 @@ export class MenuController {
   private state: 'closed' | 'menu' | 'party' = 'closed'
   private selectedMenu = 0
   private selectedParty = 0
+  private currentParty: readonly OwnedMonster[] = []
   private readonly menuPanel = new Container()
   private readonly partyPanel = new Container()
   private readonly partySelectionSprites: Sprite[] = []
@@ -226,12 +228,19 @@ export class MenuController {
     } else if (input.wasPressed('ArrowRight') && this.selectedParty === 0) {
       this.selectedParty = 1
       this.refreshPartySelection()
-    } else if (input.isConfirmPressed() && this.selectedParty === 6) {
-      this.hooks.onPartyExitRequested?.()
+    } else if (input.isConfirmPressed()) {
+      if (this.selectedParty === 6) {
+        this.hooks.onPartyExitRequested?.()
+        return
+      }
+      if (this.visualTestMode) return
+      const member = this.currentParty[this.selectedParty]
+      if (member) this.hooks.onPartyManageRequested?.(member.instanceId)
     }
   }
 
   async showParty(party?: readonly OwnedMonster[]): Promise<void> {
+    this.currentParty = party ? [...party] : []
     if (!this.visualTestMode && party && this.partyUiResources) {
       await this.buildOwnedParty(this.partyUiResources, party)
       this.selectedParty = 0

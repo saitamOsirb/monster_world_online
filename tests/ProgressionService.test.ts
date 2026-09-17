@@ -78,6 +78,22 @@ describe('ProgressionService', () => {
     expect(result.monster.experience).toBe(91)
   })
 
+  it('uses species-specific stat growth when the catalog knows the species', () => {
+    const result = progression.grantExperience(monster({
+      speciesId: 'pidgey',
+      level: 5,
+      maxHp: 22,
+      currentHp: 18,
+      speed: 15,
+    }), 210)
+
+    expect(result.newLevel).toBe(6)
+    expect(result.monster.maxHp).toBe(25)
+    expect(result.monster.currentHp).toBe(21)
+    expect(result.monster.speed).toBe(17)
+    expect(result.statGrowth).toEqual({ maxHp: 3, attack: 2, defense: 2, speed: 2 })
+  })
+
   it('clamps level 100 and discards unusable overflow experience', () => {
     const result = progression.grantExperience(monster({ level: 99, experience: 0 }), 10_000)
 

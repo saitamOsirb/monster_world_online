@@ -10,6 +10,8 @@ export interface DoorDefinition {
   nextScene: string
   spawnTile: GridPoint
   spawnDirection: Direction
+  invisible: boolean
+  animationTexturePath?: string
 }
 
 export interface WorldObjectDefinition {

@@ -376,20 +376,24 @@ export class BattleController {
     this.refreshBattleUi(state)
     let message = this.describeEvents(events)
 
-    const terminal = state.phase === 'won'
-      || state.phase === 'lost'
-      || state.phase === 'ran'
-      || state.phase === 'captured'
-    if (terminal) {
+    const terminalPhase = this.terminalPhase(state.phase)
+    if (terminalPhase) {
       this.awaitingExit = true
       if (!this.resolutionApplied && this.encounter) {
-        const summary = this.hooks.onBattleResolved?.(state.phase, state, this.encounter)
+        const summary = this.hooks.onBattleResolved?.(terminalPhase, state, this.encounter)
         this.resolutionApplied = true
         if (summary) message = `${message} ${summary}`.trim()
       }
     }
 
     this.setMessage(message)
+  }
+
+  private terminalPhase(phase: BattlePhase): TerminalBattlePhase | null {
+    if (phase === 'won' || phase === 'lost' || phase === 'ran' || phase === 'captured') {
+      return phase
+    }
+    return null
   }
 
   private finishBattle(): void {

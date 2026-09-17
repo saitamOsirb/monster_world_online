@@ -8,6 +8,8 @@ const UI_FONT_FAMILY = 'PokemonFL'
 const WIDTH = 240
 const HEIGHT = 160
 const MAX_QUANTITY = 99
+const OFFER_TOP = 53
+const OFFER_ROW_HEIGHT = 15
 
 interface VendorControllerHooks {
   getBalance: () => number
@@ -123,17 +125,17 @@ export class VendorController {
     this.addText(npc.displayName.toUpperCase(), 8, 5, 12, 0xffffff)
     this.addText(shop.displayName.toUpperCase(), 82, 6, 9, 0xd8ddeb)
     this.addText(`CREDITS ${this.hooks.getBalance()}`, 159, 6, 8, 0xffe6a3)
-    this.addText(this.status || npc.dialogue, 8, 32, 8, 0x505563, 224)
+    this.addText(this.status || npc.dialogue, 8, 31, 7, 0x505563, 224)
 
     shop.offers.forEach((offer, index) => {
-      const y = 58 + index * 20
+      const y = OFFER_TOP + index * OFFER_ROW_HEIGHT
       const selected = index === this.selectedOffer
       if (selected) {
-        this.view.addChild(new Graphics().roundRect(7, y - 2, 226, 17, 3).fill(0xd8deef))
+        this.view.addChild(new Graphics().roundRect(7, y - 2, 226, 13, 3).fill(0xd8deef))
       }
       const item = INVENTORY_ITEMS[offer.itemId]
-      this.addText(`${selected ? '▶ ' : '  '}${item.displayName}`, 11, y, 10, 0x242938)
-      this.addText(`${offer.unitPrice} cr`, 177, y, 9, 0x242938)
+      this.addText(`${selected ? '▶ ' : '  '}${item.displayName}`, 11, y, 8, 0x242938)
+      this.addText(`${offer.unitPrice} cr`, 181, y, 8, 0x242938)
     })
 
     const offer = shop.offers[this.selectedOffer]
@@ -141,10 +143,10 @@ export class VendorController {
       const item = INVENTORY_ITEMS[offer.itemId]
       const total = offer.unitPrice * this.quantity
       const owned = this.hooks.getItemQuantity(offer.itemId)
-      this.addText(item.description, 9, 102, 8, 0x505563, 222)
-      this.addText(`OWNED x${owned}`, 9, 124, 8, 0x505563)
-      this.addText(`QUANTITY ◀ ${this.quantity} ▶`, 82, 124, 8, 0x30384f)
-      this.addText(`TOTAL ${total}`, 171, 124, 8, 0x30384f)
+      this.addText(item.description, 9, 113, 7, 0x505563, 222)
+      this.addText(`OWNED x${owned}`, 9, 129, 7, 0x505563)
+      this.addText(`QTY ◀ ${this.quantity} ▶`, 90, 129, 7, 0x30384f)
+      this.addText(`TOTAL ${total}`, 174, 129, 7, 0x30384f)
     }
 
     this.view.addChild(new Graphics().rect(7, 139, 226, 1).fill(0xa8a8a8))

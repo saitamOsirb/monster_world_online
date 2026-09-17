@@ -1,5 +1,5 @@
 export type BattleSide = 'player' | 'enemy'
-export type BattlePhase = 'awaiting-player' | 'won' | 'lost' | 'ran'
+export type BattlePhase = 'awaiting-player' | 'won' | 'lost' | 'ran' | 'captured'
 
 export interface BattleMove {
   id: string
@@ -31,9 +31,17 @@ export interface BattleState {
   enemy: BattleCombatantState
 }
 
+export interface BattleCaptureResult {
+  success: boolean
+  chance: number
+}
+
+export type BattleCaptureResolver = (target: BattleCombatantState) => BattleCaptureResult
+
 export type PlayerBattleAction =
   | { kind: 'move'; moveId: string }
   | { kind: 'run' }
+  | { kind: 'capture' }
 
 export type BattleEvent =
   | { type: 'move'; side: BattleSide; moveId: string; moveName: string }
@@ -41,7 +49,8 @@ export type BattleEvent =
   | { type: 'damage'; side: BattleSide; target: BattleSide; amount: number; remainingHp: number }
   | { type: 'faint'; side: BattleSide }
   | { type: 'run'; side: 'player' }
-  | { type: 'battle-end'; phase: Extract<BattlePhase, 'won' | 'lost' | 'ran'> }
+  | { type: 'capture-attempt'; success: boolean; chance: number }
+  | { type: 'battle-end'; phase: Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'> }
 
 export interface BattleTurnResult {
   state: BattleState

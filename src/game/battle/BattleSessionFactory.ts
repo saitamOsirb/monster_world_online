@@ -10,37 +10,35 @@ import type { BattleCombatantDefinition, BattleMove } from './types'
 
 export interface BattleSessionDefinitions {
   player: BattleCombatantDefinition
+  playerReserves: readonly BattleCombatantDefinition[]
   enemy: BattleCombatantDefinition
 }
 
 export function createReferenceBattleSession(
   encounter: WildEncounter,
-  lead?: OwnedMonster | null,
+  owned?: OwnedMonster | readonly OwnedMonster[] | null,
 ): BattleSessionDefinitions {
   const enemyLevel = Math.max(1, encounter.level)
   const enemySpecies = getSpeciesDefinition(encounter.speciesId)
   const enemyStats = calculateSpeciesStats(enemySpecies, enemyLevel)
+  const ownedParty = Array.isArray(owned) ? [...owned] : owned ? [owned] : []
+  const activeIndex = ownedParty.findIndex((monster) => monster.currentHp > 0)
 
-  const player: BattleCombatantDefinition = lead
-    ? {
-        id: lead.instanceId,
-        displayName: lead.displayName,
-        level: lead.level,
-        maxHp: lead.maxHp,
-        currentHp: lead.currentHp,
-        attack: lead.attack,
-        defense: lead.defense,
-        specialAttack: lead.specialAttack ?? lead.attack,
-        specialDefense: lead.specialDefense ?? lead.defense,
-        speed: lead.speed,
-        elements: [...lead.elements],
-        moves: lead.moves.map(cloneMove),
-        status: lead.status ? { ...lead.status } : undefined,
-      }
-    : createReferencePlayer()
+  const player = activeIndex >= 0
+    ? ownedToBattleDefinition(ownedParty[activeIndex])
+    : ownedParty.length > 0
+      ? ownedToBattleDefinition(ownedParty[0])
+      : createReferencePlayer()
+
+  const playerReserves = activeIndex >= 0
+    ? ownedParty
+        .filter((_monster, index) => index !== activeIndex)
+        .map(ownedToBattleDefinition)
+    : []
 
   return {
     player,
+    playerReserves,
     enemy: {
       id: enemySpecies.id,
       displayName: enemySpecies.displayName,
@@ -54,6 +52,24 @@ export function createReferenceBattleSession(
       elements: [...enemySpecies.elements],
       moves: createSpeciesMovesAtLevel(enemySpecies, enemyLevel),
     },
+  }
+}
+
+function ownedToBattleDefinition(monster: OwnedMonster): BattleCombatantDefinition {
+  return {
+    id: monster.instanceId,
+    displayName: monster.displayName,
+    level: monster.level,
+    maxHp: monster.maxHp,
+    currentHp: monster.currentHp,
+    attack: monster.attack,
+    defense: monster.defense,
+    specialAttack: monster.specialAttack ?? monster.attack,
+    specialDefense: monster.specialDefense ?? monster.defense,
+    speed: monster.speed,
+    elements: [...monster.elements],
+    moves: monster.moves.map(cloneMove),
+    status: monster.status ? { ...monster.status } : undefined,
   }
 }
 

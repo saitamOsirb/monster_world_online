@@ -25,8 +25,8 @@ src/
     economy/
       WalletStore.ts              versioned persistent currency repository
     encounters/
-      EncounterService.ts         weighted encounter RNG + species battle metadata
-      tables.ts                   scene-scoped encounter tables/loadouts
+      EncounterService.ts         weighted encounter RNG + species lookup
+      tables.ts                   scene-scoped species/level/weight tables
     interaction/
       InteractionService.ts       front-tile NPC lookup from position/facing
       npcs.ts                     scene-scoped NPC/vendor/service definitions
@@ -43,7 +43,10 @@ src/
       MonsterFactory.ts           starter/captured-monster adapters
       types.ts                    owned-monster contracts
     progression/
-      ProgressionService.ts       EXP/level/stat growth rules
+      ProgressionService.ts       EXP/level/species growth rules
+    species/
+      catalog.ts                  species source of truth + stat/learnset helpers
+      types.ts                    base stats/growth/catch/learnset contracts
     recovery/
       PartyRecoveryService.ts     free active-party HP/status recovery orchestration
     rewards/
@@ -109,6 +112,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | Elemental effectiveness | Implemented | Immunity/resistance/weakness/dual weakness at `0×/0.5×/2×/4×`. |
 | Same-element attack bonus | Implemented | Explicit typed moves gain `1.25×` when matching an attacker element. |
 | Typed move catalog | Implemented foundation | Central move metadata for element, physical/special class, priority and status effects. |
+| Species catalog | Implemented foundation | Central base stats, stat growth, elements, catch rate, growth curve, sprite and learnset metadata. |
+| Species-driven encounters | Implemented | Encounter tables now contain only species id, level range and weight. |
+| Species-driven capture/growth | Implemented | Catch rate and per-level stat growth resolve through species metadata with legacy fallbacks. |
 | Persistent HP/status | Implemented | Terminal HP + condition persist for win/loss/run/capture. |
 | Poison | Implemented | End-turn `max(1, floor(maxHp / 8))` damage. |
 | Burn | Implemented | 25% outgoing physical-ATK penalty + `max(1, floor(maxHp / 16))` residual damage. |
@@ -162,20 +168,20 @@ The first centralized move catalog contains:
 - **Spark Jolt** — electric / special / 20% paralysis.
 - **Gust Cut** — air / physical.
 
-Encounter entries now carry `elements` and `moveIds`. `BattleSessionFactory` materializes those move IDs from the catalog instead of duplicating move definitions in the encounter/battle/monster factories. The current starter is fire-aligned and uses Strike, Ember Burst and Quick Hit. Current Town reference encounters expose air/neutral and electric loadouts respectively.
+Species combat/presentation metadata no longer lives in encounter tables. `species/catalog.ts` is the source of truth for each species' display name, sprite, elements, base stats, per-level stat growth, catch rate, growth curve and learnset. Encounter tables now declare only `speciesId`, level range and weight. `EncounterService`, `BattleSessionFactory`, `MonsterFactory`, capture and progression resolve species metadata through that catalog. The current starter is fire-aligned and learns Strike, Ember Burst and Quick Hit; the current Town reference species resolve their air/neutral and electric loadouts from their learnsets.
 
 ### Status and progression
 
 - Max level: **100**.
 - EXP required for next level: `60 + currentLevel × 30`.
 - Victory EXP: `round(20 + enemyLevel × 18 + enemyMaxHp × 0.8)`.
-- Per-level growth: **+4 max HP, +2 ATK, +2 DEF, +1 SPD**.
+- Per-level stat growth is species-driven. The current starter uses **+4 max HP, +2 ATK, +2 DEF, +1 SPD**; unknown legacy species retain that previous global growth as a compatibility fallback.
 - One reward may grant multiple levels; level 100 clears unusable overflow EXP.
 - Capture, run and defeat grant no EXP.
 - Battles begin from persisted `currentHp` and persisted `status`.
 - Terminal player HP + status are written through `MonsterCollectionStore.updateBattleState()` before progression/reward side effects.
 - Defeat persists **0 HP**.
-- Captured monsters preserve their battle elements, move metadata and status at capture time.
+- Captured monsters preserve their battle elements, move metadata and status at capture time; canonical name/sprite identity resolves from the species catalog.
 - Level-up HP growth preserves existing damage; it does not full-heal.
 - A combatant can hold one status at a time; status moves do not overwrite an existing condition.
 - Poison and burn resolve at end of turn and can cause a KO.
@@ -276,7 +282,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **107 tests across 20 test files** covering import/collision, encounters, battle/capture/status/elemental resolution, HP/status/element persistence, party/storage/recovery, progression, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **114 tests across 21 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, battle/capture/status/elemental resolution, species catch rates, HP/status/element persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 All existing deterministic visual hashes remained unchanged through the elemental phase. Product-screen baselines remain:
 
@@ -289,7 +295,8 @@ All existing deterministic visual hashes remained unchanged through the elementa
 - Rendering does not decide movement, collision, capture, elemental effectiveness, status, rewards, inventory, economy, recovery or collection legality.
 - `BattleEngine` owns turn/status/elemental damage rules but never browser persistence.
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
-- `moves.ts` is the centralized typed move catalog; encounters and factories reference move IDs rather than re-declaring move metadata.
+- `moves.ts` is the centralized typed move catalog.
+- `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata from the catalog.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService`, `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
@@ -305,12 +312,13 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added, including a deterministic battle fixture when battle presentation stabilizes.
 3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
-4. Add a proper species catalog with original Monster World species IDs, base stats, elements, learnsets/catch metadata and sprite references; remove reference-species data from encounter tables.
-5. Split physical/special offensive/defensive stats if the final combat design requires that distinction beyond move metadata.
-6. Decide whether battle-side Bag use should allow healing/status/revive actions and define turn-consumption rules.
-7. Add broader element/status interactions, abilities or immunities only when species rules are finalized.
-8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
+5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
+6. Split physical/special offensive/defensive stats if the final combat design requires that distinction beyond move metadata.
+7. Decide whether battle-side Bag use should allow healing/status/revive actions and define turn-consumption rules.
+8. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
+9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

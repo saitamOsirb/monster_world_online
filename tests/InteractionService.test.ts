@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { InteractionService } from '../src/game/interaction/InteractionService'
-import { TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { TOWN_RECOVERY_ATTENDANT, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
 
 const service = new InteractionService()
 
@@ -17,6 +17,12 @@ describe('InteractionService', () => {
     expect(service.findNpc(TOWN_SUPPLY_MERCHANT.scenePath, TOWN_SUPPLY_MERCHANT.tile)?.id)
       .toBe(TOWN_SUPPLY_MERCHANT.id)
     expect(service.findNpc('res://OaksLab.tscn', TOWN_SUPPLY_MERCHANT.tile)).toBeUndefined()
+  })
+
+  it('finds the recovery attendant through the same scene registry', () => {
+    const npc = service.findNpc(TOWN_RECOVERY_ATTENDANT.scenePath, TOWN_RECOVERY_ATTENDANT.tile)
+    expect(npc?.id).toBe(TOWN_RECOVERY_ATTENDANT.id)
+    expect(npc?.serviceId).toBe('party-recovery')
   })
 
   it('does not interact diagonally or from an unrelated tile', () => {

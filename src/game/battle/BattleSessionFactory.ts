@@ -1,26 +1,30 @@
 import type { WildEncounter } from '../encounters/types'
 import type { OwnedMonster } from '../monsters/types'
-import type { BattleCombatantDefinition } from './types'
+import type { BattleCombatantDefinition, BattleMove } from './types'
 
 export interface BattleSessionDefinitions {
   player: BattleCombatantDefinition
   enemy: BattleCombatantDefinition
 }
 
-const BASIC_STRIKE = {
+const BASIC_STRIKE: BattleMove = {
   id: 'basic-strike',
   name: 'Strike',
   power: 40,
   accuracy: 0.95,
-} as const
+}
 
-const QUICK_HIT = {
+const QUICK_HIT: BattleMove = {
   id: 'quick-hit',
   name: 'Quick Hit',
   power: 28,
   accuracy: 1,
   priority: 1,
-} as const
+  statusEffect: {
+    condition: 'paralysis',
+    chance: 0.2,
+  },
+}
 
 export function createReferenceBattleSession(
   encounter: WildEncounter,
@@ -37,7 +41,8 @@ export function createReferenceBattleSession(
         attack: lead.attack,
         defense: lead.defense,
         speed: lead.speed,
-        moves: lead.moves.map((move) => ({ ...move })),
+        moves: lead.moves.map(cloneMove),
+        status: lead.status ? { ...lead.status } : undefined,
       }
     : {
         id: 'reference-player-creature',
@@ -48,7 +53,7 @@ export function createReferenceBattleSession(
         attack: 13,
         defense: 11,
         speed: 12,
-        moves: [BASIC_STRIKE, QUICK_HIT],
+        moves: [cloneMove(BASIC_STRIKE), cloneMove(QUICK_HIT)],
       }
 
   return {
@@ -61,7 +66,14 @@ export function createReferenceBattleSession(
       attack: 7 + enemyLevel * 2,
       defense: 7 + enemyLevel * 2,
       speed: 6 + enemyLevel * 2,
-      moves: [BASIC_STRIKE],
+      moves: [cloneMove(BASIC_STRIKE)],
     },
+  }
+}
+
+function cloneMove(move: BattleMove): BattleMove {
+  return {
+    ...move,
+    statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,
   }
 }

@@ -14,9 +14,9 @@ src/
     Game.ts                       application loop, camera, transitions, persistence wiring
     constants.ts                  preserved 240x160 / 16px gameplay contracts
     battle/
-      BattleController.ts         Pixi battle presentation + input adapter
+      BattleController.ts         Pixi presentation + one-shot battle resolution hook
       BattleEngine.ts             renderer-independent turn/capture resolution
-      BattleSessionFactory.ts     temporary reference-content adapter
+      BattleSessionFactory.ts     persisted party lead → battle definition adapter
       types.ts                    battle domain contracts/events
     capture/
       CaptureService.ts           renderer-independent capture probability
@@ -25,9 +25,12 @@ src/
       tables.ts                   scene-scoped encounter tables
       types.ts                    encounter domain contracts
     monsters/
-      MonsterCollectionStore.ts   persistent party/storage repository
+      MonsterCollectionStore.ts   versioned persistent party/storage repository
       MonsterFactory.ts           starter/captured-monster adapters
       types.ts                    owned-monster domain contracts
+    progression/
+      ProgressionService.ts       deterministic EXP/reward/level/stat growth rules
+      types.ts                    progression result/stat-growth contracts
     entities/Player.ts            player state machine and animation slicing
     input/InputController.ts      keyboard edge/held state
     ui/MenuController.ts          source-asset menu + runtime persistent Party UI
@@ -76,7 +79,7 @@ visual-tests/
 | Enter menu, Z confirm, X cancel | Migrated | Keyboard contract retained. |
 | Six menu choices | Migrated | Original labels, arrow positions, menu texture and reference font are used. |
 | Menu → Party transition | Migrated | Original fade timing is retained. |
-| Party layout | Migrated | Original panel resources/layout remain the visual baseline. Runtime content now comes from the persistent collection. |
+| Party layout | Migrated | Original panel resources/layout remain the visual baseline. Runtime content comes from the persistent collection. |
 | Party selection + cancel | Migrated | Original 7-state navigation contract and selected frames are retained. |
 | Godot autotile `PoolIntArray` | Migrated | Signed cell coordinates, autotile coordinates and flip/transpose flags decoded. |
 
@@ -96,27 +99,44 @@ These systems are intentionally **new product code**, not claims of migrated God
 | Battle command UI | Implemented | Move selection, HP display, CAPTURE, RUN, turn resolution and result acknowledgement are wired into Pixi. |
 | Capture action | Implemented foundation | A failed capture consumes the turn and allows an enemy response; success ends battle with `captured`. |
 | Capture probability | Implemented foundation | `CaptureService` uses injectable RNG and a health-sensitive formula capped at 90%. This is a Monster World Online placeholder rule, not a Pokémon formula. |
-| Owned-monster model | Implemented | Captured monsters have stable instance IDs, species IDs, level/stats, moves, sprite adapter and capture timestamp. |
-| Persistent party/storage | Implemented client foundation | `MonsterCollectionStore` persists to `localStorage`, keeps six active party slots and overflows additional captures into storage. |
-| Runtime Party Screen | Implemented | Outside visual-test mode, the Party Screen is rebuilt from the persisted party and displays actual name/level/HP/sprite. |
-| Battle party lead | Implemented | The first persisted party member is now the combatant supplied to `BattleSessionFactory`. |
-| Rewards / EXP / leveling | Not implemented | Next progression module. |
+| Owned-monster model | Implemented | Stable instance/species IDs, level, EXP, stats, moves, sprite adapter and capture timestamp. |
+| Persistent party/storage | Implemented client foundation | Six active party slots, storage overflow and versioned `localStorage` persistence. |
+| Runtime Party Screen | Implemented | Outside visual-test mode, the screen is rebuilt from persisted party data and shows actual name/level/HP/sprite. |
+| Battle party lead | Implemented | The first persisted party member supplies its real level/stats/moves to later battles. |
+| Victory rewards | Implemented foundation | EXP reward is deterministic from defeated enemy level and max HP; only victories grant EXP. |
+| EXP + leveling | Implemented foundation | Per-level EXP threshold is `60 + level × 30`, with a level cap of 100 and support for multi-level gains. |
+| Persistent stat growth | Implemented foundation | Each gained level adds `+4 max HP`, `+2 ATK`, `+2 DEF`, `+1 SPD`; HP growth preserves existing damage instead of full-healing. |
+| Reward presentation | Implemented | Battle resolution is applied exactly once and the victory message reports EXP and level-up/next-threshold progress before returning to the world. |
 | Status effects / advanced move rules | Not implemented | Add only after Monster World Online rule design is defined. |
 
-The starter, current encounter table and temporary sprite adapters still use synced Pokémon reference resources so the vertical slice remains executable. The encounter, battle, capture and owned-monster domain APIs themselves are resource-name agnostic and are ready for original Monster World Online data/assets.
+The starter, current encounter table and temporary sprite adapters still use synced Pokémon reference resources so the vertical slice remains executable. Encounter, battle, capture, owned-monster and progression APIs themselves are resource-name agnostic and are ready for original Monster World Online data/assets.
+
+## Progression rules
+
+The current progression constants are intentionally simple Monster World Online foundation rules rather than copied Pokémon formulas:
+
+- Max monster level: **100**.
+- EXP required for the next level: `60 + currentLevel × 30`.
+- Victory EXP: `round(20 + enemyLevel × 18 + enemyMaxHp × 0.8)`.
+- Per-level growth: **+4 max HP, +2 ATK, +2 DEF, +1 SPD**.
+- Multiple levels can be gained from a single reward.
+- Reaching level 100 clears unusable overflow EXP.
+- Capturing, running and losing currently grant no EXP.
+
+`ProgressionService` owns these rules and returns an immutable result. `Game` persists the resulting owned-monster snapshot through `MonsterCollectionStore`; Pixi does not calculate rewards or mutate stats.
 
 ## Persistence boundary
 
-`MonsterCollectionStore` is intentionally a client-side repository abstraction rather than direct `localStorage` calls scattered throughout gameplay code. `Game` talks to the repository and battle/Party systems consume domain snapshots. When multiplayer authority is introduced, this repository can be replaced by a server-backed implementation without moving capture rules into Pixi.
+`MonsterCollectionStore` is intentionally a client-side repository abstraction rather than direct `localStorage` calls scattered throughout gameplay code. `Game` talks to the repository and battle/Party systems consume domain snapshots. When multiplayer authority is introduced, this repository can be replaced by a server-backed implementation without moving capture/progression rules into Pixi.
 
-The current storage schema is versioned as `version: 1`. Invalid/corrupted payloads fall back to an empty collection and a starter is inserted only when both party and storage are empty.
+The collection schema is now `version: 2`. Existing `version: 1` collection payloads are migrated automatically in place: party/storage membership and monster data are preserved and each legacy monster starts with `experience: 0`. Invalid/corrupted payloads still fall back to an empty collection, and a starter is inserted only when both party and storage are empty.
 
 ## Regression protection
 
 CI runs four independent gates:
 
 1. `pnpm assets:sync` — proves required reference resources can still be materialized.
-2. `pnpm test` — validates import/collision, encounter logic, battle turns, capture behavior and persistent collection semantics. The suite now contains **29 unit tests**.
+2. `pnpm test` — validates import/collision, encounters, battle turns, capture behavior, collection persistence/schema migration and progression. The suite contains **38 unit tests across 8 test files**.
 3. `pnpm test:visual` — compares deterministic SHA-256 hashes of the 240×160 canvas for Town, menu, legacy Party fixture, Oak's Lab, Player Home Floor 1 and Rival Home Floor.
 4. `pnpm build` — validates strict TypeScript and the Vite production bundle.
 
@@ -132,9 +152,11 @@ Visual-test mode exists only behind `?visualTest=1`. It intentionally keeps the 
 - Collision geometry is imported into a renderer-independent grid rather than emulating Godot physics at runtime.
 - Animated water uses one global frame clock.
 - Door, effects and object rendering are isolated modules.
-- Encounter probability, battle resolution and capture probability are renderer-independent and accept injectable RNG.
-- Battle presentation is a separate layer; leaving battle restores the existing world object instead of reloading the map.
+- Encounter probability, battle resolution and capture probability are renderer-independent and accept injectable RNG where randomness exists.
+- Battle terminal results are applied once before UI acknowledgement, preventing duplicate capture/reward side effects.
+- Progression calculations live in `ProgressionService`; Pixi only displays the summary returned by the application layer.
 - Persistent collection access is isolated behind `MonsterCollectionStore`, giving a clear future server-authority seam.
+- Save schema migration is explicit instead of silently invalidating existing captured monsters.
 - The Party UI consumes owned-monster state at runtime while visual migration tests retain a deterministic legacy fixture.
 
 ## Remaining migration/product work
@@ -144,15 +166,15 @@ The upstream repository does not expose another major gameplay subsystem beyond 
 1. Add controlled cross-engine golden screenshots if an environment running the original Godot project is available.
 2. Extend deterministic visual fixtures whenever another legacy scene or future map is imported.
 3. Replace third-party Pokémon resources before distribution requiring original/licensed art.
-4. Add rewards, EXP, leveling and progression, including persistent post-battle HP/level/stat updates.
-5. Add inventory-backed capture items so capture attempts consume owned resources instead of being unlimited.
-6. Add storage-management UI for swapping party/storage members.
+4. Add inventory-backed capture items so capture attempts consume owned resources instead of being unlimited.
+5. Add storage-management UI for moving monsters between active party and storage.
+6. Define persistent post-battle HP/healing rules before carrying combat damage between encounters.
 7. Extend battle rules with statuses/elements/richer move metadata only after game-design rules are defined.
-8. Replace `localStorage` collection authority with server-backed persistence when multiplayer/network accounts are introduced.
+8. Replace `localStorage` collection/progression authority with server-backed persistence when multiplayer/network accounts are introduced.
 
 ## Scope note
 
-The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. Encounter, battle, capture and persistence code in this branch are original Monster World Online foundation modules.
+The upstream repository is an overworld/interaction prototype. It does not contain a complete Pokémon battle engine, encounter system, capture system, move database or RPG progression implementation. Encounter, battle, capture, persistence and progression code in this branch are original Monster World Online foundation modules.
 
 ## Resource and licensing note
 

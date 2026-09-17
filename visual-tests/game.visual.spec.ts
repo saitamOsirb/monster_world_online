@@ -1,11 +1,22 @@
 import { createHash } from 'node:crypto'
 import { expect, test, type Page } from '@playwright/test'
 
-const EXPECTED_HASHES: Record<'town' | 'menu' | 'party', string> = {
+type VisualFixture = 'town' | 'menu' | 'party' | 'oaksLab' | 'playerHomeFloor1' | 'rivalHomeFloor'
+
+const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: 'c12e2b8ba47eaa05bf96a882fd957d7b204f9ad8c45325dfe2b0ba96b10cd4e5',
   menu: '033dd11bb3f45187813a8f7d0ec0fefee696b494a725d410680b2cee2a41f945',
   party: '12623eb2033fdf51842e5fdcf1ced47f12d863afccc4ec5d7c2e11fa8bfe210f',
+  oaksLab: 'PENDING_OAKS_LAB_HASH',
+  playerHomeFloor1: 'PENDING_PLAYER_HOME_HASH',
+  rivalHomeFloor: 'PENDING_RIVAL_HOME_HASH',
 }
+
+const INTERIOR_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
+  { name: 'oaksLab', scene: 'res://OaksLab.tscn' },
+  { name: 'playerHomeFloor1', scene: 'res://PlayerHomeFloor1.tscn' },
+  { name: 'rivalHomeFloor', scene: 'res://RivalHomeFloor.tscn' },
+]
 
 async function setTickers(page: Page, running: boolean): Promise<void> {
   await page.evaluate((shouldRun) => {
@@ -34,12 +45,12 @@ async function hashCanvas(page: Page): Promise<string> {
   return createHash('sha256').update(screenshot).digest('hex')
 }
 
-function verifyHash(name: keyof typeof EXPECTED_HASHES, actual: string): void {
+function verifyHash(name: VisualFixture, actual: string): void {
   console.log(`VISUAL_HASH ${name}=${actual}`)
   expect(actual).toBe(EXPECTED_HASHES[name])
 }
 
-test('Town, menu and party remain pixel-stable', async ({ page }) => {
+function collectBrowserErrors(page: Page): string[] {
   const browserErrors: string[] = []
   page.on('pageerror', (error) => browserErrors.push(`PAGE_ERROR ${error.message}`))
   page.on('response', (response) => {
@@ -50,10 +61,18 @@ test('Town, menu and party remain pixel-stable', async ({ page }) => {
   page.on('requestfailed', (request) => {
     browserErrors.push(`REQUEST_FAILED ${request.url()} ${request.failure()?.errorText ?? 'unknown'}`)
   })
+  return browserErrors
+}
 
+async function bootVisualTest(page: Page): Promise<void> {
   await page.goto('/?visualTest=1')
   await page.waitForFunction(() => Boolean(window.__MONSTER_WORLD_VISUAL_TEST__))
   await setTickers(page, false)
+}
+
+test('Town, menu and party remain pixel-stable', async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page)
+  await bootVisualTest(page)
 
   verifyHash('town', await hashCanvas(page))
 
@@ -66,3 +85,20 @@ test('Town, menu and party remain pixel-stable', async ({ page }) => {
 
   expect(browserErrors).toEqual([])
 })
+
+for (const fixture of INTERIOR_FIXTURES) {
+  test(`${fixture.scene} remains pixel-stable`, async ({ page }) => {
+    const browserErrors = collectBrowserErrors(page)
+    await bootVisualTest(page)
+
+    await page.evaluate(async (scenePath) => {
+      const harness = window.__MONSTER_WORLD_VISUAL_TEST__
+      if (!harness) throw new Error('Visual test harness was not initialized')
+      await harness.game.loadSceneForVisualTest(scenePath)
+    }, fixture.scene)
+    await setTickers(page, false)
+
+    verifyHash(fixture.name, await hashCanvas(page))
+    expect(browserErrors).toEqual([])
+  })
+}

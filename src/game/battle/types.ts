@@ -1,5 +1,17 @@
 export type BattleSide = 'player' | 'enemy'
 export type BattlePhase = 'awaiting-player' | 'won' | 'lost' | 'ran' | 'captured'
+export type BattleStatusCondition = 'poison' | 'burn' | 'paralysis' | 'sleep'
+
+export interface BattleStatus {
+  condition: BattleStatusCondition
+  remainingTurns?: number
+}
+
+export interface BattleStatusEffect {
+  condition: BattleStatusCondition
+  chance: number
+  durationTurns?: number
+}
 
 export interface BattleMove {
   id: string
@@ -7,6 +19,7 @@ export interface BattleMove {
   power: number
   accuracy: number
   priority?: number
+  statusEffect?: BattleStatusEffect
 }
 
 export interface BattleCombatantDefinition {
@@ -19,6 +32,7 @@ export interface BattleCombatantDefinition {
   defense: number
   speed: number
   moves: readonly BattleMove[]
+  status?: BattleStatus
 }
 
 export interface BattleCombatantState extends BattleCombatantDefinition {
@@ -51,6 +65,10 @@ export type BattleEvent =
   | { type: 'faint'; side: BattleSide }
   | { type: 'run'; side: 'player' }
   | { type: 'capture-attempt'; success: boolean; chance: number }
+  | { type: 'status-applied'; target: BattleSide; condition: BattleStatusCondition; remainingTurns?: number }
+  | { type: 'status-blocked'; side: BattleSide; condition: Extract<BattleStatusCondition, 'paralysis' | 'sleep'> }
+  | { type: 'status-cleared'; side: BattleSide; condition: BattleStatusCondition }
+  | { type: 'status-damage'; side: BattleSide; condition: Extract<BattleStatusCondition, 'poison' | 'burn'>; amount: number; remainingHp: number }
   | { type: 'battle-end'; phase: Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'> }
 
 export interface BattleTurnResult {

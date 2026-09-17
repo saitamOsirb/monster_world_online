@@ -1,37 +1,14 @@
-import type { BattleCombatantState, BattleStatus } from '../battle/types'
+import type { BattleCombatantState, BattleItemResolution } from '../battle/types'
 import type { InventoryStore } from '../inventory/InventoryStore'
 import {
   INVENTORY_ITEMS,
   type InventoryItemId,
 } from '../inventory/types'
 
-export type BattleItemUseFailureReason =
-  | 'not-battle-usable'
-  | 'no-stock'
-  | 'already-full'
-  | 'fainted-requires-revive'
-  | 'no-status'
-  | 'not-fainted'
-
-export type BattleItemUseResult =
-  | {
-      ok: true
-      itemId: InventoryItemId
-      itemName: string
-      currentHp: number
-      status?: BattleStatus
-      healedHp?: number
-      clearedStatus?: BattleStatus['condition']
-    }
-  | {
-      ok: false
-      reason: BattleItemUseFailureReason
-    }
-
 export class BattleItemService {
   constructor(private readonly inventory: InventoryStore) {}
 
-  use(itemId: InventoryItemId, target: BattleCombatantState): BattleItemUseResult {
+  use(itemId: InventoryItemId, target: BattleCombatantState): BattleItemResolution {
     const item = INVENTORY_ITEMS[itemId]
     if (!item || (item.useContext !== 'battle' && item.useContext !== 'both')) {
       return { ok: false, reason: 'not-battle-usable' }

@@ -5,6 +5,7 @@ export interface OwnedMonster {
   speciesId: string
   displayName: string
   level: number
+  experience: number
   maxHp: number
   currentHp: number
   attack: number
@@ -16,7 +17,7 @@ export interface OwnedMonster {
 }
 
 export interface MonsterCollectionState {
-  version: 1
+  version: 2
   party: OwnedMonster[]
   storage: OwnedMonster[]
 }

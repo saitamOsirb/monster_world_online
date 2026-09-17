@@ -32,14 +32,24 @@ async function setTickers(page: Page, running: boolean): Promise<void> {
   }, running)
 }
 
+async function renderNow(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const harness = window.__MONSTER_WORLD_VISUAL_TEST__
+    if (!harness) throw new Error('Visual test harness was not initialized')
+    harness.app.renderer.render(harness.app.stage)
+  })
+}
+
 async function pressWithTick(page: Page, key: string): Promise<void> {
   await setTickers(page, true)
   await page.keyboard.press(key)
   await page.waitForTimeout(80)
   await setTickers(page, false)
+  await renderNow(page)
 }
 
 async function hashCanvas(page: Page): Promise<string> {
+  await renderNow(page)
   const canvas = page.locator('canvas[aria-label="Monster World Online game canvas"]')
   const screenshot = await canvas.screenshot()
   return createHash('sha256').update(screenshot).digest('hex')
@@ -68,6 +78,7 @@ async function bootVisualTest(page: Page): Promise<void> {
   await page.goto('/?visualTest=1')
   await page.waitForFunction(() => Boolean(window.__MONSTER_WORLD_VISUAL_TEST__))
   await setTickers(page, false)
+  await renderNow(page)
 }
 
 test('Town, menu and party remain pixel-stable', async ({ page }) => {
@@ -81,6 +92,7 @@ test('Town, menu and party remain pixel-stable', async ({ page }) => {
 
   await pressWithTick(page, 'z')
   await page.waitForTimeout(2_200)
+  await setTickers(page, false)
   verifyHash('party', await hashCanvas(page))
 
   expect(browserErrors).toEqual([])

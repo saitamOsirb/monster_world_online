@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.vite/
+coverage/
+public/assets/
+public/legacy/
+.env
+.env.*
+!.env.example

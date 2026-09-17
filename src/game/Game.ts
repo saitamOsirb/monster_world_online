@@ -1,11 +1,14 @@
 import { Application, Assets, Graphics, Texture } from 'pixi.js'
 import { BattleController } from './battle/BattleController'
+import type { BattleState } from './battle/types'
 import { LOGICAL_HEIGHT, LOGICAL_WIDTH, TILE_SIZE } from './constants'
 import { EncounterService } from './encounters/EncounterService'
 import { getEncounterTableForScene } from './encounters/tables'
 import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
+import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
+import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { MenuController } from './ui/MenuController'
 import type { DoorDefinition, GridPoint } from './world/types'
 import { WorldScene } from './world/WorldScene'
@@ -18,6 +21,7 @@ export class Game {
   private readonly input = new InputController()
   private readonly world = new WorldScene()
   private readonly encounters = new EncounterService()
+  private readonly collection = new MonsterCollectionStore()
   private readonly menu: MenuController
   private readonly battle: BattleController
   private readonly fadeOverlay = new Graphics().rect(0, 0, LOGICAL_WIDTH, LOGICAL_HEIGHT).fill(0x000000)
@@ -26,12 +30,17 @@ export class Game {
   private transitioning = false
 
   constructor(private readonly app: Application) {
+    this.collection.ensureStarter(createStarterMonster())
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
       onPartyExitRequested: () => void this.transitionBackToMenu(),
     })
     this.battle = new BattleController({
-      onBattleFinished: () => void this.transitionOutOfBattle(),
+      getLeadMonster: () => this.collection.lead,
+      onBattleFinished: (phase, state, encounter) => {
+        this.applyBattleResult(phase, state, encounter)
+        void this.transitionOutOfBattle()
+      },
     })
     this.fadeOverlay.alpha = 0
     this.fadeOverlay.eventMode = 'none'
@@ -113,6 +122,15 @@ export class Game {
       Math.round(LOGICAL_WIDTH / 2 - centerX),
       Math.round(LOGICAL_HEIGHT / 2 - centerY),
     )
+  }
+
+  private applyBattleResult(
+    phase: 'won' | 'lost' | 'ran' | 'captured',
+    state: BattleState,
+    encounter: WildEncounter,
+  ): void {
+    if (phase !== 'captured') return
+    this.collection.addCaptured(createCapturedMonster(encounter, state.enemy))
   }
 
   private async handleGrassStep(tile: GridPoint): Promise<void> {

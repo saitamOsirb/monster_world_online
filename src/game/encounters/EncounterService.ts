@@ -1,11 +1,17 @@
+import { getSpeciesDefinition } from '../species/catalog'
+import type { MonsterSpeciesDefinition } from '../species/types'
 import type { EncounterTable, WildEncounter } from './types'
 
 export type RandomSource = () => number
+export type SpeciesResolver = (speciesId: string) => MonsterSpeciesDefinition
 
 export class EncounterService {
   private stepsSinceEncounter = Number.MAX_SAFE_INTEGER
 
-  constructor(private readonly random: RandomSource = Math.random) {}
+  constructor(
+    private readonly random: RandomSource = Math.random,
+    private readonly resolveSpecies: SpeciesResolver = getSpeciesDefinition,
+  ) {}
 
   tryEncounter(table: EncounterTable): WildEncounter | null {
     if (table.entries.length === 0) return null
@@ -30,6 +36,7 @@ export class EncounterService {
       }
     }
 
+    const species = this.resolveSpecies(selected.speciesId)
     const minLevel = Math.max(1, Math.floor(selected.minLevel))
     const maxLevel = Math.max(minLevel, Math.floor(selected.maxLevel))
     const levelSpan = maxLevel - minLevel + 1
@@ -38,12 +45,10 @@ export class EncounterService {
     this.stepsSinceEncounter = 0
     return {
       tableId: table.id,
-      speciesId: selected.speciesId,
-      displayName: selected.displayName,
+      speciesId: species.id,
+      displayName: species.displayName,
       level,
-      spritePath: selected.spritePath,
-      elements: [...selected.elements],
-      moveIds: [...selected.moveIds],
+      spritePath: species.spritePath,
     }
   }
 

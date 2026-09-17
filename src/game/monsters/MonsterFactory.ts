@@ -15,6 +15,10 @@ const QUICK_HIT: BattleMove = {
   power: 28,
   accuracy: 1,
   priority: 1,
+  statusEffect: {
+    condition: 'paralysis',
+    chance: 0.2,
+  },
 }
 
 export function createStarterMonster(now: Date = new Date()): OwnedMonster {
@@ -29,7 +33,7 @@ export function createStarterMonster(now: Date = new Date()): OwnedMonster {
     attack: 13,
     defense: 11,
     speed: 12,
-    moves: [{ ...BASIC_STRIKE }, { ...QUICK_HIT }],
+    moves: [cloneMove(BASIC_STRIKE), cloneMove(QUICK_HIT)],
     spritePath: '/assets/Pokemon/Charmander.png',
     capturedAt: now.toISOString(),
   }
@@ -51,9 +55,17 @@ export function createCapturedMonster(
     attack: enemy.attack,
     defense: enemy.defense,
     speed: enemy.speed,
-    moves: enemy.moves.map((move) => ({ ...move })),
+    moves: enemy.moves.map(cloneMove),
+    status: enemy.status ? { ...enemy.status } : undefined,
     spritePath: encounter.spritePath,
     capturedAt: now.toISOString(),
+  }
+}
+
+function cloneMove(move: BattleMove): BattleMove {
+  return {
+    ...move,
+    statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,
   }
 }
 

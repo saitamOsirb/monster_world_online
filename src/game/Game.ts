@@ -200,6 +200,23 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+  async openBattleForVisualTest(): Promise<void> {
+    if (!this.visualTestMode) {
+      throw new Error('Visual battle loading is only available in visual-test mode')
+    }
+    this.world.view.visible = false
+    this.menu.view.visible = false
+    await this.battle.start({
+      tableId: 'visual-battle',
+      speciesId: 'pidgey',
+      displayName: 'Pidgey',
+      level: 3,
+      spritePath: '/assets/Pokemon/Pidgey.png',
+    })
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   openRecoveryForVisualTest(): void {
     if (!this.visualTestMode) {
       throw new Error('Visual recovery loading is only available in visual-test mode')

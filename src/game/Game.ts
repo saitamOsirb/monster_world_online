@@ -33,6 +33,7 @@ export class Game {
     this.player = new Player(playerSheet, shadowTexture, this.world.collision, {
       onDoorEntered: (door) => void this.transitionThroughDoor(door),
       onGrassStep: (tile) => void this.world.showGrassStep(tile),
+      onLanded: (tile) => void this.world.showLandingDust(tile),
     })
     this.world.addActor(this.player.view)
     this.player.setSpawn(spawn.tile, spawn.direction)

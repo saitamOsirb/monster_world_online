@@ -61,12 +61,12 @@ describe('BattleEngine status conditions', () => {
 
   it('burn reduces outgoing attack damage and deals lighter residual damage', () => {
     const healthy = new BattleEngine(
-      combatant('player', { speed: 20 }),
+      combatant('player', { speed: 20, attack: 40 }),
       combatant('enemy', { maxHp: 100 }),
       () => 0,
     )
     const burned = new BattleEngine(
-      combatant('player', { speed: 20, maxHp: 80, status: { condition: 'burn' } }),
+      combatant('player', { speed: 20, attack: 40, maxHp: 80, status: { condition: 'burn' } }),
       combatant('enemy', { maxHp: 100 }),
       () => 0,
     )

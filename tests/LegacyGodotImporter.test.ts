@@ -30,6 +30,8 @@ describe('LegacyGodotImporter', () => {
       nextScene: 'res://Interior.tscn',
       spawnTile: { x: 4, y: 5 },
       spawnDirection: 'up',
+      invisible: false,
+      animationTexturePath: '/assets/Buildings/Door%20Animations/house1.png',
     })
   })
 
@@ -41,6 +43,22 @@ describe('LegacyGodotImporter', () => {
       name: 'Mat',
       position: { x: 56, y: 192 },
       texturePath: '/assets/Buildings/pallet%20town/mat.png',
+    })
+  })
+
+  it('resolves nested instance positions and child visual overrides', () => {
+    const source = `[gd_scene format=2]\n\n[ext_resource path="res://House.tscn" type="PackedScene" id=1]\n[ext_resource path="res://Door.tscn" type="PackedScene" id=2]\n[ext_resource path="res://Assets/Buildings/oaks_lab.png" type="Texture" id=3]\n[ext_resource path="res://Assets/Buildings/Door Animations/oaks_lab.png" type="Texture" id=4]\n\n[node name="Town" type="Node2D"]\n\n[node name="YSort" type="YSort" parent="."]\n\n[node name="OaksLab" parent="YSort" instance=ExtResource( 1 )]\nposition = Vector2( 176, 128 )\n\n[node name="Sprite" parent="YSort/OaksLab" index="0"]\ntexture = ExtResource( 3 )\n\n[node name="Door" parent="YSort/OaksLab" instance=ExtResource( 2 )]\nposition = Vector2( 48, 64 )\nnext_scene_path = "res://OaksLab.tscn"\nspawn_location = Vector2( 64, 192 )\nspawn_direction = Vector2( 0, -1 )\n\n[node name="Sprite" parent="YSort/OaksLab/Door" index="0"]\ntexture = ExtResource( 4 )\n`
+
+    const scene = new LegacyGodotImporter().parseScene(source)
+    expect(scene.objects[0]).toMatchObject({
+      name: 'OaksLab',
+      position: { x: 176, y: 128 },
+      texturePath: '/assets/Buildings/oaks_lab.png',
+    })
+    expect(scene.doors[0]).toMatchObject({
+      tile: { x: 14, y: 12 },
+      nextScene: 'res://OaksLab.tscn',
+      animationTexturePath: '/assets/Buildings/Door%20Animations/oaks_lab.png',
     })
   })
 })

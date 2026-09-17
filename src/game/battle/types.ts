@@ -63,6 +63,7 @@ export interface BattleState {
   player: BattleCombatantState
   playerParty: readonly BattleCombatantState[]
   activePlayerIndex: number
+  participatingPlayerIds: readonly string[]
   enemy: BattleCombatantState
 }
 

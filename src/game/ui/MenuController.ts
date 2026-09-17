@@ -17,6 +17,7 @@ const PARTY_SPECIES = [
 
 interface MenuControllerHooks {
   onPartyRequested?: () => void
+  onBagRequested?: () => void
   onPartyExitRequested?: () => void
   onPartyManageRequested?: (instanceId: string) => void
 }
@@ -206,7 +207,8 @@ export class MenuController {
         this.selectedMenu = this.selectedMenu === 0 ? MENU_OPTIONS.length - 1 : this.selectedMenu - 1
         this.refreshMenuSelection()
       } else if (input.isConfirmPressed()) {
-        this.hooks.onPartyRequested?.()
+        if (this.selectedMenu === 0) this.hooks.onPartyRequested?.()
+        else if (this.selectedMenu === 1) this.hooks.onBagRequested?.()
       }
       return
     }

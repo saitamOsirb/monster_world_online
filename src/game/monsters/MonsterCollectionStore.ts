@@ -9,6 +9,7 @@ import type {
   BattleStatus,
   BattleStatusCondition,
 } from '../battle/types'
+import { findSpeciesDefinition } from '../species/catalog'
 import type { AddMonsterResult, MonsterCollectionState, OwnedMonster } from './types'
 
 const DEFAULT_KEY = 'monster-world.collection.v1'
@@ -235,15 +236,25 @@ export class MonsterCollectionStore {
   }
 
   private migrateLegacyState(state: LegacyMonsterCollectionState): MonsterCollectionState {
-    const migrate = (monster: LegacyOwnedMonster): OwnedMonster => ({
+    const migrate = (monster: LegacyOwnedMonster): OwnedMonster => {
+      const species = findSpeciesDefinition(monster.speciesId)
+      return {
       ...monster,
+      ...(species
+        ? {
+            speciesId: species.id,
+            displayName: species.displayName,
+            spritePath: species.spritePath,
+          }
+        : {}),
       experience: 0,
       specialAttack: monster.specialAttack ?? monster.attack,
       specialDefense: monster.specialDefense ?? monster.defense,
       elements: [...normalizeBattleElements(monster.elements)],
       moves: monster.moves.map((move) => this.cloneMove(move)),
       status: monster.status ? { ...monster.status } : undefined,
-    })
+      }
+    }
     return {
       version: 2,
       party: state.party.map(migrate),
@@ -260,8 +271,16 @@ export class MonsterCollectionStore {
   }
 
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
+    const species = findSpeciesDefinition(monster.speciesId)
     return {
       ...monster,
+      ...(species
+        ? {
+            speciesId: species.id,
+            displayName: species.displayName,
+            spritePath: species.spritePath,
+          }
+        : {}),
       specialAttack: monster.specialAttack ?? monster.attack,
       specialDefense: monster.specialDefense ?? monster.defense,
       elements: [...normalizeBattleElements(monster.elements)],

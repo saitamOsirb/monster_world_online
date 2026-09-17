@@ -6,6 +6,9 @@ import { MenuController } from './ui/MenuController'
 import type { DoorDefinition } from './world/types'
 import { WorldScene } from './world/WorldScene'
 
+const PLAYER_DISAPPEAR_MS = 100
+const SCENE_FADE_MS = 1000
+
 export class Game {
   private readonly input = new InputController()
   private readonly world = new WorldScene()
@@ -31,6 +34,7 @@ export class Game {
     shadowTexture.source.scaleMode = 'nearest'
 
     this.player = new Player(playerSheet, shadowTexture, this.world.collision, {
+      onDoorEntering: (door) => void this.world.openDoor(door),
       onDoorEntered: (door) => void this.transitionThroughDoor(door),
       onGrassStep: (tile) => void this.world.showGrassStep(tile),
       onLanded: (tile) => void this.world.showLandingDust(tile),
@@ -53,6 +57,7 @@ export class Game {
     const player = this.player
     if (!player) return
 
+    this.world.update(deltaMs)
     this.menu.update(this.input, player.isMoving)
     const inputLocked = this.transitioning || this.menu.inputLocked
     player.update(deltaMs, this.input.getDirection(), inputLocked)
@@ -72,15 +77,21 @@ export class Game {
   }
 
   private async transitionThroughDoor(door: DoorDefinition): Promise<void> {
-    if (this.transitioning || !this.player || !door.nextScene) return
+    const player = this.player
+    if (this.transitioning || !player || !door.nextScene) return
     this.transitioning = true
     try {
-      await this.fadeTo(1, 220)
+      await this.delay(PLAYER_DISAPPEAR_MS)
+      player.view.visible = false
+      await this.world.closeDoor(door)
+      await this.fadeTo(1, SCENE_FADE_MS)
       await this.world.load(door.nextScene)
-      this.player.setSpawn(door.spawnTile, door.spawnDirection)
+      player.setSpawn(door.spawnTile, door.spawnDirection)
+      player.view.visible = true
       this.updateCamera()
-      await this.fadeTo(0, 220)
+      await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
+      player.view.visible = true
       this.transitioning = false
     }
   }
@@ -101,5 +112,9 @@ export class Game {
       }
       requestAnimationFrame(step)
     })
+  }
+
+  private delay(milliseconds: number): Promise<void> {
+    return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
   }
 }

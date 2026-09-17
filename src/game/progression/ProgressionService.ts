@@ -87,6 +87,7 @@ export class ProgressionService {
   private cloneMonster(monster: OwnedMonster): OwnedMonster {
     return {
       ...monster,
+      elements: [...monster.elements],
       moves: monster.moves.map((move) => ({
         ...move,
         statusEffect: move.statusEffect ? { ...move.statusEffect } : undefined,

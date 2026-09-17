@@ -7,9 +7,9 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: 'c12e2b8ba47eaa05bf96a882fd957d7b204f9ad8c45325dfe2b0ba96b10cd4e5',
   menu: '033dd11bb3f45187813a8f7d0ec0fefee696b494a725d410680b2cee2a41f945',
   party: '12623eb2033fdf51842e5fdcf1ced47f12d863afccc4ec5d7c2e11fa8bfe210f',
-  oaksLab: 'PENDING_OAKS_LAB_HASH',
-  playerHomeFloor1: 'PENDING_PLAYER_HOME_HASH',
-  rivalHomeFloor: 'PENDING_RIVAL_HOME_HASH',
+  oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',
+  playerHomeFloor1: '25305efbe948aa9ba74af1c91399803ae37a6ee64194f8d8f48d897bd3d7b692',
+  rivalHomeFloor: '73a8386930802d4363579797ee7e2cf966760d25378bdff1fe155898538ffdfa',
 }
 
 const INTERIOR_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [

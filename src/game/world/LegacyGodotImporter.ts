@@ -26,19 +26,23 @@ const FLIP_Y = 0x40000000
 const TRANSPOSE = 0x20000000
 const TILE_ID_MASK = 0x1fffffff
 
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 function readVector(body: string, property: string): GridPoint | undefined {
-  const match = body.match(new RegExp(`^${property.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*=\\s*Vector2\\(\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*\\)`, 'm'))
+  const match = body.match(new RegExp(`^${escapeRegExp(property)}\\s*=\\s*Vector2\\(\\s*(-?[\\d.]+)\\s*,\\s*(-?[\\d.]+)\\s*\\)`, 'm'))
   if (!match) return undefined
   return { x: Number(match[1]), y: Number(match[2]) }
 }
 
 function readString(body: string, property: string): string | undefined {
-  const match = body.match(new RegExp(`^${property}\\s*=\\s*"([^"]*)"`, 'm'))
+  const match = body.match(new RegExp(`^${escapeRegExp(property)}\\s*=\\s*"([^"]*)"`, 'm'))
   return match?.[1]
 }
 
 function readNumber(body: string, property: string): number | undefined {
-  const match = body.match(new RegExp(`^${property}\\s*=\\s*(-?[\\d.]+)`, 'm'))
+  const match = body.match(new RegExp(`^${escapeRegExp(property)}\\s*=\\s*(-?[\\d.]+)`, 'm'))
   return match ? Number(match[1]) : undefined
 }
 
@@ -138,12 +142,15 @@ export class LegacyGodotImporter {
     const root = nodes[0]
     const objects: WorldObjectDefinition[] = []
     const doors: DoorDefinition[] = []
+    const ledgeTiles: GridPoint[] = []
     let tiles: TileDefinition[] = []
 
     for (const node of nodes) {
-      if (node.name === 'OverworldTileMap') {
-        const parsed = parseTileData(node.body)
-        if (parsed.length > 0) tiles = parsed
+      const nodeTiles = parseTileData(node.body)
+      if (node.name === 'OverworldTileMap' && nodeTiles.length > 0) {
+        tiles = nodeTiles
+      } else if (node.name.toLowerCase().includes('ledge') && nodeTiles.length > 0) {
+        ledgeTiles.push(...nodeTiles.map(({ x, y }) => ({ x, y })))
       }
 
       const position = readVector(node.body, 'position') ?? { x: 0, y: 0 }
@@ -175,6 +182,7 @@ export class LegacyGodotImporter {
     return {
       name: root?.name ?? 'LegacyScene',
       tiles,
+      ledgeTiles,
       objects,
       doors,
     }

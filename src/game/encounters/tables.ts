@@ -7,23 +7,15 @@ const TOWN_GRASS_ENCOUNTERS: EncounterTable = {
   entries: [
     {
       speciesId: 'pidgey',
-      displayName: 'Pidgey',
       minLevel: 2,
       maxLevel: 4,
       weight: 70,
-      spritePath: '/assets/Pokemon/Pidgey.png',
-      elements: ['air', 'neutral'],
-      moveIds: ['basic-strike', 'gust-cut'],
     },
     {
       speciesId: 'pikachu',
-      displayName: 'Pikachu',
       minLevel: 3,
       maxLevel: 5,
       weight: 30,
-      spritePath: '/assets/Pokemon/Pikachu.png',
-      elements: ['electric'],
-      moveIds: ['basic-strike', 'spark-jolt'],
     },
   ],
 }

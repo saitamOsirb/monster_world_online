@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "test": "vitest run tests",
     "test:visual": "playwright test",
-    "assets:sync": "node scripts/sync-assets.mjs"
+    "assets:sync": "node scripts/sync-assets.mjs",
+    "assets:verify": "node scripts/verify-species-art.mjs"
   },
   "dependencies": {
     "pixi.js": "^8.0.0"

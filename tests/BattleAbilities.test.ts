@@ -244,13 +244,18 @@ describe('BattleEngine abilities', () => {
   })
 
   it('Flow Guard reduces incoming special damage but not physical damage', () => {
+    const specialProbe: BattleMove = {
+      ...SPECIAL,
+      id: 'special-flow-guard-probe',
+      power: 100,
+    }
     const specialNormal = new BattleEngine(
-      combatant('attacker', { speed: 20, moves: [SPECIAL] }),
+      combatant('attacker', { speed: 20, moves: [specialProbe] }),
       combatant('plain', { speed: 1 }),
       () => 0,
     )
     const specialFlowGuard = new BattleEngine(
-      combatant('attacker', { speed: 20, moves: [SPECIAL] }),
+      combatant('attacker', { speed: 20, moves: [specialProbe] }),
       combatant('rillfin', { speed: 1, abilityId: 'flow-guard' }),
       () => 0,
     )
@@ -265,8 +270,8 @@ describe('BattleEngine abilities', () => {
       () => 0,
     )
 
-    const normalSpecial = specialNormal.resolvePlayerAction({ kind: 'move', moveId: SPECIAL.id })
-    const reducedSpecial = specialFlowGuard.resolvePlayerAction({ kind: 'move', moveId: SPECIAL.id })
+    const normalSpecial = specialNormal.resolvePlayerAction({ kind: 'move', moveId: specialProbe.id })
+    const reducedSpecial = specialFlowGuard.resolvePlayerAction({ kind: 'move', moveId: specialProbe.id })
     const normalPhysical = physicalNormal.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
     const flowGuardPhysical = physicalFlowGuard.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
 

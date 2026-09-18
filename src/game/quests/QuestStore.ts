@@ -215,8 +215,9 @@ export class QuestStore {
   }
 
   private isPersistedQuestStatus(value: unknown): value is QuestStatus {
-    return typeof value === 'string'
-      && PERSISTED_QUEST_STATUSES.has(value as QuestStatus)
+    return value === QUEST_STATUS.active
+      || value === QUEST_STATUS.readyToTurnIn
+      || value === QUEST_STATUS.completed
   }
 
   private isQuestProgress(questId: QuestId, value: unknown): value is QuestProgress {

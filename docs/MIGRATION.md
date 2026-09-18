@@ -352,6 +352,9 @@ Inventory rules:
 ## NPC, vendor and recovery rules
 
 - NPCs are data-driven by scene path/tile and may expose `vendorId`, `serviceId`, or neither.
+- Generic NPC dialogue is data-driven through optional `dialoguePages`; `DialogueSession` owns deterministic page sequencing while `DialogueController` owns Pixi presentation/input only.
+- Confirm advances one page at a time; confirm on the final page or cancel closes the conversation. While dialogue is active, world/player input remains locked.
+- **Orin** in Town is the first generic guide NPC and explains the three current native biome routes. Mira and Nia keep their specialized vendor/recovery flows.
 - **Mira** in Town is connected to `town-supplies`.
 - **Nia** in Town is connected to `party-recovery`.
 - Both currently reuse synchronized human-player art as temporary NPC art.
@@ -403,9 +406,11 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **181 tests across 29 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **187 tests across 30 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
+
+- dialogue: `658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02`
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`

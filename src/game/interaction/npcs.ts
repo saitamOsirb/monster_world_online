@@ -25,9 +25,26 @@ export const TOWN_RECOVERY_ATTENDANT: InteractableNpcDefinition = {
   texturePath: '/assets/Player/Male_Spritesheet.png',
 }
 
+
+export const TOWN_FIELD_GUIDE: InteractableNpcDefinition = {
+  id: 'town-field-guide',
+  scenePath: 'res://Town.tscn',
+  tile: { x: 4, y: 1 },
+  facing: 'up',
+  displayName: 'Orin',
+  dialogue: 'Heading north? The roads split beyond Town.',
+  dialoguePages: [
+    'Heading north? The roads split beyond Town.',
+    'Tidewater Coast favors Water creatures, while Frosthollow Cavern is colder and more dangerous.',
+    'Duskmire Marsh has Toxic and Spirit creatures. Bring recovery items before going deep.',
+  ],
+  texturePath: '/assets/Player/Male_Spritesheet.png',
+}
+
 export const INTERACTABLE_NPCS: readonly InteractableNpcDefinition[] = [
   TOWN_SUPPLY_MERCHANT,
   TOWN_RECOVERY_ATTENDANT,
+  TOWN_FIELD_GUIDE,
 ]
 
 export function getNpcsForScene(scenePath: string | null): readonly InteractableNpcDefinition[] {

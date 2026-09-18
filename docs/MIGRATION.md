@@ -45,6 +45,11 @@ src/
       types.ts                    owned-monster contracts
     progression/
       ProgressionService.ts       EXP/level/species growth rules
+    quests/
+      QuestStore.ts               versioned persistent quest state
+      QuestService.ts             objective progression + idempotent turn-in
+      QuestDialogueService.ts     quest state → generic dialogue content
+      catalog.ts                  quest/objective/reward definitions
     species/
       catalog.ts                  species source of truth + stat/learnset helpers
       types.ts                    base stats/growth/catch/learnset contracts
@@ -58,6 +63,7 @@ src/
     ui/
       MenuController.ts
       BagController.ts
+      DialogueController.ts
       PartyStorageController.ts
       RecoveryController.ts
       VendorController.ts
@@ -143,6 +149,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | NPC registry/front interaction/collision | Implemented | Scene/tile data-driven NPC services. |
 | Vendor UI | Implemented | Mira uses `ShopService`. |
 | Party recovery | Implemented | Nia restores active-party HP and clears statuses for free. |
+| Persistent quests | Implemented foundation | Versioned quest store with available/active/ready/completed states. |
+| Dialogue choices | Implemented foundation | Generic deterministic choice navigation; quest logic remains outside Pixi. |
+| The Three Roads | Implemented | Orin tracks visits to Coast/Cavern/Marsh and grants a one-time 120-credit reward. |
 
 ## Battle, elemental, status and progression rules
 
@@ -336,6 +345,8 @@ Inventory rules:
 ## Economy, loot and shop rules
 
 - A new wallet receives **200 credits exactly once**.
+- Wallet payload is now `version: 2`; valid version-1 data migrates in place without changing the stable storage key.
+- `creditOnce(transactionId, amount)` stores the transaction id in the same wallet payload as the balance mutation, providing exactly-once credit semantics across reloads.
 - Wallet values are safe non-negative integers; credits/debits require valid amounts and reject overdrafts.
 - Wild victory credits use `8 + enemyLevel × 4 + floor(enemyMaxHp / 10)`.
 - Default wild-victory loot has a **20%** chance to grant **1 Capture Capsule**.
@@ -352,9 +363,14 @@ Inventory rules:
 ## NPC, vendor and recovery rules
 
 - NPCs are data-driven by scene path/tile and may expose `vendorId`, `serviceId`, or neither.
-- Generic NPC dialogue is data-driven through optional `dialoguePages`; `DialogueSession` owns deterministic page sequencing while `DialogueController` owns Pixi presentation/input only.
-- Confirm advances one page at a time; confirm on the final page or cancel closes the conversation. While dialogue is active, world/player input remains locked.
-- **Orin** in Town is the first generic guide NPC and explains the three current native biome routes. Mira and Nia keep their specialized vendor/recovery flows.
+- Generic NPC dialogue is data-driven through optional `dialoguePages`; `DialogueSession` owns deterministic page/choice sequencing while `DialogueController` owns Pixi presentation/input only.
+- Dialogue choices are generic `{ id, label }` records. Arrow keys change the selected choice, confirm selects it, and quest/business rules are resolved by application services outside the renderer.
+- Confirm advances one page at a time; confirm on the final page closes when there are no choices. Cancel always closes. While dialogue is active, world/player input remains locked.
+- **Orin** in Town is the first quest NPC. `The Three Roads` asks the player to visit Tidewater Coast, Frosthollow Cavern and Duskmire Marsh, then return for **120 credits**.
+- Orin's conversation is state-driven: `available → active → ready-to-turn-in → completed`. Declining/later choices do not mutate quest state.
+- Scene visits are recorded only after the quest is accepted; duplicate visits do not duplicate objective progress.
+- Turn-in is crash/retry safe at the reward boundary because `QuestService` uses wallet transaction id `quest:orin-three-roads:reward`.
+- Mira and Nia keep their specialized vendor/recovery flows.
 - **Mira** in Town is connected to `town-supplies`.
 - **Nia** in Town is connected to `party-recovery`.
 - Both currently reuse synchronized human-player art as temporary NPC art.
@@ -383,7 +399,8 @@ Inventory rules:
 
 - `MonsterCollectionStore` storage key → `monster-world.collection.v1`, payload schema `version: 2`
 - `InventoryStore` → `monster-world.inventory.v1`
-- `WalletStore` → `monster-world.wallet.v1`
+- `WalletStore` storage key → `monster-world.wallet.v1`, payload schema `version: 2`
+- `QuestStore` → `monster-world.quests.v1`, payload schema `version: 1`
 
 Collection payload `version: 2` remains backward compatible with records created before status or elements existed:
 
@@ -396,6 +413,10 @@ Collection payload `version: 2` remains backward compatible with records created
 
 Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and Revive Kit keys and normalizes each missing quantity to zero. No migration manufactures new stock.
 
+Wallet payload `version: 1` migrates to `version: 2` by preserving the balance/initialized flag and initializing an empty idempotency transaction ledger. Invalid/corrupt wallet payloads still recover to an empty wallet.
+
+Quest payload `version: 1` persists only accepted/in-progress/ready/completed records. A missing record is the canonical `available` state; corrupt/unknown quest payloads recover safely without manufacturing progress.
+
 ## Regression protection
 
 CI runs five gates:
@@ -406,12 +427,12 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **187 tests across 30 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **208 tests across 33 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
 - dialogue: `658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02`
-
+- quest dialogue choices: pending first deterministic baseline in this PR; the existing dialogue baseline must remain unchanged.
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -431,8 +452,9 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways; legacy Godot import remains a separate fallback path.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
-- `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
-- `BagController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
+- `MonsterCollectionStore`, `InventoryStore`, `WalletStore` and `QuestStore` own persistence.
+- `QuestService` owns quest progression/reward orchestration and `QuestDialogueService` adapts quest state to generic dialogue content.
+- `BagController`, `DialogueController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
 - Scene transitions preserve the existing world object instead of reloading on battle exit.
 - Animated water uses one shared clock rather than a ticker per tile.
 - Visual regression mode is deterministic and isolated from player save state.
@@ -449,7 +471,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
 8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+9. Expand beyond the first exploration quest with chained objectives, item/capture/battle objectives and additional quest-giver NPCs.
 10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note

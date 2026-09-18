@@ -61,7 +61,7 @@ export class Game {
   private readonly wallet = new WalletStore()
   private readonly progression = new ProgressionService()
   private readonly questStore = new QuestStore()
-  private readonly questService = new QuestService(this.questStore, this.wallet)
+  private readonly questService = new QuestService(this.questStore, this.wallet, this.inventory)
   private readonly questDialogue = new QuestDialogueService(this.questService)
   private readonly questJournalService = new QuestJournalService(this.questService)
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
@@ -110,7 +110,11 @@ export class Game {
     this.vendor = new VendorController({
       getBalance: () => this.wallet.balance,
       getItemQuantity: (itemId) => this.inventory.getQuantity(itemId),
-      purchase: (shop, itemId, quantity) => this.shopService.purchase(shop, itemId, quantity),
+      purchase: (shop, itemId, quantity) => {
+        const result = this.shopService.purchase(shop, itemId, quantity)
+        if (result.ok) this.questService.recordItemAcquired(result.itemId, result.quantity)
+        return result
+      },
       onExit: () => this.vendor.hide(),
     })
 
@@ -291,6 +295,26 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+
+  openAdvancedQuestJournalForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual advanced quest journal loading is only available in visual-test mode')
+    }
+
+    this.questStore.clear()
+    this.questService.accept(ORIN_THREE_ROADS_QUEST_ID)
+    this.questService.recordSceneVisit('res://MonsterWorld/TidewaterCoast.tscn')
+    this.questService.recordSceneVisit('res://MonsterWorld/FrosthollowCavern.tscn')
+    this.questService.recordSceneVisit('res://MonsterWorld/DuskmireMarsh.tscn')
+    this.questService.turnIn(ORIN_THREE_ROADS_QUEST_ID)
+    this.questService.accept('orin-field-methods')
+    this.questService.recordDefeat('skyrill')
+    this.menu.view.visible = false
+    this.questJournal.show()
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -391,12 +415,17 @@ export class Game {
     if (phase === 'captured') {
       const captured = createCapturedMonster(encounter, state.enemy)
       const result = this.collection.addCaptured(captured)
+      this.questService.recordCapture(encounter.speciesId)
       return `${captured.displayName} was sent to your ${result.destination}.`
     }
 
     if (phase !== 'won') return
+    this.questService.recordDefeat(encounter.speciesId)
     const experienceText = this.applySharedVictoryExperience(state)
     const battleReward = this.rewards.grantVictory(state.enemy)
+    for (const drop of battleReward.drops) {
+      this.questService.recordItemAcquired(drop.itemId, drop.quantity)
+    }
     const rewardText = this.formatBattleReward(battleReward)
     return `${experienceText} ${rewardText}`.trim()
   }

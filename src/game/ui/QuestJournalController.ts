@@ -175,8 +175,11 @@ export class QuestJournalController {
     )
 
     entry.objectives.slice(0, 4).forEach((objective, index) => {
+      const progress = objective.required > 1
+        ? ` ${objective.current}/${objective.required}`
+        : ''
       this.addText(
-        `${objective.completed ? '[x]' : '[ ]'} ${objective.description}`,
+        `${objective.completed ? '[x]' : '[ ]'} ${objective.description}${progress}`,
         105,
         70 + index * 15,
         7,

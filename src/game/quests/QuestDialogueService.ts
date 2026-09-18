@@ -90,35 +90,46 @@ export class QuestDialogueService {
     definition: QuestDefinition,
     progress: QuestProgress,
   ): DialogueContent {
-    const remaining = definition.objectives
-      .filter((objective) =>
-        (progress.objectiveProgress[objective.id] ?? 0) < objective.required)
-      .map((objective) => {
-        const current = progress.objectiveProgress[objective.id] ?? 0
-        return objective.required > 1
-          ? `${objective.description} ${current}/${objective.required}`
-          : objective.description
-      })
-
+    const remaining = this.remainingObjectiveLabels(definition, progress)
     const completedCount = definition.objectives.length - remaining.length
     const pages = [
       `${definition.title}: ${completedCount}/${definition.objectives.length} objectives complete.`,
-      remaining.length > 0
-        ? `Still needed: ${remaining.join(', ')}.`
-        : 'All field objectives are complete.',
+      this.remainingObjectiveSummary(remaining),
     ]
 
-    if (this.quests.canDeliverItems(definition.id)) {
-      return {
-        pages,
-        choices: [
-          { id: DELIVER_QUEST_ITEMS_CHOICE_ID, label: 'Deliver the item.' },
-          { id: LATER_QUEST_CHOICE_ID, label: 'Later.' },
-        ],
-      }
-    }
+    if (!this.quests.canDeliverItems(definition.id)) return { pages }
 
-    return { pages }
+    return {
+      pages,
+      choices: [
+        { id: DELIVER_QUEST_ITEMS_CHOICE_ID, label: 'Deliver the item.' },
+        { id: LATER_QUEST_CHOICE_ID, label: 'Later.' },
+      ],
+    }
+  }
+
+  private remainingObjectiveLabels(
+    definition: QuestDefinition,
+    progress: QuestProgress,
+  ): readonly string[] {
+    return definition.objectives
+      .filter((objective) =>
+        (progress.objectiveProgress[objective.id] ?? 0) < objective.required)
+      .map((objective) => this.objectiveProgressLabel(objective, progress))
+  }
+
+  private objectiveProgressLabel(
+    objective: QuestDefinition['objectives'][number],
+    progress: QuestProgress,
+  ): string {
+    if (objective.required <= 1) return objective.description
+    const current = progress.objectiveProgress[objective.id] ?? 0
+    return `${objective.description} ${current}/${objective.required}`
+  }
+
+  private remainingObjectiveSummary(remaining: readonly string[]): string {
+    if (remaining.length === 0) return 'All field objectives are complete.'
+    return `Still needed: ${remaining.join(', ')}.`
   }
 
   private readyContent(definition: QuestDefinition): DialogueContent {

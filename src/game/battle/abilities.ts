@@ -130,7 +130,8 @@ export function statusBlockedByAbility(
 ): boolean {
   if (!abilityId) return false
   return BATTLE_ABILITY_CATALOG[abilityId].effects.some(
-    (effect) => effect.kind === 'status-immunity' && effect.conditions.includes(condition),
+    (effect) => effect.kind === 'status-immunity'
+      && (effect.conditions as readonly BattleStatusCondition[]).includes(condition),
   )
 }
 
@@ -154,7 +155,7 @@ export function outgoingAbilityMultiplier(
       activated = true
     } else if (effect.kind === 'damage-vs-status'
       && context.defenderStatus
-      && effect.conditions.includes(context.defenderStatus)) {
+      && (effect.conditions as readonly BattleStatusCondition[]).includes(context.defenderStatus)) {
       multiplier *= effect.multiplier
       activated = true
     }

@@ -1,4 +1,4 @@
-import { ORIN_THREE_ROADS_QUEST_ID, type QuestId, type QuestProgress, type QuestState } from './types'
+import { ORIN_THREE_ROADS_QUEST_ID, QUEST_STATUS, type QuestId, type QuestProgress, type QuestState } from './types'
 
 const DEFAULT_KEY = 'monster-world.quests.v1'
 
@@ -22,18 +22,18 @@ export class QuestStore {
       ? this.cloneProgress(progress)
       : {
           questId,
-          status: 'available',
+          status: QUEST_STATUS.available,
           completedObjectiveIds: [],
         }
   }
 
   accept(questId: QuestId): boolean {
     const current = this.getProgress(questId)
-    if (current.status !== 'available') return false
+    if (current.status !== QUEST_STATUS.available) return false
 
     this.state.quests[questId] = {
       questId,
-      status: 'active',
+      status: QUEST_STATUS.active,
       completedObjectiveIds: [],
     }
     this.persist()
@@ -51,7 +51,7 @@ export class QuestStore {
     }
 
     const current = this.getProgress(questId)
-    if (current.status !== 'active') return false
+    if (current.status !== QUEST_STATUS.active) return false
     if (current.completedObjectiveIds.includes(objectiveId)) return false
 
     const completedObjectiveIds = [...current.completedObjectiveIds, objectiveId]
@@ -59,7 +59,7 @@ export class QuestStore {
 
     this.state.quests[questId] = {
       questId,
-      status: ready ? 'ready-to-turn-in' : 'active',
+      status: ready ? QUEST_STATUS.readyToTurnIn : QUEST_STATUS.active,
       completedObjectiveIds,
     }
     this.persist()
@@ -68,11 +68,11 @@ export class QuestStore {
 
   complete(questId: QuestId): boolean {
     const current = this.getProgress(questId)
-    if (current.status !== 'ready-to-turn-in') return false
+    if (current.status !== QUEST_STATUS.readyToTurnIn) return false
 
     this.state.quests[questId] = {
       ...current,
-      status: 'completed',
+      status: QUEST_STATUS.completed,
       completedObjectiveIds: [...current.completedObjectiveIds],
     }
     this.persist()
@@ -139,9 +139,9 @@ export class QuestStore {
     const progress = value as Partial<QuestProgress>
     if (progress.questId !== questId) return false
     if (
-      progress.status !== 'active'
-      && progress.status !== 'ready-to-turn-in'
-      && progress.status !== 'completed'
+      progress.status !== QUEST_STATUS.active
+      && progress.status !== QUEST_STATUS.readyToTurnIn
+      && progress.status !== QUEST_STATUS.completed
     ) {
       return false
     }

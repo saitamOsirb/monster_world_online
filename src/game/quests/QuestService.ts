@@ -93,56 +93,20 @@ export class QuestService {
   deliverItems(questId: QuestId): QuestDeliveryResult {
     const definition = getQuestDefinition(questId)
     const progress = this.getProgress(questId)
-    if (progress.status !== QUEST_STATUS.active) {
-      return {
-        ok: false,
-        reason: 'not-active',
-        deliveredItemIds: [],
-        status: progress.status,
-      }
-    }
 
-    const nonDeliveryComplete = definition.objectives
-      .filter((objective) => objective.kind !== 'deliver-item')
-      .every((objective) => this.objectiveComplete(progress, objective))
-    if (!nonDeliveryComplete) {
-      return {
-        ok: false,
-        reason: 'requirements-incomplete',
-        deliveredItemIds: [],
-        status: progress.status,
-      }
+    if (progress.status !== QUEST_STATUS.active) {
+      return this.deliveryFailure('not-active', progress.status)
+    }
+    if (!this.nonDeliveryObjectivesComplete(definition, progress)) {
+      return this.deliveryFailure('requirements-incomplete', progress.status)
     }
 
     const requirements = this.deliveryRequirements(definition)
-    if (requirements.some(([itemId, quantity]) => this.inventory.getQuantity(itemId) < quantity)) {
-      return {
-        ok: false,
-        reason: 'missing-items',
-        deliveredItemIds: [],
-        status: progress.status,
-      }
+    if (!this.hasDeliveryStock(requirements)) {
+      return this.deliveryFailure('missing-items', progress.status)
     }
 
-    const consumed: Array<[InventoryItemId, number]> = []
-    try {
-      for (const [itemId, quantity] of requirements) {
-        if (!this.inventory.consume(itemId, quantity)) {
-          throw new Error(`Quest delivery preflight became invalid for item "${itemId}"`)
-        }
-        consumed.push([itemId, quantity])
-      }
-
-      for (const objective of definition.objectives) {
-        if (objective.kind !== 'deliver-item') continue
-        this.recordObjective(definition, objective, objective.required)
-      }
-    } catch (error) {
-      for (const [itemId, quantity] of consumed) {
-        this.inventory.add(itemId, quantity)
-      }
-      throw error
-    }
+    this.applyDelivery(definition, requirements)
 
     return {
       ok: true,
@@ -175,6 +139,79 @@ export class QuestService {
       status: QUEST_STATUS.completed,
       rewardCredits: definition.rewardCredits,
       rewardApplied: reward.applied,
+    }
+  }
+
+  private deliveryFailure(
+    reason: 'not-active' | 'requirements-incomplete' | 'missing-items',
+    status: QuestProgress['status'],
+  ): QuestDeliveryResult {
+    return {
+      ok: false,
+      reason,
+      deliveredItemIds: [],
+      status,
+    }
+  }
+
+  private nonDeliveryObjectivesComplete(
+    definition: QuestDefinition,
+    progress: QuestProgress,
+  ): boolean {
+    return definition.objectives
+      .filter((objective) => objective.kind !== 'deliver-item')
+      .every((objective) => this.objectiveComplete(progress, objective))
+  }
+
+  private hasDeliveryStock(
+    requirements: readonly [InventoryItemId, number][],
+  ): boolean {
+    return requirements.every(([itemId, quantity]) =>
+      this.inventory.getQuantity(itemId) >= quantity)
+  }
+
+  private applyDelivery(
+    definition: QuestDefinition,
+    requirements: readonly [InventoryItemId, number][],
+  ): void {
+    const consumed = this.consumeDeliveryRequirements(requirements)
+    try {
+      this.recordDeliveryObjectives(definition)
+    } catch (error) {
+      this.restoreDeliveryRequirements(consumed)
+      throw error
+    }
+  }
+
+  private consumeDeliveryRequirements(
+    requirements: readonly [InventoryItemId, number][],
+  ): Array<[InventoryItemId, number]> {
+    const consumed: Array<[InventoryItemId, number]> = []
+
+    for (const [itemId, quantity] of requirements) {
+      if (!this.inventory.consume(itemId, quantity)) {
+        this.restoreDeliveryRequirements(consumed)
+        throw new Error(`Quest delivery preflight became invalid for item "${itemId}"`)
+      }
+      consumed.push([itemId, quantity])
+    }
+
+    return consumed
+  }
+
+  private restoreDeliveryRequirements(
+    consumed: readonly [InventoryItemId, number][],
+  ): void {
+    for (const [itemId, quantity] of consumed) {
+      this.inventory.add(itemId, quantity)
+    }
+  }
+
+  private recordDeliveryObjectives(definition: QuestDefinition): void {
+    for (const objective of definition.objectives) {
+      if (objective.kind === 'deliver-item') {
+        this.recordObjective(definition, objective, objective.required)
+      }
     }
   }
 

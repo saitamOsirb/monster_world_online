@@ -3,7 +3,7 @@ import { InputController } from '../input/InputController'
 import type { OwnedMonster } from '../monsters/types'
 import { resolveSpeciesDisplayScale, resolveSpeciesPartyFrames } from '../species/art'
 
-const MENU_OPTIONS = ['POKeMON', 'BAG', 'Arkeve', 'SAVE', 'OPTION', 'EXIT']
+const MENU_OPTIONS = ['POKeMON', 'BAG', 'QUESTS', 'SAVE', 'OPTION', 'EXIT']
 const MENU_TEXT_COLOR = 0x6f6f88
 const UI_FONT_FAMILY = 'PokemonFL'
 const PARTY_CREATURE_MAX_WIDTH = 35
@@ -21,6 +21,7 @@ const PARTY_SPECIES = [
 interface MenuControllerHooks {
   onPartyRequested?: () => void
   onBagRequested?: () => void
+  onQuestJournalRequested?: () => void
   onPartyExitRequested?: () => void
   onPartyManageRequested?: (instanceId: string) => void
 }
@@ -212,6 +213,7 @@ export class MenuController {
       } else if (input.isConfirmPressed()) {
         if (this.selectedMenu === 0) this.hooks.onPartyRequested?.()
         else if (this.selectedMenu === 1) this.hooks.onBagRequested?.()
+        else if (this.selectedMenu === 2) this.hooks.onQuestJournalRequested?.()
       }
       return
     }

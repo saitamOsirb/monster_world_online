@@ -49,6 +49,7 @@ src/
       QuestStore.ts               versioned persistent quest state
       QuestService.ts             objective progression + idempotent turn-in
       QuestDialogueService.ts     quest state → generic dialogue content
+      QuestJournalService.ts      quest state → journal projection
       catalog.ts                  quest/objective/reward definitions
     species/
       catalog.ts                  species source of truth + stat/learnset helpers
@@ -65,6 +66,7 @@ src/
       BagController.ts
       DialogueController.ts
       PartyStorageController.ts
+      QuestJournalController.ts
       RecoveryController.ts
       VendorController.ts
     world/
@@ -152,6 +154,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | Persistent quests | Implemented foundation | Versioned quest store with available/active/ready/completed states. |
 | Dialogue choices | Implemented foundation | Generic deterministic choice navigation; quest logic remains outside Pixi. |
 | The Three Roads | Implemented | Orin tracks visits to Coast/Cavern/Marsh and grants a one-time 120-credit reward. |
+| Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state. |
 
 ## Battle, elemental, status and progression rules
 
@@ -370,6 +373,10 @@ Inventory rules:
 - Orin's conversation is state-driven: `available → active → ready-to-turn-in → completed`. Declining/later choices do not mutate quest state.
 - Scene visits are recorded only after the quest is accepted; duplicate visits do not duplicate objective progress.
 - Turn-in is crash/retry safe at the reward boundary because `QuestService` uses wallet transaction id `quest:orin-three-roads:reward`.
+- The main menu's former legacy **Arkeve** slot is now **QUESTS**, opening the Quest Journal without adding an extra menu row.
+- `QuestJournalService` projects only accepted/completed quests; unavailable quests remain hidden until accepted.
+- The journal has **ACTIVE** and **DONE** tabs. `ready-to-turn-in` remains under ACTIVE and is labeled **READY TO REPORT**.
+- Objective completion, `completed/total` progress and credit reward are regenerated from `QuestService` every time the journal opens, so the UI never owns a stale persisted copy.
 - Mira and Nia keep their specialized vendor/recovery flows.
 - **Mira** in Town is connected to `town-supplies`.
 - **Nia** in Town is connected to `party-recovery`.
@@ -427,12 +434,14 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **208 tests across 33 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **213 tests across 34 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
 - dialogue: `658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02`
 - quest dialogue choices: `679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a`
+- menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
+- quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -453,8 +462,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore`, `WalletStore` and `QuestStore` own persistence.
-- `QuestService` owns quest progression/reward orchestration and `QuestDialogueService` adapts quest state to generic dialogue content.
-- `BagController`, `DialogueController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
+- `QuestService` owns quest progression/reward orchestration; `QuestDialogueService` and `QuestJournalService` are read/adaptation layers over that domain state.
+- `BagController`, `DialogueController`, `QuestJournalController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
 - Scene transitions preserve the existing world object instead of reloading on battle exit.
 - Animated water uses one shared clock rather than a ticker per tile.
 - Visual regression mode is deterministic and isolated from player save state.
@@ -471,7 +480,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
 8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-9. Expand beyond the first exploration quest with chained objectives, item/capture/battle objectives and additional quest-giver NPCs.
+9. Expand beyond the first exploration quest with chained objectives, item/capture/battle objectives, additional quest-giver NPCs and journal filtering/pagination as the quest catalog grows.
 10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note

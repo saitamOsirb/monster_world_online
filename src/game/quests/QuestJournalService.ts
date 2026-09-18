@@ -5,6 +5,8 @@ import { QUEST_STATUS, type QuestId, type QuestStatus } from './types'
 export interface QuestJournalObjective {
   id: string
   description: string
+  current: number
+  required: number
   completed: boolean
 }
 
@@ -34,20 +36,28 @@ export class QuestJournalService {
       const progress = this.quests.getProgress(definition.id)
       if (progress.status === QUEST_STATUS.available) continue
 
-      const completedIds = new Set(progress.completedObjectiveIds)
+      const objectives = definition.objectives.map((objective) => {
+        const current = Math.min(
+          objective.required,
+          progress.objectiveProgress[objective.id] ?? 0,
+        )
+        return {
+          id: objective.id,
+          description: objective.description,
+          current,
+          required: objective.required,
+          completed: current >= objective.required,
+        }
+      })
+
       const entry: QuestJournalEntry = {
         questId: definition.id,
         title: definition.title,
         status: progress.status,
-        completedObjectives: definition.objectives.filter((objective) =>
-          completedIds.has(objective.id)).length,
-        totalObjectives: definition.objectives.length,
+        completedObjectives: objectives.filter((objective) => objective.completed).length,
+        totalObjectives: objectives.length,
         rewardCredits: definition.rewardCredits,
-        objectives: definition.objectives.map((objective) => ({
-          id: objective.id,
-          description: objective.description,
-          completed: completedIds.has(objective.id),
-        })),
+        objectives,
       }
 
       if (progress.status === QUEST_STATUS.completed) completed.push(entry)

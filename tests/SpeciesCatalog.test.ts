@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getBattleAbility } from '../src/game/battle/abilities'
 import { BATTLE_ELEMENTS } from '../src/game/battle/elements'
 import {
   STARTER_SPECIES_ID,
@@ -41,6 +42,15 @@ describe('species catalog', () => {
 
     for (const element of BATTLE_ELEMENTS) {
       expect(represented.has(element)).toBe(true)
+    }
+  })
+
+  it('assigns one valid data-driven ability to every canonical species', () => {
+    const species = listSpeciesDefinitions()
+    expect(new Set(species.map((entry) => entry.abilityId)).size).toBe(species.length)
+
+    for (const entry of species) {
+      expect(getBattleAbility(entry.abilityId).name.length).toBeGreaterThan(0)
     }
   })
 

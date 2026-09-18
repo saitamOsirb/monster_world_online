@@ -73,7 +73,7 @@ export class QuestDialogueService {
       return questId
     }
 
-    return questIds[questIds.length - 1]
+    return questIds.at(-1)
   }
 
   private availableContent(definition: QuestDefinition): DialogueContent {

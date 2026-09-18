@@ -32,6 +32,9 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Verify original species art
+        run: pnpm assets:verify
+
       - name: Test
         run: pnpm test
 

@@ -8,6 +8,7 @@ export interface InteractableNpcDefinition {
   facing: Direction
   displayName: string
   dialogue: string
+  dialoguePages?: readonly string[]
   vendorId?: string
   serviceId?: string
   texturePath: string

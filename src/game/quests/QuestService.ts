@@ -13,6 +13,8 @@ import {
   type QuestTurnInResult,
 } from './types'
 
+const DELIVER_ITEM_OBJECTIVE_KIND = 'deliver-item' as const
+
 export interface QuestProgressUpdate {
   questId: QuestId
   objectiveId: string
@@ -82,7 +84,7 @@ export class QuestService {
     if (progress.status !== QUEST_STATUS.active) return false
 
     const nonDeliveryComplete = definition.objectives
-      .filter((objective) => objective.kind !== 'deliver-item')
+      .filter((objective) => objective.kind !== DELIVER_ITEM_OBJECTIVE_KIND)
       .every((objective) => this.objectiveComplete(progress, objective))
     if (!nonDeliveryComplete) return false
 
@@ -159,7 +161,7 @@ export class QuestService {
     progress: QuestProgress,
   ): boolean {
     return definition.objectives
-      .filter((objective) => objective.kind !== 'deliver-item')
+      .filter((objective) => objective.kind !== DELIVER_ITEM_OBJECTIVE_KIND)
       .every((objective) => this.objectiveComplete(progress, objective))
   }
 
@@ -209,7 +211,7 @@ export class QuestService {
 
   private recordDeliveryObjectives(definition: QuestDefinition): void {
     for (const objective of definition.objectives) {
-      if (objective.kind === 'deliver-item') {
+      if (objective.kind === DELIVER_ITEM_OBJECTIVE_KIND) {
         this.recordObjective(definition, objective, objective.required)
       }
     }
@@ -285,7 +287,7 @@ export class QuestService {
   ): readonly [InventoryItemId, number][] {
     const totals = new Map<InventoryItemId, number>()
     for (const objective of definition.objectives) {
-      if (objective.kind !== 'deliver-item') continue
+      if (objective.kind !== DELIVER_ITEM_OBJECTIVE_KIND) continue
       totals.set(
         objective.itemId,
         (totals.get(objective.itemId) ?? 0) + objective.required,

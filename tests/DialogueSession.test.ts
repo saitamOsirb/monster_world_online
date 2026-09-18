@@ -63,4 +63,51 @@ describe('DialogueSession', () => {
     pages[0] = 'Changed.'
     expect(session.currentPage).toBe('One.')
   })
+
+  it('exposes choices only on the final page', () => {
+    const session = new DialogueSession(npc(), {
+      pages: ['Intro.', 'Choose.'],
+      choices: [
+        { id: 'yes', label: 'Yes' },
+        { id: 'no', label: 'No' },
+      ],
+    })
+
+    expect(session.hasChoices).toBe(false)
+    expect(session.selectedChoice).toBeUndefined()
+    expect(session.advance()).toBe(true)
+    expect(session.hasChoices).toBe(true)
+    expect(session.selectedChoice?.id).toBe('yes')
+  })
+
+  it('wraps choice navigation deterministically', () => {
+    const session = new DialogueSession(npc(), {
+      pages: ['Choose.'],
+      choices: [
+        { id: 'yes', label: 'Yes' },
+        { id: 'no', label: 'No' },
+      ],
+    })
+
+    expect(session.moveChoice(-1)).toBe(true)
+    expect(session.selectedChoice?.id).toBe('no')
+    expect(session.moveChoice(1)).toBe(true)
+    expect(session.selectedChoice?.id).toBe('yes')
+  })
+
+  it('rejects duplicate or empty dialogue choices', () => {
+    expect(() => new DialogueSession(npc(), {
+      pages: ['Choose.'],
+      choices: [
+        { id: 'same', label: 'Yes' },
+        { id: 'same', label: 'No' },
+      ],
+    })).toThrow('unique non-empty ids and labels')
+
+    expect(() => new DialogueSession(npc(), {
+      pages: ['Choose.'],
+      choices: [{ id: '', label: 'Invalid' }],
+    })).toThrow('unique non-empty ids and labels')
+  })
+
 })

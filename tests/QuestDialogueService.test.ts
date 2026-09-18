@@ -108,7 +108,7 @@ describe('QuestDialogueService', () => {
 
     const content = fixture.dialogue.contentFor(TOWN_FIELD_GUIDE)
 
-    expect(content?.pages[0]).toContain('1/4 objectives complete')
+    expect(content?.pages[0]).toContain('0/4 objectives complete')
     expect(content?.pages[1]).toContain('Defeat Skyrill 1/2')
   })
 

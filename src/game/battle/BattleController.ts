@@ -6,7 +6,7 @@ import { InputController } from '../input/InputController'
 import type { InventoryEntry, InventoryItemId } from '../inventory/types'
 import type { OwnedMonster } from '../monsters/types'
 import { findSpeciesDefinition, getSpeciesDefinition, STARTER_SPECIES_ID } from '../species/catalog'
-import { resolveSpeciesBattleFrame } from '../species/art'
+import { resolveSpeciesBattleFrame, resolveSpeciesDisplayScale } from '../species/art'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
 import type {
@@ -19,6 +19,11 @@ import type {
 } from './types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
+
+const BATTLE_ENEMY_ART_MAX_WIDTH = 70
+const BATTLE_ENEMY_ART_MAX_HEIGHT = 48
+const BATTLE_PLAYER_ART_MAX_WIDTH = 82.25
+const BATTLE_PLAYER_ART_MAX_HEIGHT = 56.4
 
 type TerminalBattlePhase = Extract<BattlePhase, 'won' | 'lost' | 'ran' | 'captured'>
 
@@ -91,7 +96,13 @@ export class BattleController {
     const enemy = new Sprite(this.creatureFrame(enemyTexture, encounter.spritePath))
     enemy.anchor.set(0.5, 1)
     enemy.position.set(169, 67)
-    enemy.scale.set(2)
+    enemy.scale.set(this.creatureScale(
+      enemyTexture,
+      encounter.spritePath,
+      BATTLE_ENEMY_ART_MAX_WIDTH,
+      BATTLE_ENEMY_ART_MAX_HEIGHT,
+      2,
+    ))
     enemy.roundPixels = true
     this.enemySprite = enemy
     this.view.addChildAt(enemy, 3)
@@ -578,7 +589,13 @@ export class BattleController {
     this.playerSprite = player
     player.anchor.set(0.5, 1)
     player.position.set(61, 108)
-    player.scale.set(2.35)
+    player.scale.set(this.creatureScale(
+      playerTexture,
+      spritePath,
+      BATTLE_PLAYER_ART_MAX_WIDTH,
+      BATTLE_PLAYER_ART_MAX_HEIGHT,
+      2.35,
+    ))
     player.roundPixels = true
     this.view.addChild(player)
 
@@ -628,6 +645,35 @@ export class BattleController {
     texture.source.scaleMode = 'nearest'
     if (!this.engine || this.engine.state.player.id !== instanceId || !this.playerSprite) return
     this.playerSprite.texture = this.creatureFrame(texture, path)
+    this.playerSprite.scale.set(this.creatureScale(
+      texture,
+      path,
+      BATTLE_PLAYER_ART_MAX_WIDTH,
+      BATTLE_PLAYER_ART_MAX_HEIGHT,
+      2.35,
+    ))
+  }
+
+  private creatureScale(
+    texture: Texture,
+    spritePath: string,
+    maxWidth: number,
+    maxHeight: number,
+    legacyScale: number,
+  ): number {
+    const frame = resolveSpeciesBattleFrame(
+      spritePath,
+      texture.source.width,
+      texture.source.height,
+    )
+    return resolveSpeciesDisplayScale(
+      spritePath,
+      frame.width,
+      frame.height,
+      maxWidth,
+      maxHeight,
+      legacyScale,
+    )
   }
 
   private creatureFrame(texture: Texture, spritePath: string): Texture {

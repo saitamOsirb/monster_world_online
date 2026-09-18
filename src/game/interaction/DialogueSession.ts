@@ -16,11 +16,7 @@ export class DialogueSession {
     content?: DialogueContent,
   ) {
     this.npc = npc
-    const pages = content?.pages && content.pages.length > 0
-      ? [...content.pages]
-      : npc.dialoguePages && npc.dialoguePages.length > 0
-        ? [...npc.dialoguePages]
-        : [npc.dialogue]
+    const pages = this.resolvePages(npc, content)
 
     if (pages.some((page) => page.trim().length === 0)) {
       throw new Error(`NPC dialogue pages must not be empty: ${npc.id}`)
@@ -79,5 +75,14 @@ export class DialogueSession {
       this.choiceIndex + delta + this.choices.length
     ) % this.choices.length
     return true
+  }
+
+  private resolvePages(
+    npc: InteractableNpcDefinition,
+    content?: DialogueContent,
+  ): readonly string[] {
+    if (content?.pages && content.pages.length > 0) return [...content.pages]
+    if (npc.dialoguePages && npc.dialoguePages.length > 0) return [...npc.dialoguePages]
+    return [npc.dialogue]
   }
 }

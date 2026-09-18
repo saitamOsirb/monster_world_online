@@ -124,6 +124,7 @@ describe('elemental battle model', () => {
     const session = createReferenceBattleSession(encounter)
 
     expect(session.enemy.elements).toEqual(['air', 'neutral'])
+    expect(session.enemy.abilityId).toBe('tailwind')
     expect(session.enemy.maxHp).toBe(19)
     expect(session.enemy.moves.map((move) => move.id)).toEqual(['basic-strike', 'gust-cut', 'quick-hit'])
   })

@@ -1,4 +1,5 @@
 import type { InventoryItemId } from '../inventory/types'
+import type { BattleAbilityId } from './abilities'
 import type { BattleElement, ElementEffectiveness } from './elements'
 
 export type BattleSide = 'player' | 'enemy'
@@ -46,6 +47,7 @@ export interface BattleCombatantDefinition {
   specialDefense?: number
   speed: number
   elements?: readonly BattleElement[]
+  abilityId?: BattleAbilityId
   moves: readonly BattleMove[]
   status?: BattleStatus
 }
@@ -117,6 +119,8 @@ export type BattleEvent =
   | { type: 'miss'; side: BattleSide; moveId: string }
   | { type: 'effectiveness'; target: BattleSide; moveElement: BattleElement; multiplier: ElementEffectiveness; sameElementBonus: boolean }
   | { type: 'damage'; side: BattleSide; target: BattleSide; amount: number; remainingHp: number }
+  | { type: 'ability-activated'; side: BattleSide; abilityId: BattleAbilityId; abilityName: string }
+  | { type: 'status-immune'; target: BattleSide; condition: BattleStatusCondition; abilityId: BattleAbilityId; abilityName: string }
   | { type: 'faint'; side: BattleSide }
   | { type: 'run'; side: 'player' }
   | { type: 'capture-attempt'; success: boolean; chance: number }

@@ -4,6 +4,7 @@ import {
   STARTER_SPECIES_ID,
   calculateSpeciesStats,
   createSpeciesMovesAtLevel,
+  findSpeciesDefinition,
   getSpeciesDefinition,
 } from '../species/catalog'
 import type { BattleCombatantDefinition, BattleMove } from './types'
@@ -50,12 +51,14 @@ export function createReferenceBattleSession(
       specialDefense: enemyStats.specialDefense,
       speed: enemyStats.speed,
       elements: [...enemySpecies.elements],
+      abilityId: enemySpecies.abilityId,
       moves: createSpeciesMovesAtLevel(enemySpecies, enemyLevel),
     },
   }
 }
 
 function ownedToBattleDefinition(monster: OwnedMonster): BattleCombatantDefinition {
+  const species = findSpeciesDefinition(monster.speciesId)
   return {
     id: monster.instanceId,
     displayName: monster.displayName,
@@ -68,6 +71,7 @@ function ownedToBattleDefinition(monster: OwnedMonster): BattleCombatantDefiniti
     specialDefense: monster.specialDefense ?? monster.defense,
     speed: monster.speed,
     elements: [...monster.elements],
+    abilityId: species?.abilityId,
     moves: monster.moves.map(cloneMove),
     status: monster.status ? { ...monster.status } : undefined,
   }
@@ -89,6 +93,7 @@ function createReferencePlayer(): BattleCombatantDefinition {
     specialDefense: stats.specialDefense,
     speed: stats.speed,
     elements: [...species.elements],
+    abilityId: species.abilityId,
     moves: createSpeciesMovesAtLevel(species, level),
   }
 }

@@ -210,4 +210,194 @@ describe('BattleEngine abilities', () => {
       () => 0,
     )).toThrow('Unsupported battle ability')
   })
+
+  it('Kindled Heart does not boost non-Fire damage at low HP', () => {
+    const withAbility = new BattleEngine(
+      combatant('cindlet', {
+        currentHp: 33,
+        maxHp: 100,
+        speed: 20,
+        elements: ['fire'],
+        abilityId: 'kindled-heart',
+        moves: [PHYSICAL],
+      }),
+      combatant('enemy', { speed: 1 }),
+      () => 0,
+    )
+    const withoutAbility = new BattleEngine(
+      combatant('cindlet', {
+        currentHp: 33,
+        maxHp: 100,
+        speed: 20,
+        elements: ['fire'],
+        moves: [PHYSICAL],
+      }),
+      combatant('enemy', { speed: 1 }),
+      () => 0,
+    )
+
+    const scoped = withAbility.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+    const baseline = withoutAbility.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+
+    expect(damageTo(scoped.events, 'enemy')).toBe(damageTo(baseline.events, 'enemy'))
+    expect(scoped.events.some((event) => event.type === 'ability-activated')).toBe(false)
+  })
+
+  it('Flow Guard reduces incoming special damage but not physical damage', () => {
+    const specialProbe: BattleMove = {
+      ...SPECIAL,
+      id: 'special-flow-guard-probe',
+      power: 100,
+    }
+    const specialNormal = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [specialProbe] }),
+      combatant('plain', { speed: 1 }),
+      () => 0,
+    )
+    const specialFlowGuard = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [specialProbe] }),
+      combatant('rillfin', { speed: 1, abilityId: 'flow-guard' }),
+      () => 0,
+    )
+    const physicalNormal = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [PHYSICAL] }),
+      combatant('plain', { speed: 1 }),
+      () => 0,
+    )
+    const physicalFlowGuard = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [PHYSICAL] }),
+      combatant('rillfin', { speed: 1, abilityId: 'flow-guard' }),
+      () => 0,
+    )
+
+    const normalSpecial = specialNormal.resolvePlayerAction({ kind: 'move', moveId: specialProbe.id })
+    const reducedSpecial = specialFlowGuard.resolvePlayerAction({ kind: 'move', moveId: specialProbe.id })
+    const normalPhysical = physicalNormal.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+    const flowGuardPhysical = physicalFlowGuard.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+
+    expect(damageTo(reducedSpecial.events, 'enemy')).toBeLessThan(damageTo(normalSpecial.events, 'enemy'))
+    expect(reducedSpecial.events).toContainEqual({
+      type: 'ability-activated',
+      side: 'enemy',
+      abilityId: 'flow-guard',
+      abilityName: 'Flow Guard',
+    })
+    expect(damageTo(flowGuardPhysical.events, 'enemy')).toBe(damageTo(normalPhysical.events, 'enemy'))
+    expect(flowGuardPhysical.events.some((event) => event.type === 'ability-activated')).toBe(false)
+  })
+
+  it('Verdant Purity blocks poison', () => {
+    const poisonMove: BattleMove = {
+      ...SPECIAL,
+      id: 'poison-test',
+      name: 'Poison Test',
+      statusEffect: { condition: 'poison', chance: 1 },
+    }
+    const engine = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [poisonMove] }),
+      combatant('mossprig', { speed: 1, abilityId: 'verdant-purity' }),
+      () => 0,
+    )
+
+    const result = engine.resolvePlayerAction({ kind: 'move', moveId: poisonMove.id })
+
+    expect(result.state.enemy.status).toBeUndefined()
+    expect(result.events).toContainEqual({
+      type: 'status-immune',
+      target: 'enemy',
+      condition: 'poison',
+      abilityId: 'verdant-purity',
+      abilityName: 'Verdant Purity',
+    })
+  })
+
+  it('Frost Mantle blocks burn', () => {
+    const burnMove: BattleMove = {
+      ...SPECIAL,
+      id: 'burn-test',
+      name: 'Burn Test',
+      statusEffect: { condition: 'burn', chance: 1 },
+    }
+    const engine = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [burnMove] }),
+      combatant('glacub', { speed: 1, abilityId: 'frost-mantle' }),
+      () => 0,
+    )
+
+    const result = engine.resolvePlayerAction({ kind: 'move', moveId: burnMove.id })
+
+    expect(result.state.enemy.status).toBeUndefined()
+    expect(result.events).toContainEqual({
+      type: 'status-immune',
+      target: 'enemy',
+      condition: 'burn',
+      abilityId: 'frost-mantle',
+      abilityName: 'Frost Mantle',
+    })
+  })
+
+  it('Dreamwalker blocks sleep', () => {
+    const sleepMove: BattleMove = {
+      ...SPECIAL,
+      id: 'sleep-test',
+      name: 'Sleep Test',
+      statusEffect: { condition: 'sleep', chance: 1, durationTurns: 2 },
+    }
+    const engine = new BattleEngine(
+      combatant('attacker', { speed: 20, moves: [sleepMove] }),
+      combatant('wispurr', { speed: 1, abilityId: 'dreamwalker' }),
+      () => 0,
+    )
+
+    const result = engine.resolvePlayerAction({ kind: 'move', moveId: sleepMove.id })
+
+    expect(result.state.enemy.status).toBeUndefined()
+    expect(result.events).toContainEqual({
+      type: 'status-immune',
+      target: 'enemy',
+      condition: 'sleep',
+      abilityId: 'dreamwalker',
+      abilityName: 'Dreamwalker',
+    })
+  })
+
+  it('Dusk Hunter boosts damage only against sleeping targets', () => {
+    const sleeping = new BattleEngine(
+      combatant('duskfin', { speed: 20, abilityId: 'dusk-hunter' }),
+      combatant('sleeping', { speed: 1, status: { condition: 'sleep', remainingTurns: 2 } }),
+      () => 0,
+    )
+    const awake = new BattleEngine(
+      combatant('duskfin', { speed: 20, abilityId: 'dusk-hunter' }),
+      combatant('awake', { speed: 1 }),
+      () => 0,
+    )
+
+    const boosted = sleeping.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+    const normal = awake.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+
+    expect(damageTo(boosted.events, 'enemy')).toBeGreaterThan(damageTo(normal.events, 'enemy'))
+    expect(boosted.events).toContainEqual({
+      type: 'ability-activated',
+      side: 'player',
+      abilityId: 'dusk-hunter',
+      abilityName: 'Dusk Hunter',
+    })
+    expect(normal.events.some((event) => event.type === 'ability-activated')).toBe(false)
+  })
+
+  it('preserves the pre-ability deterministic damage formula when no ability is present', () => {
+    const engine = new BattleEngine(
+      combatant('plain-attacker', { speed: 20 }),
+      combatant('plain-defender', { speed: 1 }),
+      () => 0,
+    )
+
+    const result = engine.resolvePlayerAction({ kind: 'move', moveId: PHYSICAL.id })
+
+    expect(damageTo(result.events, 'enemy')).toBe(8)
+    expect(result.events.some((event) => event.type === 'ability-activated')).toBe(false)
+    expect(result.events.some((event) => event.type === 'status-immune')).toBe(false)
+  })
+
 })

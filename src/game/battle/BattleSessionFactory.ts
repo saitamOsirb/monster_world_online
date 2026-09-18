@@ -4,6 +4,7 @@ import {
   STARTER_SPECIES_ID,
   calculateSpeciesStats,
   createSpeciesMovesAtLevel,
+  findSpeciesDefinition,
   getSpeciesDefinition,
 } from '../species/catalog'
 import type { BattleCombatantDefinition, BattleMove } from './types'
@@ -57,7 +58,7 @@ export function createReferenceBattleSession(
 }
 
 function ownedToBattleDefinition(monster: OwnedMonster): BattleCombatantDefinition {
-  const species = getSpeciesDefinition(monster.speciesId)
+  const species = findSpeciesDefinition(monster.speciesId)
   return {
     id: monster.instanceId,
     displayName: monster.displayName,
@@ -70,7 +71,7 @@ function ownedToBattleDefinition(monster: OwnedMonster): BattleCombatantDefiniti
     specialDefense: monster.specialDefense ?? monster.defense,
     speed: monster.speed,
     elements: [...monster.elements],
-    abilityId: species.abilityId,
+    abilityId: species?.abilityId,
     moves: monster.moves.map(cloneMove),
     status: monster.status ? { ...monster.status } : undefined,
   }

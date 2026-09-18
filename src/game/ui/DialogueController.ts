@@ -1,15 +1,22 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import { InputController } from '../input/InputController'
 import { DialogueSession } from '../interaction/DialogueSession'
-import type { InteractableNpcDefinition } from '../interaction/types'
+import type {
+  DialogueChoice,
+  DialogueContent,
+  InteractableNpcDefinition,
+} from '../interaction/types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
 const WIDTH = 240
-const HEIGHT = 160
 const BOX_Y = 91
 const BOX_HEIGHT = 69
 
 interface DialogueControllerHooks {
+  onChoice?: (
+    npc: InteractableNpcDefinition,
+    choice: DialogueChoice,
+  ) => DialogueContent | null
   onExit?: () => void
 }
 
@@ -26,8 +33,8 @@ export class DialogueController {
     return this.session !== null && this.view.visible
   }
 
-  show(npc: InteractableNpcDefinition): void {
-    this.session = new DialogueSession(npc)
+  show(npc: InteractableNpcDefinition, content?: DialogueContent): void {
+    this.session = new DialogueSession(npc, content)
     this.view.visible = true
     this.render()
   }
@@ -47,13 +54,51 @@ export class DialogueController {
       return
     }
 
+    if (this.handleChoiceNavigation(session, input)) return
     if (!input.isConfirmPressed()) return
+
+    this.confirm(session)
+  }
+
+  private handleChoiceNavigation(
+    session: DialogueSession,
+    input: InputController,
+  ): boolean {
+    if (!session.hasChoices) return false
+
+    const delta = this.choiceDelta(input)
+    if (delta === 0) return false
+
+    if (session.moveChoice(delta)) this.render()
+    return true
+  }
+
+  private choiceDelta(input: InputController): -1 | 0 | 1 {
+    if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) return -1
+    if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) return 1
+    return 0
+  }
+
+  private confirm(session: DialogueSession): void {
     if (session.advance()) {
       this.render()
       return
     }
 
-    this.close()
+    const choice = session.selectedChoice
+    if (!choice) {
+      this.close()
+      return
+    }
+
+    const next = this.hooks.onChoice?.(session.npc, choice) ?? null
+    if (!next) {
+      this.close()
+      return
+    }
+
+    this.session = new DialogueSession(session.npc, next)
+    this.render()
   }
 
   private close(): void {
@@ -74,7 +119,28 @@ export class DialogueController {
 
     this.view.addChild(backdrop)
     this.addText(session.npc.displayName.toUpperCase(), 8, BOX_Y + 8, 9, 0xffe6a3)
-    this.addText(session.currentPage, 8, BOX_Y + 23, 8, 0xffffff, 224)
+    this.addText(
+      session.currentPage,
+      8,
+      session.hasChoices ? BOX_Y + 22 : BOX_Y + 23,
+      session.hasChoices ? 7 : 8,
+      0xffffff,
+      224,
+    )
+
+    if (session.hasChoices) {
+      session.choices.slice(0, 3).forEach((choice, index) => {
+        const selected = index === session.selectedChoiceIndex
+        this.addText(
+          `${selected ? '▶' : ' '} ${choice.label}`,
+          11,
+          BOX_Y + 40 + index * 9,
+          7,
+          selected ? 0xffe6a3 : 0xd8ddeb,
+        )
+      })
+      return
+    }
 
     const prompt = session.isLastPage ? 'Z: CLOSE   X: CLOSE' : 'Z: NEXT   X: CLOSE'
     this.addText(

@@ -59,4 +59,52 @@ describe('WalletStore', () => {
     expect(wallet.snapshot.initialized).toBe(false)
     expect(wallet.getBalance()).toBe(0)
   })
+
+  it('applies a transaction credit exactly once across reloads', () => {
+    const storage = new MemoryStorage()
+    const wallet = new WalletStore(storage)
+    wallet.ensureStarterBalance(100)
+
+    expect(wallet.creditOnce('quest:orin-three-roads:reward', 120)).toEqual({
+      applied: true,
+      balance: 220,
+    })
+    expect(wallet.creditOnce('quest:orin-three-roads:reward', 120)).toEqual({
+      applied: false,
+      balance: 220,
+    })
+
+    const reloaded = new WalletStore(storage)
+    expect(reloaded.creditOnce('quest:orin-three-roads:reward', 120)).toEqual({
+      applied: false,
+      balance: 220,
+    })
+  })
+
+  it('migrates valid v1 wallet state to v2 without losing balance', () => {
+    const storage = new MemoryStorage()
+    storage.setItem('monster-world.wallet.v1', JSON.stringify({
+      version: 1,
+      initialized: true,
+      balances: { credits: 345 },
+    }))
+
+    const wallet = new WalletStore(storage)
+
+    expect(wallet.snapshot).toEqual({
+      version: 2,
+      initialized: true,
+      balances: { credits: 345 },
+      appliedTransactions: [],
+    })
+    expect(JSON.parse(storage.getItem('monster-world.wallet.v1') ?? '{}').version).toBe(2)
+  })
+
+  it('rejects invalid idempotency transaction ids', () => {
+    const wallet = new WalletStore(new MemoryStorage())
+
+    expect(() => wallet.creditOnce('', 10)).toThrow('Wallet transaction id')
+    expect(() => wallet.creditOnce('../unsafe', 10)).toThrow('Wallet transaction id')
+  })
+
 })

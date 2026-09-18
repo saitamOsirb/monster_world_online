@@ -440,8 +440,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 
 - dialogue: `658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02`
 - quest dialogue choices: `679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a`
-- menu: pending intentional baseline change for legacy `Arkeve → QUESTS`
-- quest journal: pending first deterministic baseline in this PR
+- menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
+- quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`

@@ -224,6 +224,8 @@ The initial ten abilities are:
 
 Damage/status abilities emit `ability-activated` or `status-immune` battle events so presentation can explain why a result changed. Speed abilities affect action ordering directly. Ability modifiers are applied on top of the existing physical/special, STAB and elemental calculations; combatants with no ability retain the prior formula exactly.
 
+The abilities regression suite explicitly covers every foundation passive, negative/non-applicable cases, status immunities, Tailwind ordering and the deterministic no-ability damage baseline. This keeps the declarative layer behaviorally locked without persisting `abilityId` into owned-monster saves.
+
 ### Town encounter population
 
 Town grass currently resolves six canonical species with weights totaling **100**:
@@ -382,7 +384,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **164 tests across 28 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **171 tests across 28 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 

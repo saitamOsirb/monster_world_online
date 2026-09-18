@@ -6,6 +6,7 @@ import { InputController } from '../input/InputController'
 import type { InventoryEntry, InventoryItemId } from '../inventory/types'
 import type { OwnedMonster } from '../monsters/types'
 import { findSpeciesDefinition, getSpeciesDefinition, STARTER_SPECIES_ID } from '../species/catalog'
+import { resolveSpeciesBattleFrame } from '../species/art'
 import { BattleEngine } from './BattleEngine'
 import { createReferenceBattleSession } from './BattleSessionFactory'
 import type {
@@ -69,9 +70,10 @@ export class BattleController {
   async initialize(): Promise<void> {
     if (this.initialized) return
 
-    const playerTexture = await Assets.load<Texture>(getSpeciesDefinition(STARTER_SPECIES_ID).spritePath)
+    const starterSpritePath = getSpeciesDefinition(STARTER_SPECIES_ID).spritePath
+    const playerTexture = await Assets.load<Texture>(starterSpritePath)
     playerTexture.source.scaleMode = 'nearest'
-    this.buildStaticScene(playerTexture)
+    this.buildStaticScene(playerTexture, starterSpritePath)
     this.initialized = true
   }
 
@@ -86,7 +88,7 @@ export class BattleController {
       this.enemySprite = null
     }
 
-    const enemy = new Sprite(this.creatureFrame(enemyTexture))
+    const enemy = new Sprite(this.creatureFrame(enemyTexture, encounter.spritePath))
     enemy.anchor.set(0.5, 1)
     enemy.position.set(169, 67)
     enemy.scale.set(2)
@@ -558,7 +560,7 @@ export class BattleController {
     if (this.messageText) this.messageText.text = message
   }
 
-  private buildStaticScene(playerTexture: Texture): void {
+  private buildStaticScene(playerTexture: Texture, spritePath: string): void {
     this.view.removeChildren().forEach((child) => child.destroy())
 
     const background = new Graphics()
@@ -572,7 +574,7 @@ export class BattleController {
       .fill(0x739b5c)
     this.view.addChild(background)
 
-    const player = new Sprite(this.creatureFrame(playerTexture))
+    const player = new Sprite(this.creatureFrame(playerTexture, spritePath))
     this.playerSprite = player
     player.anchor.set(0.5, 1)
     player.position.set(61, 108)
@@ -625,21 +627,18 @@ export class BattleController {
     const texture = await Assets.load<Texture>(path)
     texture.source.scaleMode = 'nearest'
     if (!this.engine || this.engine.state.player.id !== instanceId || !this.playerSprite) return
-    this.playerSprite.texture = this.creatureFrame(texture)
+    this.playerSprite.texture = this.creatureFrame(texture, path)
   }
 
-  private creatureFrame(texture: Texture): Texture {
-    const sourceWidth = texture.source.width
-    const sourceHeight = texture.source.height
-    const x = Math.min(30, Math.max(0, sourceWidth - 1))
-    const y = Math.min(9, Math.max(0, sourceHeight - 1))
-    const availableWidth = Math.max(1, sourceWidth - x)
-    const availableHeight = Math.max(1, sourceHeight - y)
-    const width = Math.max(1, Math.min(35, availableWidth))
-    const height = Math.max(1, Math.min(24, availableHeight))
+  private creatureFrame(texture: Texture, spritePath: string): Texture {
+    const frame = resolveSpeciesBattleFrame(
+      spritePath,
+      texture.source.width,
+      texture.source.height,
+    )
     return new Texture({
       source: texture.source,
-      frame: new Rectangle(x, y, width, height),
+      frame: new Rectangle(frame.x, frame.y, frame.width, frame.height),
     })
   }
 }

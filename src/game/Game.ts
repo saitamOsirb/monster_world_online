@@ -155,6 +155,7 @@ export class Game {
       onDoorEntering: (door) => void this.world.openDoor(door),
       onDoorEntered: (door) => void this.transitionThroughDoor(door),
       onGrassStep: (tile) => void this.handleGrassStep(tile),
+      onEncounterStep: (tile) => void this.handleEncounterStep(tile),
       onLanded: (tile) => void this.world.showLandingDust(tile),
     })
     this.world.addActor(this.player.view)
@@ -374,6 +375,10 @@ export class Game {
 
   private async handleGrassStep(tile: GridPoint): Promise<void> {
     void this.world.showGrassStep(tile)
+    await this.handleEncounterStep(tile)
+  }
+
+  private async handleEncounterStep(_tile: GridPoint): Promise<void> {
     if (this.transitioning || this.battle.isActive || this.menu.inputLocked) return
     if (!this.collection.party.some((monster) => monster.currentHp > 0)) return
 

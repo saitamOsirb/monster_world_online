@@ -76,6 +76,7 @@ export class TileMapRenderer {
 
       const sprite = new Sprite(frame)
       sprite.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
+      if (tile.tint !== undefined) sprite.tint = tile.tint
       sprite.roundPixels = true
 
       if (tile.transpose) sprite.rotation = Math.PI / 2

@@ -31,6 +31,9 @@ export interface TileDefinition {
   flipX: boolean
   flipY: boolean
   transpose: boolean
+  tint?: number
+  blocked?: boolean
+  encounterZone?: boolean
 }
 
 export interface ImportedSceneDefinition {

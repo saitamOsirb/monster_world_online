@@ -19,6 +19,7 @@ export interface PlayerHooks {
   onDoorEntering?: (door: DoorDefinition) => void
   onDoorEntered?: (door: DoorDefinition) => void
   onGrassStep?: (tile: GridPoint) => void
+  onEncounterStep?: (tile: GridPoint) => void
   onLanded?: (tile: GridPoint) => void
 }
 
@@ -195,6 +196,7 @@ export class Player {
     this.hooks.onMoveEnd?.(this.tile)
     if (landed) this.hooks.onLanded?.(this.tile)
     if (this.collision.isTallGrass(this.tile)) this.hooks.onGrassStep?.(this.tile)
+    else if (this.collision.isEncounterZone(this.tile)) this.hooks.onEncounterStep?.(this.tile)
     if (completedDoor) this.hooks.onDoorEntered?.(completedDoor)
   }
 

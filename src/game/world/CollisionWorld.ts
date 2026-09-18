@@ -8,12 +8,14 @@ export class CollisionWorld {
   private readonly blocked = new Set<string>()
   private readonly ledges = new Set<string>()
   private readonly tallGrass = new Set<string>()
+  private readonly encounterZones = new Set<string>()
   private readonly doors = new Map<string, DoorDefinition>()
 
   clear(): void {
     this.blocked.clear()
     this.ledges.clear()
     this.tallGrass.clear()
+    this.encounterZones.clear()
     this.doors.clear()
   }
 
@@ -27,6 +29,11 @@ export class CollisionWorld {
 
   setTallGrass(point: GridPoint, value = true): void {
     this.toggle(this.tallGrass, point, value)
+    this.toggle(this.encounterZones, point, value)
+  }
+
+  setEncounterZone(point: GridPoint, value = true): void {
+    this.toggle(this.encounterZones, point, value)
   }
 
   setDoor(door: DoorDefinition): void {
@@ -43,6 +50,10 @@ export class CollisionWorld {
 
   isTallGrass(point: GridPoint): boolean {
     return this.tallGrass.has(key(point))
+  }
+
+  isEncounterZone(point: GridPoint): boolean {
+    return this.encounterZones.has(key(point))
   }
 
   getDoor(point: GridPoint): DoorDefinition | undefined {

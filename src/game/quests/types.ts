@@ -1,7 +1,15 @@
 export const ORIN_THREE_ROADS_QUEST_ID = 'orin-three-roads' as const
 
 export type QuestId = typeof ORIN_THREE_ROADS_QUEST_ID
-export type QuestStatus = 'available' | 'active' | 'ready-to-turn-in' | 'completed'
+
+export const QUEST_STATUS = {
+  available: 'available',
+  active: 'active',
+  readyToTurnIn: 'ready-to-turn-in',
+  completed: 'completed',
+} as const
+
+export type QuestStatus = typeof QUEST_STATUS[keyof typeof QUEST_STATUS]
 
 export interface QuestObjectiveDefinition {
   id: string

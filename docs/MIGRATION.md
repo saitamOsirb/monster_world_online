@@ -15,8 +15,9 @@ src/
     constants.ts                  240x160 / 16px gameplay contracts
     battle/
       BattleController.ts         Pixi battle presentation + input adapter
-      BattleEngine.ts             renderer-independent turns, damage, capture and statuses
+      BattleEngine.ts             renderer-independent turns, damage, capture, statuses and abilities
       BattleSessionFactory.ts     owned-monster/encounter → battle definitions
+      abilities.ts                data-driven species passive catalog/effect helpers
       elements.ts                 elemental chart, normalization and same-element helpers
       moves.ts                    typed move catalog
       types.ts                    battle/status/element domain contracts and events
@@ -112,6 +113,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | Elemental effectiveness | Implemented | Immunity/resistance/weakness/dual weakness at `0×/0.5×/2×/4×`. |
 | Same-element attack bonus | Implemented | Explicit typed moves gain `1.25×` when matching an attacker element. |
 | Typed move catalog | Implemented foundation | Central move metadata for element, physical/special class, priority and status effects. |
+| Species abilities/passives | Implemented foundation | Ten data-driven abilities resolved from species metadata; engine interprets generic effect types only. |
 | Physical/Special stat split | Implemented | Physical uses ATK/DEF; special uses Special Attack/Special Defense with independent species growth. |
 | Species catalog | Implemented foundation | Canonical Monster World ids/names plus stats, growth, elements, catch rate, sprite/art status and learnsets. |
 | Species-driven encounters | Implemented | Encounter tables now contain only species id, level range and weight. |
@@ -194,6 +196,33 @@ The current canonical foundation roster contains **10 species**:
 - **Duskfin** (`duskfin`) — Water/Spirit.
 
 Together the roster covers all ten current battle elements. Legacy ids `charmander-reference`, `pidgey` and `pikachu` remain permanent aliases for save compatibility. All current sprite paths still point to synchronized reference art and are explicitly marked `temporary-reference` until original production sprites are added.
+
+### Ability/passive model
+
+Abilities are **species metadata**, not persisted owned-monster state. `BattleSessionFactory` resolves the current canonical species ability at battle creation, so existing captures automatically receive their species passive without a collection schema migration. Unknown/custom legacy species remain battle-compatible and simply enter battle without an ability.
+
+`BattleEngine` never branches on species id/name. It interprets reusable effect kinds from `battle/abilities.ts`:
+
+- low-HP elemental damage boost;
+- status immunity;
+- damage bonus versus a target status;
+- incoming damage-class multiplier;
+- speed multiplier.
+
+The initial ten abilities are:
+
+- **Cindlet — Kindled Heart:** Fire damage ×1.25 at **1/3 HP or lower**.
+- **Skyrill — Tailwind:** effective Speed ×1.15.
+- **Voltail — Live Wire:** paralysis immunity.
+- **Mossprig — Verdant Purity:** poison immunity.
+- **Rillfin — Flow Guard:** incoming Special damage ×0.90.
+- **Terrun — Stonehide:** incoming Physical damage ×0.85.
+- **Glacub — Frost Mantle:** burn immunity.
+- **Miretoad — Venom Hunger:** damage ×1.20 against poisoned targets.
+- **Wispurr — Dreamwalker:** sleep immunity.
+- **Duskfin — Dusk Hunter:** damage ×1.25 against sleeping targets.
+
+Damage/status abilities emit `ability-activated` or `status-immune` battle events so presentation can explain why a result changed. Speed abilities affect action ordering directly. Ability modifiers are applied on top of the existing physical/special, STAB and elemental calculations; combatants with no ability retain the prior formula exactly.
 
 ### Town encounter population
 
@@ -337,7 +366,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **150 tests across 26 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **157 tests across 27 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -349,7 +378,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 
 - Gameplay rules are explicit TypeScript rather than scene-node callbacks.
 - Rendering does not decide movement, collision, capture, elemental effectiveness, status, rewards, inventory, economy, recovery or collection legality.
-- `BattleEngine` owns turn/status/elemental damage/party participation rules but never browser persistence.
+- `BattleEngine` owns turn/status/elemental damage/ability/party participation rules but never browser persistence.
+- `abilities.ts` owns reusable passive definitions/effect helpers; species only reference an `abilityId`.
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
 - `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata. Legacy reference ids are aliases rather than runtime identities.
@@ -370,9 +400,10 @@ The original Godot repository does not expose another major gameplay subsystem b
 3. Replace the remaining temporary third-party creature/NPC art with original production assets; canonical Monster World ids/names are already active.
 4. Expand beyond the initial 10-species foundation as new maps/biomes are introduced, adding biome-specific encounter populations rather than overloading Town.
 5. Finalize balance numbers and replace `temporary-reference` sprite paths with original Monster World art.
-6. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
-7. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+6. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
+7. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
+8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

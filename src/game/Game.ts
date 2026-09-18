@@ -412,22 +412,38 @@ export class Game {
   ): string | void {
     this.persistBattleState(state)
 
-    if (phase === 'captured') {
-      const captured = createCapturedMonster(encounter, state.enemy)
-      const result = this.collection.addCaptured(captured)
-      this.questService.recordCapture(encounter.speciesId)
-      return `${captured.displayName} was sent to your ${result.destination}.`
-    }
-
+    if (phase === 'captured') return this.applyCapturedBattleResult(state, encounter)
     if (phase !== 'won') return
+
+    return this.applyVictoryBattleResult(state, encounter)
+  }
+
+  private applyCapturedBattleResult(
+    state: BattleState,
+    encounter: WildEncounter,
+  ): string {
+    const captured = createCapturedMonster(encounter, state.enemy)
+    const result = this.collection.addCaptured(captured)
+    this.questService.recordCapture(encounter.speciesId)
+    return `${captured.displayName} was sent to your ${result.destination}.`
+  }
+
+  private applyVictoryBattleResult(
+    state: BattleState,
+    encounter: WildEncounter,
+  ): string {
     this.questService.recordDefeat(encounter.speciesId)
     const experienceText = this.applySharedVictoryExperience(state)
     const battleReward = this.rewards.grantVictory(state.enemy)
-    for (const drop of battleReward.drops) {
-      this.questService.recordItemAcquired(drop.itemId, drop.quantity)
-    }
+    this.recordQuestItemDrops(battleReward)
     const rewardText = this.formatBattleReward(battleReward)
     return `${experienceText} ${rewardText}`.trim()
+  }
+
+  private recordQuestItemDrops(reward: BattleRewardGrant): void {
+    for (const drop of reward.drops) {
+      this.questService.recordItemAcquired(drop.itemId, drop.quantity)
+    }
   }
 
   private applySharedVictoryExperience(state: BattleState): string {

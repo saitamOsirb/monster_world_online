@@ -4,6 +4,7 @@ import {
   isExplicitLegacyReferenceArt,
   legacyPokemonReferenceArt,
   originalSpeciesArt,
+  resolveSpeciesBattleFrame,
 } from '../src/game/species/art'
 import { listSpeciesDefinitions } from '../src/game/species/catalog'
 
@@ -48,4 +49,27 @@ describe('species art contract', () => {
       }
     }
   })
+
+  it('uses the full texture for canonical original battle art', () => {
+    expect(resolveSpeciesBattleFrame(
+      '/assets/monster-world/species/cindlet/battle.png',
+      48,
+      40,
+    )).toEqual({
+      x: 0,
+      y: 0,
+      width: 48,
+      height: 40,
+    })
+  })
+
+  it('preserves the legacy Pokémon sheet crop exactly', () => {
+    expect(resolveSpeciesBattleFrame('/assets/Pokemon/Charmander.png', 96, 96)).toEqual({
+      x: 30,
+      y: 9,
+      width: 35,
+      height: 24,
+    })
+  })
+
 })

@@ -16,3 +16,10 @@ with `originalSpeciesArt('<species-id>')`.
 
 Do not mark a species as `original` until the referenced production asset
 exists in this tree.
+
+Run `pnpm assets:verify` before committing. CI runs the same gate and validates
+that every active original species entry has a real PNG with non-zero dimensions,
+transparency support and a complete PNG structure.
+
+Original `battle.png` files are rendered as full textures. The legacy 35×24 crop
+is retained only for synchronized reference sheets.

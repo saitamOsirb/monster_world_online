@@ -21,6 +21,7 @@ import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
+import { getSpeciesDefinition } from './species/catalog'
 import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
 import { ShopService } from './shop/ShopService'
@@ -212,7 +213,7 @@ export class Game {
       speciesId: 'skyrill',
       displayName: 'Skyrill',
       level: 3,
-      spritePath: '/assets/Pokemon/Pidgey.png',
+      spritePath: getSpeciesDefinition('skyrill').spritePath,
     })
     this.fadeOverlay.alpha = 0
     this.app.renderer.render(this.app.stage)

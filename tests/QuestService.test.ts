@@ -21,6 +21,28 @@ class MemoryStorage {
   removeItem(key: string): void { this.data.delete(key) }
 }
 
+
+class FailingDeliveryQuestStore extends QuestStore {
+  failDelivery = false
+
+  override recordObjectiveProgress(
+    questId: Parameters<QuestStore['recordObjectiveProgress']>[0],
+    objectiveId: string,
+    increment: number,
+    requiredByObjective: Readonly<Record<string, number>>,
+  ): boolean {
+    if (this.failDelivery && objectiveId === 'deliver-healing-tonic') {
+      throw new Error('forced delivery persistence failure')
+    }
+    return super.recordObjectiveProgress(
+      questId,
+      objectiveId,
+      increment,
+      requiredByObjective,
+    )
+  }
+}
+
 interface Fixture {
   service: QuestService
   store: QuestStore
@@ -257,6 +279,42 @@ describe('QuestService', () => {
       rewardApplied: false,
     })
     expect(new WalletStore(fixture.walletStorage).balance).toBe(320)
+  })
+
+  it('restores delivered items if quest persistence fails after consumption', () => {
+    const questStorage = new MemoryStorage()
+    const walletStorage = new MemoryStorage()
+    const inventoryStorage = new MemoryStorage()
+    const store = new FailingDeliveryQuestStore(questStorage)
+    const wallet = new WalletStore(walletStorage)
+    const inventory = new InventoryStore(inventoryStorage)
+    wallet.ensureStarterBalance(200)
+    inventory.ensureStarterStock(0)
+    const service = new QuestService(store, wallet, inventory)
+    const fixture: Fixture = {
+      service,
+      store,
+      wallet,
+      inventory,
+      questStorage,
+      walletStorage,
+      inventoryStorage,
+    }
+
+    completeThreeRoads(fixture)
+    inventory.add(HEALING_TONIC_ID, 1)
+    service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    service.recordDefeat('skyrill', 2)
+    service.recordCapture('rillfin')
+
+    store.failDelivery = true
+    expect(() => service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID))
+      .toThrow('forced delivery persistence failure')
+    expect(inventory.getQuantity(HEALING_TONIC_ID)).toBe(1)
+    expect(
+      service.getProgress(ORIN_FIELD_METHODS_QUEST_ID)
+        .objectiveProgress['deliver-healing-tonic'],
+    ).toBeUndefined()
   })
 
   it('Field Methods catalog contains all four advanced objective kinds', () => {

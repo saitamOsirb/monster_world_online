@@ -184,9 +184,8 @@ export class QuestStore {
     }
 
     const entries = Object.entries(candidate.quests)
-    if (entries.some(([questId]) => !QUEST_IDS.includes(questId as QuestId))) return false
     return entries.every(([questId, progress]) =>
-      this.isQuestProgress(questId as QuestId, progress))
+      this.isQuestId(questId) && this.isQuestProgress(questId, progress))
   }
 
   private isLegacyQuestState(value: unknown): value is LegacyQuestState {
@@ -205,11 +204,19 @@ export class QuestStore {
     if (!value || typeof value !== 'object') return false
     const progress = value as Partial<LegacyQuestProgress>
     return progress.questId === ORIN_THREE_ROADS_QUEST_ID
-      && Boolean(progress.status)
-      && PERSISTED_QUEST_STATUSES.has(progress.status as QuestStatus)
+      && this.isPersistedQuestStatus(progress.status)
       && Array.isArray(progress.completedObjectiveIds)
       && progress.completedObjectiveIds.every((id) => typeof id === 'string' && id.length > 0)
       && new Set(progress.completedObjectiveIds).size === progress.completedObjectiveIds.length
+  }
+
+  private isQuestId(value: string): value is QuestId {
+    return QUEST_IDS.some((questId) => questId === value)
+  }
+
+  private isPersistedQuestStatus(value: unknown): value is QuestStatus {
+    return typeof value === 'string'
+      && PERSISTED_QUEST_STATUSES.has(value as QuestStatus)
   }
 
   private isQuestProgress(questId: QuestId, value: unknown): value is QuestProgress {

@@ -1,3 +1,4 @@
+import type { BattleAbilityId } from '../battle/abilities'
 import type { BattleElement } from '../battle/elements'
 import type { BattleMoveId } from '../battle/moves'
 
@@ -24,6 +25,7 @@ export interface MonsterSpeciesDefinition {
   displayName: string
   spritePath: string
   artStatus: SpeciesArtStatus
+  abilityId: BattleAbilityId
   elements: readonly BattleElement[]
   baseStats: SpeciesStats
   statGrowth: SpeciesStats

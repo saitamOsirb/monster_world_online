@@ -2,7 +2,9 @@ node_modules/
 dist/
 .vite/
 coverage/
-public/assets/
+public/assets/*
+!public/assets/monster-world/
+!public/assets/monster-world/**
 public/legacy/
 .env
 .env.*

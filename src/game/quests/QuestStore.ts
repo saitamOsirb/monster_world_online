@@ -10,12 +10,6 @@ import {
   type QuestStatus,
 } from './types'
 
-const PERSISTED_QUEST_STATUSES: ReadonlySet<QuestStatus> = new Set([
-  QUEST_STATUS.active,
-  QUEST_STATUS.readyToTurnIn,
-  QUEST_STATUS.completed,
-])
-
 const DEFAULT_KEY = 'monster-world.quests.v1'
 
 export class QuestStore {
@@ -203,11 +197,15 @@ export class QuestStore {
   private isLegacyQuestProgress(value: unknown): value is LegacyQuestProgress {
     if (!value || typeof value !== 'object') return false
     const progress = value as Partial<LegacyQuestProgress>
-    return progress.questId === ORIN_THREE_ROADS_QUEST_ID
-      && this.isPersistedQuestStatus(progress.status)
-      && Array.isArray(progress.completedObjectiveIds)
-      && progress.completedObjectiveIds.every((id) => typeof id === 'string' && id.length > 0)
-      && new Set(progress.completedObjectiveIds).size === progress.completedObjectiveIds.length
+    if (progress.questId !== ORIN_THREE_ROADS_QUEST_ID) return false
+    if (!this.isPersistedQuestStatus(progress.status)) return false
+    return this.isValidCompletedObjectiveIds(progress.completedObjectiveIds)
+  }
+
+  private isValidCompletedObjectiveIds(value: unknown): value is readonly string[] {
+    if (!Array.isArray(value)) return false
+    if (!value.every((id) => typeof id === 'string' && id.length > 0)) return false
+    return new Set(value).size === value.length
   }
 
   private isQuestId(value: string): value is QuestId {
@@ -224,14 +222,21 @@ export class QuestStore {
     if (!value || typeof value !== 'object') return false
     const progress = value as Partial<QuestProgress>
     if (progress.questId !== questId) return false
-    if (!progress.status || !PERSISTED_QUEST_STATUSES.has(progress.status)) return false
-    if (!progress.objectiveProgress || typeof progress.objectiveProgress !== 'object') return false
+    if (!this.isPersistedQuestStatus(progress.status)) return false
+    return this.isValidObjectiveProgress(progress.objectiveProgress)
+  }
 
-    return Object.entries(progress.objectiveProgress).every(([objectiveId, count]) =>
-      objectiveId.length > 0
+  private isValidObjectiveProgress(value: unknown): value is Record<string, number> {
+    if (!value || typeof value !== 'object') return false
+    return Object.entries(value).every(([objectiveId, count]) =>
+      this.isValidObjectiveProgressEntry(objectiveId, count))
+  }
+
+  private isValidObjectiveProgressEntry(objectiveId: string, count: unknown): boolean {
+    return objectiveId.length > 0
       && typeof count === 'number'
       && Number.isSafeInteger(count)
-      && count >= 0)
+      && count >= 0
   }
 
   private assertProgressIncrement(increment: number): void {
@@ -242,14 +247,14 @@ export class QuestStore {
 
   private assertObjectiveRequirements(requiredByObjective: Readonly<Record<string, number>>): void {
     const entries = Object.entries(requiredByObjective)
-    if (
-      entries.length === 0
-      || entries.some(([id, target]) =>
-        id.trim().length === 0
-        || !Number.isSafeInteger(target)
-        || target <= 0)
-    ) {
+    if (entries.length === 0 || entries.some(([id, target]) => !this.isValidRequirement(id, target))) {
       throw new Error('Quest objective requirements must use non-empty ids and positive integer targets')
     }
+  }
+
+  private isValidRequirement(id: string, target: number): boolean {
+    return id.trim().length > 0
+      && Number.isSafeInteger(target)
+      && target > 0
   }
 }

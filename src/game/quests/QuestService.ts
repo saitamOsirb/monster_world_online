@@ -124,15 +124,24 @@ export class QuestService {
       }
     }
 
-    for (const [itemId, quantity] of requirements) {
-      if (!this.inventory.consume(itemId, quantity)) {
-        throw new Error(`Quest delivery preflight became invalid for item "${itemId}"`)
+    const consumed: Array<[InventoryItemId, number]> = []
+    try {
+      for (const [itemId, quantity] of requirements) {
+        if (!this.inventory.consume(itemId, quantity)) {
+          throw new Error(`Quest delivery preflight became invalid for item "${itemId}"`)
+        }
+        consumed.push([itemId, quantity])
       }
-    }
 
-    for (const objective of definition.objectives) {
-      if (objective.kind !== 'deliver-item') continue
-      this.recordObjective(definition, objective, objective.required)
+      for (const objective of definition.objectives) {
+        if (objective.kind !== 'deliver-item') continue
+        this.recordObjective(definition, objective, objective.required)
+      }
+    } catch (error) {
+      for (const [itemId, quantity] of consumed) {
+        this.inventory.add(itemId, quantity)
+      }
+      throw error
     }
 
     return {

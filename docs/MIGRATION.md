@@ -410,7 +410,7 @@ The unit suite now contains **187 tests across 30 test files** covering import/c
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
-- dialogue: pending first deterministic baseline in this PR; existing baselines must remain unchanged.
+- dialogue: `658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02`
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`

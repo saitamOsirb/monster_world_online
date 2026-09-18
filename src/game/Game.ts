@@ -11,6 +11,7 @@ import { InputController } from './input/InputController'
 import { InteractionService } from './interaction/InteractionService'
 import {
   PARTY_RECOVERY_SERVICE_ID,
+  TOWN_FIELD_GUIDE,
   TOWN_RECOVERY_ATTENDANT,
   TOWN_SUPPLY_MERCHANT,
 } from './interaction/npcs'
@@ -27,6 +28,7 @@ import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRew
 import { ShopService } from './shop/ShopService'
 import { TOWN_SUPPLY_SHOP } from './shop/catalog'
 import { BagController } from './ui/BagController'
+import { DialogueController } from './ui/DialogueController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
 import { RecoveryController } from './ui/RecoveryController'
@@ -61,6 +63,7 @@ export class Game {
   private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
   private readonly npcWorld: NpcWorldLayer
   private readonly menu: MenuController
+  private readonly dialogue: DialogueController
   private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
   private readonly vendor: VendorController
@@ -112,6 +115,7 @@ export class Game {
       onPartyExitRequested: () => void this.transitionBackToMenu(),
       onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
+    this.dialogue = new DialogueController()
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
       getParty: () => this.collection.party,
@@ -131,6 +135,7 @@ export class Game {
     this.app.stage.addChild(
       this.world.view,
       this.menu.view,
+      this.dialogue.view,
       this.bag.view,
       this.partyStorage.view,
       this.battle.view,
@@ -228,6 +233,16 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+
+  openDialogueForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual dialogue loading is only available in visual-test mode')
+    }
+    this.dialogue.show(TOWN_FIELD_GUIDE)
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -240,6 +255,12 @@ export class Game {
 
     if (this.vendor.isActive) {
       if (!this.transitioning) this.vendor.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.dialogue.isActive) {
+      if (!this.transitioning) this.dialogue.update(this.input)
       this.input.endFrame()
       return
     }
@@ -292,7 +313,8 @@ export class Game {
       this.recovery.show(npc)
       return true
     }
-    return false
+    this.dialogue.show(npc)
+    return true
   }
 
   private updateCamera(): void {

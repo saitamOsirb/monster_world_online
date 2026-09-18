@@ -1,5 +1,13 @@
 import type { InventoryItemId } from '../inventory/types'
 import {
+  abilitySpeedMultiplier,
+  getBattleAbility,
+  incomingAbilityMultiplier,
+  isBattleAbilityId,
+  outgoingAbilityMultiplier,
+  statusBlockedByAbility,
+} from './abilities'
+import {
   elementalEffectiveness,
   hasSameElementBonus,
   isBattleElement,
@@ -36,6 +44,8 @@ interface DamageResult {
   effectiveness: ElementEffectiveness
   sameElementBonus: boolean
   moveElement: BattleElement
+  attackerAbilityActivated: boolean
+  defenderAbilityActivated: boolean
 }
 
 const PARALYSIS_SKIP_CHANCE = 0.25
@@ -267,6 +277,26 @@ export class BattleEngine {
 
     const target: BattleSide = side === 'player' ? 'enemy' : 'player'
     const result = this.calculateDamage(attacker, defender, move)
+
+    if (result.attackerAbilityActivated && attacker.abilityId) {
+      const ability = getBattleAbility(attacker.abilityId)
+      events.push({
+        type: 'ability-activated',
+        side,
+        abilityId: attacker.abilityId,
+        abilityName: ability.name,
+      })
+    }
+    if (result.defenderAbilityActivated && defender.abilityId) {
+      const ability = getBattleAbility(defender.abilityId)
+      events.push({
+        type: 'ability-activated',
+        side: target,
+        abilityId: defender.abilityId,
+        abilityName: ability.name,
+      })
+    }
+
     if (result.effectiveness !== 1) {
       events.push({
         type: 'effectiveness',
@@ -328,6 +358,18 @@ export class BattleEngine {
   ): void {
     const effect = move.statusEffect
     if (!effect || defender.status || !this.rollChance(effect.chance)) return
+
+    if (defender.abilityId && statusBlockedByAbility(defender.abilityId, effect.condition)) {
+      const ability = getBattleAbility(defender.abilityId)
+      events.push({
+        type: 'status-immune',
+        target,
+        condition: effect.condition,
+        abilityId: defender.abilityId,
+        abilityName: ability.name,
+      })
+      return
+    }
 
     const status: BattleStatus = { condition: effect.condition }
     if (effect.condition === 'sleep') status.remainingTurns = effect.durationTurns ?? 2
@@ -432,17 +474,49 @@ export class BattleEngine {
     const stab = sameElementBonus ? SAME_ELEMENT_BONUS : 1
 
     if (effectiveness === 0) {
-      return { amount: 0, effectiveness, sameElementBonus, moveElement }
+      return {
+        amount: 0,
+        effectiveness,
+        sameElementBonus,
+        moveElement,
+        attackerAbilityActivated: false,
+        defenderAbilityActivated: false,
+      }
     }
+
+    const outgoing = outgoingAbilityMultiplier(attacker.abilityId, {
+      hpRatio: attacker.currentHp / Math.max(1, attacker.maxHp),
+      moveElement,
+      defenderStatus: defender.status?.condition,
+    })
+    const incoming = incomingAbilityMultiplier(defender.abilityId, damageClass)
 
     const raw = ((levelFactor * move.power * attack) / Math.max(1, defense)) / 50 + 2
     const variance = 0.85 + this.normalizedRandom() * 0.15
-    const amount = Math.max(1, Math.floor(raw * variance * stab * effectiveness))
-    return { amount, effectiveness, sameElementBonus, moveElement }
+    const amount = Math.max(
+      1,
+      Math.floor(
+        raw
+          * variance
+          * stab
+          * effectiveness
+          * outgoing.multiplier
+          * incoming.multiplier,
+      ),
+    )
+    return {
+      amount,
+      effectiveness,
+      sameElementBonus,
+      moveElement,
+      attackerAbilityActivated: outgoing.activated,
+      defenderAbilityActivated: incoming.activated,
+    }
   }
 
   private effectiveSpeed(combatant: BattleCombatantState): number {
-    return combatant.status?.condition === 'paralysis' ? combatant.speed * 0.5 : combatant.speed
+    const statusMultiplier = combatant.status?.condition === 'paralysis' ? 0.5 : 1
+    return combatant.speed * statusMultiplier * abilitySpeedMultiplier(combatant.abilityId)
   }
 
   private rollChance(chance: number): boolean {
@@ -544,6 +618,9 @@ export class BattleEngine {
           ? 'Reserve current HP must be between zero and max HP'
           : 'Combatant current HP must be greater than zero and at most max HP')
       }
+    }
+    if (combatant.abilityId !== undefined && !isBattleAbilityId(combatant.abilityId)) {
+      throw new Error(`Unsupported battle ability: ${String(combatant.abilityId)}`)
     }
     if (combatant.elements !== undefined) {
       if (combatant.elements.length === 0 || combatant.elements.length > 2) {

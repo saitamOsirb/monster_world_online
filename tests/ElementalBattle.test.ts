@@ -115,8 +115,8 @@ describe('elemental battle model', () => {
   it('builds enemy elements, stats and learnset from the species catalog', () => {
     const encounter: WildEncounter = {
       tableId: 'element-test',
-      speciesId: 'pidgey',
-      displayName: 'Pidgey',
+      speciesId: 'skyrill',
+      displayName: 'Skyrill',
       level: 4,
       spritePath: '/assets/Pokemon/Pidgey.png',
     }

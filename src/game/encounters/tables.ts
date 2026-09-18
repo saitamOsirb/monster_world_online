@@ -1,18 +1,18 @@
 import type { EncounterTable } from './types'
 
 const TOWN_GRASS_ENCOUNTERS: EncounterTable = {
-  id: 'town-grass-reference',
+  id: 'town-grass',
   encounterRate: 0.18,
   cooldownSteps: 3,
   entries: [
     {
-      speciesId: 'pidgey',
+      speciesId: 'skyrill',
       minLevel: 2,
       maxLevel: 4,
       weight: 70,
     },
     {
-      speciesId: 'pikachu',
+      speciesId: 'voltail',
       minLevel: 3,
       maxLevel: 5,
       weight: 30,

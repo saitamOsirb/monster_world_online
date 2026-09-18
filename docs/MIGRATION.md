@@ -104,7 +104,7 @@ The upstream prototype does not contain these systems. They are original Monster
 
 | System | Status | Notes |
 | --- | --- | --- |
-| Scene-scoped encounters | Implemented foundation | Town has the reference grass table. |
+| Scene-scoped encounters | Implemented foundation | Town uses the canonical Skyrill/Voltail grass table. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
 | Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
@@ -113,7 +113,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | Same-element attack bonus | Implemented | Explicit typed moves gain `1.25×` when matching an attacker element. |
 | Typed move catalog | Implemented foundation | Central move metadata for element, physical/special class, priority and status effects. |
 | Physical/Special stat split | Implemented | Physical uses ATK/DEF; special uses Special Attack/Special Defense with independent species growth. |
-| Species catalog | Implemented foundation | Central physical/special base stats, stat growth, elements, catch rate, growth curve, sprite and learnset metadata. |
+| Species catalog | Implemented foundation | Canonical Monster World ids/names plus stats, growth, elements, catch rate, sprite/art status and learnsets. |
 | Species-driven encounters | Implemented | Encounter tables now contain only species id, level range and weight. |
 | Species-driven capture/growth | Implemented | Catch rate and per-level stat growth resolve through species metadata with legacy fallbacks. |
 | Persistent HP/status | Implemented | Terminal HP + condition persist for win/loss/run/capture. |
@@ -172,7 +172,7 @@ The first centralized move catalog contains:
 - **Spark Jolt** — electric / special / 20% paralysis.
 - **Gust Cut** — air / physical.
 
-Species combat/presentation metadata no longer lives in encounter tables. `species/catalog.ts` is the source of truth for each species' display name, sprite, elements, base stats, per-level stat growth, catch rate, growth curve and learnset. Encounter tables now declare only `speciesId`, level range and weight. `EncounterService`, `BattleSessionFactory`, `MonsterFactory`, capture and progression resolve species metadata through that catalog. The current starter is fire-aligned and learns Strike, Ember Burst and Quick Hit; the current Town reference species resolve their air/neutral and electric loadouts from their learnsets.
+Species combat/presentation metadata no longer lives in encounter tables. `species/catalog.ts` is the source of truth for each species' canonical id, legacy aliases, display name, sprite/art status, elements, base stats, per-level stat growth, catch rate, growth curve and learnset. Encounter tables now declare only `speciesId`, level range and weight. The current canonical roster is **Cindlet** (`cindlet`, Fire starter), **Skyrill** (`skyrill`, Air/Neutral Town common) and **Voltail** (`voltail`, Electric Town rare). Legacy ids `charmander-reference`, `pidgey` and `pikachu` remain permanent aliases for save compatibility. Their current sprite paths still point to synchronized reference art and are explicitly marked `temporary-reference` until original production sprites are added.
 
 ### Status and progression
 
@@ -289,7 +289,8 @@ Collection payload `version: 2` remains backward compatible with records created
 - missing `elements` normalizes to `['neutral']`;
 - existing moves without `element`/`damageClass` remain untyped rather than being silently rewritten, so they do not receive accidental STAB;
 - missing `specialAttack` normalizes from `attack` and missing `specialDefense` normalizes from `defense` without changing the collection key or payload version;
-- legacy collection `version: 1` still migrates with `experience: 0`, normalized elements and normalized special stats.
+- legacy collection `version: 1` still migrates with `experience: 0`, normalized elements and normalized special stats;
+- version-2 saves using legacy reference species ids are canonicalized on load and persisted back with the Monster World id/name/sprite identity without recalculating level, EXP, HP, stats, moves or status.
 
 Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and Revive Kit keys and normalizes each missing quantity to zero. No migration manufactures new stock.
 
@@ -302,13 +303,13 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **140 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **143 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
-All existing deterministic visual hashes remain unchanged through the participation/shared-EXP phase. Product-screen baselines remain:
+Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
-- recovery: `a8904ce9ecf7a85df7e5b8fe9fb022a80f1ef882d6494d6a12734afa3c47645b`
-- battle: `96f6124fcba0ba46ab89255d6889a8cc8a81958d110e558099049a9092570b48`
+- recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
+- battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
 
 ## Intentional architecture cleanups
 
@@ -317,7 +318,7 @@ All existing deterministic visual hashes remain unchanged through the participat
 - `BattleEngine` owns turn/status/elemental damage/party participation rules but never browser persistence.
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
-- `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata from the catalog.
+- `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata. Legacy reference ids are aliases rather than runtime identities.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
@@ -332,9 +333,9 @@ The original Godot repository does not expose another major gameplay subsystem b
 
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
-3. Replace temporary third-party Pokémon resources and reused NPC art before production distribution.
-4. Replace the temporary reference entries in the species catalog with original Monster World species IDs, names, sprites and finalized balancing data while preserving the catalog boundary.
-5. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
+3. Replace the remaining temporary third-party creature/NPC art with original production assets; canonical Monster World ids/names are already active.
+4. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
+5. Finalize balance numbers and replace `temporary-reference` sprite paths with original Monster World art.
 6. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
 7. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
 8. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.

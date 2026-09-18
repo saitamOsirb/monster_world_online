@@ -136,8 +136,8 @@ export class QuestStore {
     const entries = Object.entries(candidate.quests)
     if (entries.some(([questId]) => questId !== ORIN_THREE_ROADS_QUEST_ID)) return false
 
-    return entries.every(([questId, progress]) =>
-      this.isQuestProgress(questId as QuestId, progress))
+    return entries.every(([, progress]) =>
+      this.isQuestProgress(ORIN_THREE_ROADS_QUEST_ID, progress))
   }
 
   private isQuestProgress(questId: QuestId, value: unknown): value is QuestProgress {

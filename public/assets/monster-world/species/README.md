@@ -23,3 +23,12 @@ transparency support and a complete PNG structure.
 
 Original `battle.png` files are rendered as full textures. The legacy 35×24 crop
 is retained only for synchronized reference sheets.
+
+Runtime presentation then scales the full original texture to fit its surface while
+preserving aspect ratio:
+- enemy battle slot: up to 70×48 logical pixels;
+- player battle slot: up to 82.25×56.4 logical pixels;
+- Party slot: up to 35×24 logical pixels.
+
+Original Party art is a single frame. The two-frame Party animation contract remains
+legacy-only until an explicit first-party animation format is introduced.

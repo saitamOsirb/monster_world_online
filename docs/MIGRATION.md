@@ -209,6 +209,9 @@ Original creature art is now isolated behind `species/art.ts` rather than mixing
 - original `battle.png` files render as their complete texture; the legacy Pokémon sheet crop `(30, 9, 35×24)` remains isolated to non-original/reference paths so replacing art cannot accidentally clip a new standalone sprite.
 - `pnpm assets:verify` scans literal `originalSpeciesArt('<id>')` catalog entries and fails CI if the corresponding versioned PNG is missing, malformed, lacks valid dimensions, lacks transparency support, or is missing `IEND`.
 - the deterministic battle visual fixture resolves Skyrill's sprite through the species catalog instead of hardcoding a Pokémon path, so future art migrations produce deliberate visual-regression changes.
+- original battle art is presentation-normalized by target box rather than a fixed global scale: enemy battle art fits within 70×48 logical pixels, player battle art within the existing 82.25×56.4 footprint, and Party art within 35×24 while preserving aspect ratio.
+- original Party art uses one complete standalone frame; legacy reference sheets keep their two 35×24 frames at x=30 and x=65. This prevents a future standalone `battle.png` from being interpreted as a Pokémon sheet.
+- presentation framing/scaling is derived from the current catalog path at render time and is not persisted in `OwnedMonster`, so art replacements do not require a save migration.
 
 No species is marked `original` yet because no production creature sprite has been supplied to the repository. Migrating one species is intentionally a small content change: commit its `battle.png`, switch that catalog entry from `legacyPokemonReferenceArt(...)` to `originalSpeciesArt('<id>')`, then review the expected visual regression changes.
 
@@ -400,7 +403,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **177 tests across 29 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **181 tests across 29 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 

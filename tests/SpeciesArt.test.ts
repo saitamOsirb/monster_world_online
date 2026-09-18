@@ -5,6 +5,8 @@ import {
   legacyPokemonReferenceArt,
   originalSpeciesArt,
   resolveSpeciesBattleFrame,
+  resolveSpeciesDisplayScale,
+  resolveSpeciesPartyFrames,
 } from '../src/game/species/art'
 import { listSpeciesDefinitions } from '../src/game/species/catalog'
 
@@ -70,6 +72,46 @@ describe('species art contract', () => {
       width: 35,
       height: 24,
     })
+  })
+
+
+  it('uses one full frame for original party art', () => {
+    expect(resolveSpeciesPartyFrames(
+      '/assets/monster-world/species/cindlet/battle.png',
+      64,
+      48,
+    )).toEqual([
+      { x: 0, y: 0, width: 64, height: 48 },
+    ])
+  })
+
+  it('preserves the two legacy party frames exactly', () => {
+    expect(resolveSpeciesPartyFrames('/assets/Pokemon/Charmander.png', 128, 96)).toEqual([
+      { x: 30, y: 9, width: 35, height: 24 },
+      { x: 65, y: 9, width: 35, height: 24 },
+    ])
+  })
+
+  it('fits original battle art inside a target box while preserving aspect ratio', () => {
+    expect(resolveSpeciesDisplayScale(
+      '/assets/monster-world/species/cindlet/battle.png',
+      64,
+      64,
+      70,
+      48,
+      2,
+    )).toBe(0.75)
+  })
+
+  it('preserves the exact legacy scale instead of normalizing reference sheets', () => {
+    expect(resolveSpeciesDisplayScale(
+      '/assets/Pokemon/Charmander.png',
+      35,
+      24,
+      70,
+      48,
+      2.35,
+    )).toBe(2.35)
   })
 
 })

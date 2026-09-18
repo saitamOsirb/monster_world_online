@@ -1,4 +1,10 @@
-import { ORIN_THREE_ROADS_QUEST_ID, QUEST_STATUS, type QuestId, type QuestProgress, type QuestState } from './types'
+import { ORIN_THREE_ROADS_QUEST_ID, QUEST_STATUS, type QuestId, type QuestProgress, type QuestState, type QuestStatus } from './types'
+
+const PERSISTED_QUEST_STATUSES: ReadonlySet<QuestStatus> = new Set([
+  QUEST_STATUS.active,
+  QUEST_STATUS.readyToTurnIn,
+  QUEST_STATUS.completed,
+])
 
 const DEFAULT_KEY = 'monster-world.quests.v1'
 
@@ -138,13 +144,7 @@ export class QuestStore {
     if (!value || typeof value !== 'object') return false
     const progress = value as Partial<QuestProgress>
     if (progress.questId !== questId) return false
-    if (
-      progress.status !== QUEST_STATUS.active
-      && progress.status !== QUEST_STATUS.readyToTurnIn
-      && progress.status !== QUEST_STATUS.completed
-    ) {
-      return false
-    }
+    if (!progress.status || !PERSISTED_QUEST_STATUSES.has(progress.status)) return false
     return Array.isArray(progress.completedObjectiveIds)
       && progress.completedObjectiveIds.every((id) => typeof id === 'string' && id.length > 0)
       && new Set(progress.completedObjectiveIds).size === progress.completedObjectiveIds.length

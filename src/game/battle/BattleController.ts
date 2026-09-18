@@ -505,6 +505,10 @@ export class BattleController {
         else if (event.multiplier === 4) messages.push('It was devastatingly effective!')
       } else if (event.type === 'damage') {
         messages.push(`${event.amount} damage.`)
+      } else if (event.type === 'ability-activated') {
+        messages.push(`${this.sideName(event.side)}'s ${event.abilityName} activated.`)
+      } else if (event.type === 'status-immune') {
+        messages.push(`${this.sideName(event.target)}'s ${event.abilityName} blocked ${this.statusLabel(event.condition)}.`)
       } else if (event.type === 'status-applied') {
         messages.push(`${this.sideName(event.target)} is now ${this.statusLabel(event.condition)}.`)
       } else if (event.type === 'status-blocked') {

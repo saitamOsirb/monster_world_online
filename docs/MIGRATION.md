@@ -105,7 +105,7 @@ The upstream prototype does not contain these systems. They are original Monster
 
 | System | Status | Notes |
 | --- | --- | --- |
-| Scene-scoped encounters | Implemented foundation | Town uses a six-species canonical grass population with normalized rarity weights. |
+| Scene-scoped encounters | Implemented foundation | Town plus three native Monster World biomes have canonical encounter populations with normalized rarity weights. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
 | Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
@@ -235,7 +235,23 @@ Town grass currently resolves six canonical species with weights totaling **100*
 - Voltail — 7%, levels 3–5.
 - Wispurr — 3%, levels 4–6.
 
-Cindlet remains starter-only. Rillfin, Glacub and Duskfin are catalog-ready but intentionally not placed into an unrelated existing map; they should enter biome-appropriate encounter tables when those zones exist.
+Cindlet remains starter-only. Rillfin, Glacub and Duskfin are now reachable in biome-appropriate native scenes rather than being injected into Town.
+
+### Native biome exploration
+
+The upstream reference contains Town and interiors only, so Monster World biomes are native TypeScript/Pixi scenes rather than fabricated Godot files. `NativeSceneCatalog.ts` produces deterministic `ImportedSceneDefinition` objects and `WorldScene` resolves them before falling back to `LegacyGodotImporter`.
+
+Current native scenes:
+
+- **Tidewater Coast** — `res://MonsterWorld/TidewaterCoast.tscn`; Rillfin 50%, Skyrill 20%, Mossprig 12%, Duskfin 10%, Voltail 8%, levels 4–8.
+- **Frosthollow Cavern** — `res://MonsterWorld/FrosthollowCavern.tscn`; Glacub 55%, Terrun 25%, Wispurr 15%, Skyrill 5%, levels 5–8.
+- **Duskmire Marsh** — `res://MonsterWorld/DuskmireMarsh.tscn`; Miretoad 35%, Duskfin 30%, Rillfin 15%, Wispurr 15%, Mossprig 5%, levels 5–9.
+
+Each table totals **100**. Town receives three runtime gateways on its far north edge; each biome has a deterministic return door to Town.
+
+Native terrain adds optional `blocked`, `encounterZone` and `tint` metadata without changing legacy TSCN parsing. Generic encounter zones trigger wild battles without pretending cave/coast/marsh terrain is TallGrass. Legacy TallGrass still keeps its grass-step animation and encounter behavior.
+
+The upstream asset pack has no snow/cave/coastal environment tilesets. These native biomes therefore reuse synchronized tiles with temporary tints; they are functional exploration maps, not final production environment art.
 
 ### Status and progression
 
@@ -366,13 +382,16 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **157 tests across 27 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **164 tests across 28 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
+- Tidewater Coast: `d438a72eabf3066ad046f9e00746cb82d0f7862321adf60f9ec4ed4da947e3b8`
+- Frosthollow Cavern: `ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc`
+- Duskmire Marsh: `e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad`
 
 ## Intentional architecture cleanups
 
@@ -383,6 +402,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
 - `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata. Legacy reference ids are aliases rather than runtime identities.
+- `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways; legacy Godot import remains a separate fallback path.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore` and `WalletStore` own persistence.
@@ -398,12 +418,13 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
 3. Replace the remaining temporary third-party creature/NPC art with original production assets; canonical Monster World ids/names are already active.
-4. Expand beyond the initial 10-species foundation as new maps/biomes are introduced, adding biome-specific encounter populations rather than overloading Town.
-5. Finalize balance numbers and replace `temporary-reference` sprite paths with original Monster World art.
-6. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
-7. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-8. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
-9. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
+4. Replace temporary tinted biome terrain with original Monster World coast/cavern/marsh environment art while preserving the native scene contract.
+5. Expand beyond the initial 10-species foundation as additional maps/biomes are introduced.
+6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
+7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
+8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
+9. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.
+10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note
 

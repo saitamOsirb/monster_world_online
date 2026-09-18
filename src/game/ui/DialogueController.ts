@@ -106,7 +106,7 @@ export class DialogueController {
     this.addText(
       session.currentPage,
       8,
-      BOX_Y + 22,
+      session.hasChoices ? BOX_Y + 22 : BOX_Y + 23,
       session.hasChoices ? 7 : 8,
       0xffffff,
       224,

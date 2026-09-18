@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { InteractionService } from '../src/game/interaction/InteractionService'
-import { TOWN_RECOVERY_ATTENDANT, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { TOWN_FIELD_GUIDE, TOWN_RECOVERY_ATTENDANT, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
 
 const service = new InteractionService()
 
@@ -31,4 +31,14 @@ describe('InteractionService', () => {
       y: TOWN_SUPPLY_MERCHANT.tile.y + 1,
     })).toBeUndefined()
   })
+
+  it('finds a generic dialogue NPC without vendor or recovery service routing', () => {
+    const npc = service.findNpc(TOWN_FIELD_GUIDE.scenePath, TOWN_FIELD_GUIDE.tile)
+
+    expect(npc?.id).toBe(TOWN_FIELD_GUIDE.id)
+    expect(npc?.vendorId).toBeUndefined()
+    expect(npc?.serviceId).toBeUndefined()
+    expect(npc?.dialoguePages).toHaveLength(3)
+  })
+
 })

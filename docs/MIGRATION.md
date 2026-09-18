@@ -197,6 +197,18 @@ The current canonical foundation roster contains **10 species**:
 
 Together the roster covers all ten current battle elements. Legacy ids `charmander-reference`, `pidgey` and `pikachu` remain permanent aliases for save compatibility. All current sprite paths still point to synchronized reference art and are explicitly marked `temporary-reference` until original production sprites are added.
 
+### Species art migration contract
+
+Original creature art is now isolated behind `species/art.ts` rather than mixing path/status literals throughout the species catalog.
+
+- `legacyPokemonReferenceArt(filename)` keeps every remaining synchronized placeholder explicit and returns `artStatus: 'temporary-reference'`.
+- `originalSpeciesArt(speciesId)` resolves only to the versioned Monster World path `/assets/monster-world/species/<species-id>/battle.png` and returns `artStatus: 'original'`.
+- canonical ids are validated before building original asset paths; path traversal or non-canonical casing is rejected.
+- catalog regression tests require every species to resolve either to the canonical original-art contract or the explicit legacy-reference contract, never a mixed state.
+- `.gitignore` continues to exclude synchronized `public/assets/*` resources while allowing only `public/assets/monster-world/**` to be committed as first-party/licensed production art.
+
+No species is marked `original` yet because no production creature sprite has been supplied to the repository. Migrating one species is intentionally a small content change: commit its `battle.png`, switch that catalog entry from `legacyPokemonReferenceArt(...)` to `originalSpeciesArt('<id>')`, then review the expected visual regression changes.
+
 ### Ability/passive model
 
 Abilities are **species metadata**, not persisted owned-monster state. `BattleSessionFactory` resolves the current canonical species ability at battle creation, so existing captures automatically receive their species passive without a collection schema migration. Unknown/custom legacy species remain battle-compatible and simply enter battle without an ability.
@@ -384,7 +396,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **171 tests across 28 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **175 tests across 29 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -419,7 +431,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
-3. Replace the remaining temporary third-party creature/NPC art with original production assets; canonical Monster World ids/names are already active.
+3. Replace the remaining temporary third-party creature/NPC art with original production assets using the versioned Monster World art contract; canonical Monster World ids/names are already active.
 4. Replace temporary tinted biome terrain with original Monster World coast/cavern/marsh environment art while preserving the native scene contract.
 5. Expand beyond the initial 10-species foundation as additional maps/biomes are introduced.
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.

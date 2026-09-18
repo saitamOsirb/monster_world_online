@@ -9,6 +9,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
     id: STARTER_SPECIES_ID,
     legacyIds: ['charmander-reference'],
     displayName: 'Cindlet',
+    abilityId: 'kindled-heart',
     spritePath: '/assets/Pokemon/Charmander.png',
     artStatus: 'temporary-reference',
     elements: ['fire'],
@@ -26,6 +27,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
     id: 'skyrill',
     legacyIds: ['pidgey'],
     displayName: 'Skyrill',
+    abilityId: 'tailwind',
     spritePath: '/assets/Pokemon/Pidgey.png',
     artStatus: 'temporary-reference',
     elements: ['air', 'neutral'],
@@ -43,6 +45,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
     id: 'voltail',
     legacyIds: ['pikachu'],
     displayName: 'Voltail',
+    abilityId: 'live-wire',
     spritePath: '/assets/Pokemon/Pikachu.png',
     artStatus: 'temporary-reference',
     elements: ['electric'],
@@ -59,6 +62,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'mossprig',
     displayName: 'Mossprig',
+    abilityId: 'verdant-purity',
     spritePath: '/assets/Pokemon/Bulbasaur.png',
     artStatus: 'temporary-reference',
     elements: ['grass'],
@@ -75,6 +79,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'rillfin',
     displayName: 'Rillfin',
+    abilityId: 'flow-guard',
     spritePath: '/assets/Pokemon/Squirtle.png',
     artStatus: 'temporary-reference',
     elements: ['water'],
@@ -91,6 +96,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'terrun',
     displayName: 'Terrun',
+    abilityId: 'stonehide',
     spritePath: '/assets/Pokemon/Onix.png',
     artStatus: 'temporary-reference',
     elements: ['earth'],
@@ -106,6 +112,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'glacub',
     displayName: 'Glacub',
+    abilityId: 'frost-mantle',
     spritePath: '/assets/Pokemon/Squirtle.png',
     artStatus: 'temporary-reference',
     elements: ['ice'],
@@ -122,6 +129,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'miretoad',
     displayName: 'Miretoad',
+    abilityId: 'venom-hunger',
     spritePath: '/assets/Pokemon/Bulbasaur.png',
     artStatus: 'temporary-reference',
     elements: ['toxic'],
@@ -137,6 +145,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'wispurr',
     displayName: 'Wispurr',
+    abilityId: 'dreamwalker',
     spritePath: '/assets/Pokemon/Pikachu.png',
     artStatus: 'temporary-reference',
     elements: ['spirit'],
@@ -153,6 +162,7 @@ const SPECIES: readonly MonsterSpeciesDefinition[] = [
   {
     id: 'duskfin',
     displayName: 'Duskfin',
+    abilityId: 'dusk-hunter',
     spritePath: '/assets/Pokemon/Squirtle.png',
     artStatus: 'temporary-reference',
     elements: ['water', 'spirit'],

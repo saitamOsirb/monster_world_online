@@ -64,6 +64,7 @@ export interface QuestDefinition {
   rewardCredits: number
   prerequisiteQuestIds?: readonly QuestId[]
   offerText: string
+  acceptChoiceLabel: string
   acceptText: string
   readyText: string
   completedText: string

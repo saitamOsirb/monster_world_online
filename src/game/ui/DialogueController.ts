@@ -1,15 +1,22 @@
 import { Container, Graphics, Text } from 'pixi.js'
 import { InputController } from '../input/InputController'
 import { DialogueSession } from '../interaction/DialogueSession'
-import type { InteractableNpcDefinition } from '../interaction/types'
+import type {
+  DialogueChoice,
+  DialogueContent,
+  InteractableNpcDefinition,
+} from '../interaction/types'
 
 const UI_FONT_FAMILY = 'PokemonFL'
 const WIDTH = 240
-const HEIGHT = 160
 const BOX_Y = 91
 const BOX_HEIGHT = 69
 
 interface DialogueControllerHooks {
+  onChoice?: (
+    npc: InteractableNpcDefinition,
+    choice: DialogueChoice,
+  ) => DialogueContent | null
   onExit?: () => void
 }
 
@@ -26,8 +33,8 @@ export class DialogueController {
     return this.session !== null && this.view.visible
   }
 
-  show(npc: InteractableNpcDefinition): void {
-    this.session = new DialogueSession(npc)
+  show(npc: InteractableNpcDefinition, content?: DialogueContent): void {
+    this.session = new DialogueSession(npc, content)
     this.view.visible = true
     this.render()
   }
@@ -47,10 +54,32 @@ export class DialogueController {
       return
     }
 
+    if (session.hasChoices) {
+      if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) {
+        if (session.moveChoice(-1)) this.render()
+        return
+      }
+      if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) {
+        if (session.moveChoice(1)) this.render()
+        return
+      }
+    }
+
     if (!input.isConfirmPressed()) return
+
     if (session.advance()) {
       this.render()
       return
+    }
+
+    const choice = session.selectedChoice
+    if (choice) {
+      const next = this.hooks.onChoice?.(session.npc, choice) ?? null
+      if (next) {
+        this.session = new DialogueSession(session.npc, next)
+        this.render()
+        return
+      }
     }
 
     this.close()
@@ -74,7 +103,28 @@ export class DialogueController {
 
     this.view.addChild(backdrop)
     this.addText(session.npc.displayName.toUpperCase(), 8, BOX_Y + 8, 9, 0xffe6a3)
-    this.addText(session.currentPage, 8, BOX_Y + 23, 8, 0xffffff, 224)
+    this.addText(
+      session.currentPage,
+      8,
+      BOX_Y + 22,
+      session.hasChoices ? 7 : 8,
+      0xffffff,
+      224,
+    )
+
+    if (session.hasChoices) {
+      session.choices.slice(0, 3).forEach((choice, index) => {
+        const selected = index === session.selectedChoiceIndex
+        this.addText(
+          `${selected ? '▶' : ' '} ${choice.label}`,
+          11,
+          BOX_Y + 40 + index * 9,
+          7,
+          selected ? 0xffe6a3 : 0xd8ddeb,
+        )
+      })
+      return
+    }
 
     const prompt = session.isLastPage ? 'Z: CLOSE   X: CLOSE' : 'Z: NEXT   X: CLOSE'
     this.addText(

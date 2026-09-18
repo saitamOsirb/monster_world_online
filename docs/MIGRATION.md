@@ -104,7 +104,7 @@ The upstream prototype does not contain these systems. They are original Monster
 
 | System | Status | Notes |
 | --- | --- | --- |
-| Scene-scoped encounters | Implemented foundation | Town uses the canonical Skyrill/Voltail grass table. |
+| Scene-scoped encounters | Implemented foundation | Town uses a six-species canonical grass population with normalized rarity weights. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
 | Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
@@ -164,15 +164,49 @@ Monster World currently defines these ten elements:
 - Special moves resolve with **Special Attack → Special Defense**.
 - Burn's outgoing attack penalty applies to **physical Attack only** and does not reduce Special Attack.
 
-The first centralized move catalog contains:
+The centralized move catalog currently contains:
 
 - **Strike** — neutral / physical.
 - **Quick Hit** — neutral / physical / priority +1 / 20% paralysis.
 - **Ember Burst** — fire / special / 15% burn.
 - **Spark Jolt** — electric / special / 20% paralysis.
 - **Gust Cut** — air / physical.
+- **Vine Lash** — grass / physical.
+- **Tide Pulse** — water / special.
+- **Stone Bash** — earth / physical.
+- **Frost Shard** — ice / special.
+- **Venom Spit** — toxic / special / 25% poison.
+- **Wisp Touch** — spirit / special / 10% one-turn sleep.
 
-Species combat/presentation metadata no longer lives in encounter tables. `species/catalog.ts` is the source of truth for each species' canonical id, legacy aliases, display name, sprite/art status, elements, base stats, per-level stat growth, catch rate, growth curve and learnset. Encounter tables now declare only `speciesId`, level range and weight. The current canonical roster is **Cindlet** (`cindlet`, Fire starter), **Skyrill** (`skyrill`, Air/Neutral Town common) and **Voltail** (`voltail`, Electric Town rare). Legacy ids `charmander-reference`, `pidgey` and `pikachu` remain permanent aliases for save compatibility. Their current sprite paths still point to synchronized reference art and are explicitly marked `temporary-reference` until original production sprites are added.
+Species combat/presentation metadata no longer lives in encounter tables. `species/catalog.ts` is the source of truth for each species' canonical id, legacy aliases, display name, sprite/art status, elements, base stats, per-level stat growth, catch rate, growth curve and learnset. Encounter tables now declare only `speciesId`, level range and weight.
+
+The current canonical foundation roster contains **10 species**:
+
+- **Cindlet** (`cindlet`) — Fire starter.
+- **Skyrill** (`skyrill`) — Air/Neutral.
+- **Voltail** (`voltail`) — Electric.
+- **Mossprig** (`mossprig`) — Grass.
+- **Rillfin** (`rillfin`) — Water.
+- **Terrun** (`terrun`) — Earth.
+- **Glacub** (`glacub`) — Ice.
+- **Miretoad** (`miretoad`) — Toxic.
+- **Wispurr** (`wispurr`) — Spirit.
+- **Duskfin** (`duskfin`) — Water/Spirit.
+
+Together the roster covers all ten current battle elements. Legacy ids `charmander-reference`, `pidgey` and `pikachu` remain permanent aliases for save compatibility. All current sprite paths still point to synchronized reference art and are explicitly marked `temporary-reference` until original production sprites are added.
+
+### Town encounter population
+
+Town grass currently resolves six canonical species with weights totaling **100**:
+
+- Skyrill — 38%, levels 2–4.
+- Mossprig — 26%, levels 2–4.
+- Terrun — 16%, levels 3–5.
+- Miretoad — 10%, levels 3–5.
+- Voltail — 7%, levels 3–5.
+- Wispurr — 3%, levels 4–6.
+
+Cindlet remains starter-only. Rillfin, Glacub and Duskfin are catalog-ready but intentionally not placed into an unrelated existing map; they should enter biome-appropriate encounter tables when those zones exist.
 
 ### Status and progression
 
@@ -303,7 +337,7 @@ CI runs four gates:
 3. `pnpm test:visual`
 4. `pnpm build`
 
-The unit suite now contains **143 tests across 25 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
+The unit suite now contains **150 tests across 26 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet/loot/shop/rewards and NPC interaction.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -334,7 +368,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
 3. Replace the remaining temporary third-party creature/NPC art with original production assets; canonical Monster World ids/names are already active.
-4. Expand the species catalog with additional original species, learnsets and encounter populations as new maps are introduced.
+4. Expand beyond the initial 10-species foundation as new maps/biomes are introduced, adding biome-specific encounter populations rather than overloading Town.
 5. Finalize balance numbers and replace `temporary-reference` sprite paths with original Monster World art.
 6. Add broader element/status interactions, abilities or immunities once original species rules are finalized.
 7. Add additional NPCs, shop catalogs, dialogue flows, item sources and quests.

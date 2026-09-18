@@ -1,10 +1,13 @@
 import { AnimatedSprite, Assets, Container, Rectangle, Sprite, Text, Texture } from 'pixi.js'
 import { InputController } from '../input/InputController'
 import type { OwnedMonster } from '../monsters/types'
+import { resolveSpeciesDisplayScale, resolveSpeciesPartyFrames } from '../species/art'
 
 const MENU_OPTIONS = ['POKeMON', 'BAG', 'Arkeve', 'SAVE', 'OPTION', 'EXIT']
 const MENU_TEXT_COLOR = 0x6f6f88
 const UI_FONT_FAMILY = 'PokemonFL'
+const PARTY_CREATURE_MAX_WIDTH = 35
+const PARTY_CREATURE_MAX_HEIGHT = 24
 
 const PARTY_SPECIES = [
   'Charmander',
@@ -354,13 +357,34 @@ export class MenuController {
       const texture = textures[index]
       if (!member || !texture) return
 
-      const creature = new AnimatedSprite(this.regionFrames(texture, 30, 9, 70, 24, 2))
+      const frameDefinitions = resolveSpeciesPartyFrames(
+        member.spritePath,
+        texture.source.width,
+        texture.source.height,
+      )
+      const creatureFrames = frameDefinitions.map((frame) => new Texture({
+        source: texture.source,
+        frame: new Rectangle(frame.x, frame.y, frame.width, frame.height),
+      }))
+      const creature = new AnimatedSprite(creatureFrames)
       creature.anchor.set(0.5)
       creature.position.set(layout.groupX + layout.creatureX, layout.groupY + layout.creatureY)
       creature.animationSpeed = 2 / 60
       creature.loop = true
       creature.roundPixels = true
-      creature.play()
+
+      const firstFrame = frameDefinitions[0]
+      creature.scale.set(resolveSpeciesDisplayScale(
+        member.spritePath,
+        firstFrame.width,
+        firstFrame.height,
+        PARTY_CREATURE_MAX_WIDTH,
+        PARTY_CREATURE_MAX_HEIGHT,
+        1,
+      ))
+
+      if (creatureFrames.length > 1) creature.play()
+      else creature.gotoAndStop(0)
       this.partyPanel.addChild(creature)
 
       const name = new Text({

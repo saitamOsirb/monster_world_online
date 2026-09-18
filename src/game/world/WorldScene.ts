@@ -4,6 +4,7 @@ import { CollisionWorld } from './CollisionWorld'
 import { DoorAnimator } from './DoorAnimator'
 import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionImporter'
 import { LegacyGodotImporter } from './LegacyGodotImporter'
+import { decorateLegacyScene, getNativeSceneDefinition } from './NativeSceneCatalog'
 import { TileMapRenderer } from './TileMapRenderer'
 import { WorldEffects } from './WorldEffects'
 import { WorldObjectRenderer } from './WorldObjectRenderer'
@@ -68,12 +69,15 @@ export class WorldScene {
     this.clearDynamicLayers()
     this.collision.clear()
     this.scenePath = null
-    this.scene = await this.importer.loadScene(scenePath)
+    const nativeScene = getNativeSceneDefinition(scenePath)
+    const isNativeScene = nativeScene !== null
+    this.scene = nativeScene ?? decorateLegacyScene(scenePath, await this.importer.loadScene(scenePath))
     this.scenePath = scenePath
 
     await this.tileMap.render(this.scene.tiles)
     for (const tile of this.scene.tiles) {
-      if (tile.tileId === 2) this.collision.setBlocked(tile)
+      if (tile.tileId === 2 || tile.blocked) this.collision.setBlocked(tile)
+      if (tile.encounterZone) this.collision.setEncounterZone(tile)
     }
 
     for (const ledge of this.scene.ledgeTiles) this.collision.setLedge(ledge)
@@ -91,7 +95,9 @@ export class WorldScene {
     await Promise.all([
       this.objectRenderer.render(this.scene.objects),
       this.doorAnimator.render(this.scene.doors),
-      this.applyImportedCollisions(scenePath, this.scene.objects),
+      isNativeScene
+        ? Promise.resolve()
+        : this.applyImportedCollisions(scenePath, this.scene.objects),
     ])
 
     for (const door of this.scene.doors) {

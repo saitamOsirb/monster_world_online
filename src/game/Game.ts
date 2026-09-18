@@ -26,7 +26,7 @@ import { QuestDialogueService } from './quests/QuestDialogueService'
 import { QuestJournalService } from './quests/QuestJournalService'
 import { QuestService } from './quests/QuestService'
 import { QuestStore } from './quests/QuestStore'
-import { ORIN_THREE_ROADS_QUEST_ID } from './quests/types'
+import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID } from './quests/types'
 import { getSpeciesDefinition } from './species/catalog'
 import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
@@ -307,7 +307,7 @@ export class Game {
     this.questService.recordSceneVisit('res://MonsterWorld/FrosthollowCavern.tscn')
     this.questService.recordSceneVisit('res://MonsterWorld/DuskmireMarsh.tscn')
     this.questService.turnIn(ORIN_THREE_ROADS_QUEST_ID)
-    this.questService.accept('orin-field-methods')
+    this.questService.accept(ORIN_FIELD_METHODS_QUEST_ID)
     this.questService.recordDefeat('skyrill')
     this.menu.view.visible = false
     this.questJournal.show()

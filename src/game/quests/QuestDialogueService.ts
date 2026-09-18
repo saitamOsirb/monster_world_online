@@ -80,7 +80,7 @@ export class QuestDialogueService {
     return {
       pages: [definition.offerText],
       choices: [
-        { id: ACCEPT_QUEST_CHOICE_ID, label: 'Accept.' },
+        { id: ACCEPT_QUEST_CHOICE_ID, label: definition.acceptChoiceLabel },
         { id: DECLINE_QUEST_CHOICE_ID, label: 'Not yet.' },
       ],
     }

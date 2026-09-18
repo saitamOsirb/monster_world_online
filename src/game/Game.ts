@@ -22,6 +22,9 @@ import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
+import { QuestDialogueService } from './quests/QuestDialogueService'
+import { QuestService } from './quests/QuestService'
+import { QuestStore } from './quests/QuestStore'
 import { getSpeciesDefinition } from './species/catalog'
 import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
@@ -54,6 +57,9 @@ export class Game {
   private readonly inventory = new InventoryStore()
   private readonly wallet = new WalletStore()
   private readonly progression = new ProgressionService()
+  private readonly questStore = new QuestStore()
+  private readonly questService = new QuestService(this.questStore, this.wallet)
+  private readonly questDialogue = new QuestDialogueService(this.questService)
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly shopService = new ShopService(this.inventory, this.wallet)
   private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
@@ -115,7 +121,9 @@ export class Game {
       onPartyExitRequested: () => void this.transitionBackToMenu(),
       onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
-    this.dialogue = new DialogueController()
+    this.dialogue = new DialogueController({
+      onChoice: (npc, choice) => this.questDialogue.handleChoice(npc, choice),
+    })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,
       getParty: () => this.collection.party,
@@ -243,6 +251,19 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+
+  openQuestDialogueForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual quest dialogue loading is only available in visual-test mode')
+    }
+    this.dialogue.show(
+      TOWN_FIELD_GUIDE,
+      this.questDialogue.contentFor(TOWN_FIELD_GUIDE),
+    )
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -313,7 +334,7 @@ export class Game {
       this.recovery.show(npc)
       return true
     }
-    this.dialogue.show(npc)
+    this.dialogue.show(npc, this.questDialogue.contentFor(npc))
     return true
   }
 
@@ -461,6 +482,7 @@ export class Game {
       await this.fadeTo(1, SCENE_FADE_MS)
       this.npcWorld.clear()
       await this.world.load(door.nextScene)
+      this.questService.recordSceneVisit(door.nextScene)
       await this.npcWorld.loadScene(door.nextScene)
       player.setSpawn(door.spawnTile, door.spawnDirection)
       player.view.visible = true

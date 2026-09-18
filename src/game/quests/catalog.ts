@@ -38,7 +38,7 @@ export const ORIN_THREE_ROADS_QUEST = {
   acceptText: 'Good. Visit Tidewater Coast, Frosthollow Cavern and Duskmire Marsh, then return to me.',
   readyText: 'You found all three routes. Ready to hand over your field notes?',
   completedText: 'Your notes on The Three Roads are already helping travelers. Thanks again.',
-} satisfies QuestDefinition
+} as const satisfies QuestDefinition
 
 export const ORIN_FIELD_METHODS_QUEST = {
   id: ORIN_FIELD_METHODS_QUEST_ID,
@@ -80,7 +80,7 @@ export const ORIN_FIELD_METHODS_QUEST = {
   acceptText: 'Defeat two Skyrill, capture one Rillfin, obtain a Healing Tonic, then bring the tonic to me.',
   readyText: 'Excellent field work. Ready to file the final report?',
   completedText: 'Your Field Methods report is complete. That is proper field work.',
-} satisfies QuestDefinition
+} as const satisfies QuestDefinition
 
 export const QUEST_CATALOG: Readonly<Record<QuestId, QuestDefinition>> = {
   [ORIN_THREE_ROADS_QUEST_ID]: ORIN_THREE_ROADS_QUEST,

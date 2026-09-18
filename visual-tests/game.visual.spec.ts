@@ -23,7 +23,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   party: 'd26f80375bff1effcfbd992edcd618fe5803089bb77e2b34252a39b854995987',
   bag: 'd2df940aa96cdbf22e6f2ab9c57c5d71fa7fa5cb08e48c7cefdb0bef1cf97228',
   vendor: '4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2',
-  dialogue: 'PENDING_DIALOGUE_BASELINE',
+  dialogue: '658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02',
   recovery: 'd6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5',
   battle: '34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd',
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',

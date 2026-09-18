@@ -11,6 +11,7 @@ import {
 } from './types'
 
 const DEFAULT_KEY = 'monster-world.quests.v1'
+const QUEST_ID_SET: ReadonlySet<string> = new Set(QUEST_IDS)
 
 export class QuestStore {
   private state: QuestState
@@ -209,7 +210,7 @@ export class QuestStore {
   }
 
   private isQuestId(value: string): value is QuestId {
-    return QUEST_IDS.some((questId) => questId === value)
+    return QUEST_ID_SET.has(value)
   }
 
   private isPersistedQuestStatus(value: unknown): value is QuestStatus {

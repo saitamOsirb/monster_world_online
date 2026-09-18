@@ -54,35 +54,51 @@ export class DialogueController {
       return
     }
 
-    if (session.hasChoices) {
-      if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) {
-        if (session.moveChoice(-1)) this.render()
-        return
-      }
-      if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) {
-        if (session.moveChoice(1)) this.render()
-        return
-      }
-    }
-
+    if (this.handleChoiceNavigation(session, input)) return
     if (!input.isConfirmPressed()) return
 
+    this.confirm(session)
+  }
+
+  private handleChoiceNavigation(
+    session: DialogueSession,
+    input: InputController,
+  ): boolean {
+    if (!session.hasChoices) return false
+
+    const delta = this.choiceDelta(input)
+    if (delta === 0) return false
+
+    if (session.moveChoice(delta)) this.render()
+    return true
+  }
+
+  private choiceDelta(input: InputController): -1 | 0 | 1 {
+    if (input.wasPressed('ArrowUp') || input.wasPressed('ArrowLeft')) return -1
+    if (input.wasPressed('ArrowDown') || input.wasPressed('ArrowRight')) return 1
+    return 0
+  }
+
+  private confirm(session: DialogueSession): void {
     if (session.advance()) {
       this.render()
       return
     }
 
     const choice = session.selectedChoice
-    if (choice) {
-      const next = this.hooks.onChoice?.(session.npc, choice) ?? null
-      if (next) {
-        this.session = new DialogueSession(session.npc, next)
-        this.render()
-        return
-      }
+    if (!choice) {
+      this.close()
+      return
     }
 
-    this.close()
+    const next = this.hooks.onChoice?.(session.npc, choice) ?? null
+    if (!next) {
+      this.close()
+      return
+    }
+
+    this.session = new DialogueSession(session.npc, next)
+    this.render()
   }
 
   private close(): void {

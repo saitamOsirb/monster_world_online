@@ -23,8 +23,10 @@ import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
 import { createCapturedMonster, createStarterMonster } from './monsters/MonsterFactory'
 import { ProgressionService } from './progression/ProgressionService'
 import { QuestDialogueService } from './quests/QuestDialogueService'
+import { QuestJournalService } from './quests/QuestJournalService'
 import { QuestService } from './quests/QuestService'
 import { QuestStore } from './quests/QuestStore'
+import { ORIN_THREE_ROADS_QUEST_ID } from './quests/types'
 import { getSpeciesDefinition } from './species/catalog'
 import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
@@ -34,6 +36,7 @@ import { BagController } from './ui/BagController'
 import { DialogueController } from './ui/DialogueController'
 import { MenuController } from './ui/MenuController'
 import { PartyStorageController } from './ui/PartyStorageController'
+import { QuestJournalController } from './ui/QuestJournalController'
 import { RecoveryController } from './ui/RecoveryController'
 import { VendorController } from './ui/VendorController'
 import { NpcWorldLayer } from './world/NpcWorldLayer'
@@ -60,6 +63,7 @@ export class Game {
   private readonly questStore = new QuestStore()
   private readonly questService = new QuestService(this.questStore, this.wallet)
   private readonly questDialogue = new QuestDialogueService(this.questService)
+  private readonly questJournalService = new QuestJournalService(this.questService)
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
   private readonly shopService = new ShopService(this.inventory, this.wallet)
   private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
@@ -72,6 +76,7 @@ export class Game {
   private readonly dialogue: DialogueController
   private readonly bag: BagController
   private readonly partyStorage: PartyStorageController
+  private readonly questJournal: QuestJournalController
   private readonly vendor: VendorController
   private readonly recovery: RecoveryController
   private readonly battle: BattleController
@@ -115,9 +120,15 @@ export class Game {
       onExit: () => this.recovery.hide(),
     })
 
+    this.questJournal = new QuestJournalController({
+      getSnapshot: () => this.questJournalService.getSnapshot(),
+      onExit: () => void this.transitionBackToMenuFromQuestJournal(),
+    })
+
     this.menu = new MenuController({
       onPartyRequested: () => void this.transitionToParty(),
       onBagRequested: () => void this.transitionToBag(),
+      onQuestJournalRequested: () => void this.transitionToQuestJournal(),
       onPartyExitRequested: () => void this.transitionBackToMenu(),
       onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
@@ -146,6 +157,7 @@ export class Game {
       this.dialogue.view,
       this.bag.view,
       this.partyStorage.view,
+      this.questJournal.view,
       this.battle.view,
       this.vendor.view,
       this.recovery.view,
@@ -264,6 +276,21 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+
+  openQuestJournalForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual quest journal loading is only available in visual-test mode')
+    }
+
+    this.questStore.clear()
+    this.questService.accept(ORIN_THREE_ROADS_QUEST_ID)
+    this.questService.recordSceneVisit('res://MonsterWorld/TidewaterCoast.tscn')
+    this.menu.view.visible = false
+    this.questJournal.show()
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -294,6 +321,12 @@ export class Game {
 
     if (this.bag.isActive) {
       if (!this.transitioning) this.bag.update(this.input)
+      this.input.endFrame()
+      return
+    }
+
+    if (this.questJournal.isActive) {
+      if (!this.transitioning) this.questJournal.update(this.input)
       this.input.endFrame()
       return
     }
@@ -525,6 +558,35 @@ export class Game {
     try {
       await this.fadeTo(1, SCENE_FADE_MS)
       this.bag.hide()
+      this.menu.view.visible = true
+      this.menu.showMenu()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.menu.view.visible = true
+      this.transitioning = false
+    }
+  }
+
+
+  private async transitionToQuestJournal(): Promise<void> {
+    if (this.transitioning || this.battle.isActive || this.questJournal.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.menu.view.visible = false
+      this.questJournal.show()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
+      this.transitioning = false
+    }
+  }
+
+  private async transitionBackToMenuFromQuestJournal(): Promise<void> {
+    if (this.transitioning || !this.questJournal.isActive) return
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.questJournal.hide()
       this.menu.view.visible = true
       this.menu.showMenu()
       await this.fadeTo(0, SCENE_FADE_MS)

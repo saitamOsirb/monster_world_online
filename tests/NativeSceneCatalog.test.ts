@@ -25,9 +25,8 @@ function emptyScene(): ImportedSceneDefinition {
 }
 
 describe('native biome scenes', () => {
-  it('keeps only Frosthollow and Duskmire as generated native biomes', () => {
+  it('keeps only Duskmire as a generated native biome', () => {
     expect(NATIVE_BIOME_SCENES).toEqual([
-      FROSTHOLLOW_CAVERN_SCENE,
       DUSKMIRE_MARSH_SCENE,
     ])
 
@@ -86,7 +85,6 @@ describe('native biome scenes', () => {
 
   it('returns each native biome to its dedicated Trailhead branch', () => {
     const expected = new Map([
-      [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
       [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
     ])
 
@@ -99,8 +97,9 @@ describe('native biome scenes', () => {
     }
   })
 
-  it('no longer generates Tidewater Coast from NativeSceneCatalog', () => {
+  it('no longer generates Tidewater Coast or Frosthollow Cavern from NativeSceneCatalog', () => {
     expect(getNativeSceneDefinition(TIDEWATER_COAST_SCENE)).toBeNull()
+    expect(getNativeSceneDefinition(FROSTHOLLOW_CAVERN_SCENE)).toBeNull()
   })
 
   it('does not decorate non-Town legacy scenes', () => {

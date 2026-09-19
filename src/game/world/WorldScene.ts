@@ -141,7 +141,7 @@ export class WorldScene {
       tile: playerNode
         ? { x: Math.round(playerNode.position.x / TILE_SIZE), y: Math.round(playerNode.position.y / TILE_SIZE) }
         : { x: 0, y: 0 },
-      direction: 'down',
+      direction: this.scene.spawnDirection ?? 'down',
     }
   }
 

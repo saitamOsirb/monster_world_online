@@ -11,7 +11,7 @@ const MAP_URL = '/monster-world/maps/tidewater-coast.json'
 const MAP_FILE = new URL('../public/monster-world/maps/tidewater-coast.json', import.meta.url)
 
 function loadTidewaterScene() {
-  const source = JSON.parse(readFileSync(MAP_FILE, 'utf8')) as unknown
+  const source: unknown = JSON.parse(readFileSync(MAP_FILE, 'utf8'))
   return new TiledWorldImporter().parseMap(source, MAP_URL)
 }
 

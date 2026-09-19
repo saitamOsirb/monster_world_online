@@ -23,6 +23,16 @@ const TILE_SOURCES: Record<number, TileSource> = {
 const WATER_PATHS = Array.from({ length: 8 }, (_, index) => `/assets/Water/water_tileset${index + 1}.png`)
 const WATER_FRAME_DURATION_MS = 250
 
+function waterFrameCacheKey(source: TileSource, tile: TileDefinition): string {
+  return [
+    source.path,
+    source.originX,
+    source.originY,
+    tile.autotileX,
+    tile.autotileY,
+  ].join(':')
+}
+
 export class TileMapRenderer {
   readonly view = new Container()
 
@@ -67,7 +77,7 @@ export class TileMapRenderer {
       let frame: Texture
       let waterFrames: Texture[] | undefined
       if (tile.tileId === 2) {
-        const cacheKey = `${tile.autotileX},${tile.autotileY}`
+        const cacheKey = waterFrameCacheKey(source, tile)
         waterFrames = waterFrameCache.get(cacheKey)
         if (!waterFrames) {
           waterFrames = WATER_PATHS.map((path) => {
@@ -136,4 +146,8 @@ export class TileMapRenderer {
       ),
     })
   }
+}
+
+export const tileMapRendererInternals = {
+  waterFrameCacheKey,
 }

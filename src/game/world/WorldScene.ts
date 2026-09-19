@@ -74,7 +74,8 @@ export class WorldScene {
 
   get currentCameraBounds(): WorldBounds | null {
     const bounds = this.scene?.cameraBounds
-    return bounds ? { ...bounds } : null
+    if (!bounds) return null
+    return { ...bounds }
   }
 
   update(deltaMs: number): void {
@@ -96,8 +97,7 @@ export class WorldScene {
     this.clearDynamicLayers()
     this.collision.clear()
     this.scenePath = null
-    const tiledMapUrl = getTiledWorldMapUrl(scenePath)
-    const tiledScene = tiledMapUrl ? await this.tiledImporter.loadScene(tiledMapUrl) : null
+    const tiledScene = await this.loadTiledScene(scenePath)
     const nativeScene = tiledScene ?? getNativeSceneDefinition(scenePath)
     const isNativeScene = nativeScene !== null
     this.scene = nativeScene ?? decorateLegacyScene(scenePath, await this.importer.loadScene(scenePath))
@@ -159,6 +159,12 @@ export class WorldScene {
 
   showLandingDust(tile: GridPoint): Promise<void> {
     return this.effects.landingDust(tile)
+  }
+
+  private async loadTiledScene(scenePath: string): Promise<ImportedSceneDefinition | null> {
+    const tiledMapUrl = getTiledWorldMapUrl(scenePath)
+    if (!tiledMapUrl) return null
+    return this.tiledImporter.loadScene(tiledMapUrl)
   }
 
   private clearDynamicLayers(): void {

@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import type { TiledMapDocument, TiledProperty } from '../src/game/world/tiled/types'
 
+const TILE_LAYER = TILE_LAYER
+const OBJECT_LAYER = OBJECT_LAYER
+const STRING_PROPERTY_TYPE = 'string'
+const INT_PROPERTY_TYPE = 'int'
+const DESTINATION_SCENE = DESTINATION_SCENE
+
 const prop = (name: string, type: string, value: unknown): TiledProperty => ({
   name,
   type,
@@ -19,29 +25,29 @@ function baseMap(): TiledMapDocument {
     layers: [
       {
         name: 'Ground',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [1, 2, 0, 0],
       },
       {
         name: 'Decoration',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [0, 0, 3, 0],
-        properties: [prop('zIndex', 'int', 12)],
+        properties: [prop('zIndex', INT_PROPERTY_TYPE, 12)],
       },
       {
         name: 'AbovePlayer',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [0, 0, 0, 4],
       },
       {
         name: 'Collision',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [1, 0, 0, 0],
@@ -49,7 +55,7 @@ function baseMap(): TiledMapDocument {
       },
       {
         name: 'Encounter',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [0, 1, 0, 0],
@@ -57,18 +63,18 @@ function baseMap(): TiledMapDocument {
       },
       {
         name: 'PlayerSpawn',
-        type: 'objectgroup',
+        type: OBJECT_LAYER,
         objects: [{
           id: 1,
           x: 16,
           y: 16,
           point: true,
-          properties: [prop('spawnDirection', 'string', 'right')],
+          properties: [prop('spawnDirection', STRING_PROPERTY_TYPE, 'right')],
         }],
       },
       {
         name: 'Transitions',
-        type: 'objectgroup',
+        type: OBJECT_LAYER,
         objects: [{
           id: 2,
           name: 'Exit',
@@ -77,17 +83,17 @@ function baseMap(): TiledMapDocument {
           width: 16,
           height: 16,
           properties: [
-            prop('destinationScene', 'string', 'res://Destination.tscn'),
-            prop('spawnX', 'int', 3),
-            prop('spawnY', 'int', 4),
-            prop('spawnDirection', 'string', 'left'),
+            prop('destinationScene', STRING_PROPERTY_TYPE, DESTINATION_SCENE),
+            prop('spawnX', INT_PROPERTY_TYPE, 3),
+            prop('spawnY', INT_PROPERTY_TYPE, 4),
+            prop('spawnDirection', STRING_PROPERTY_TYPE, 'left'),
             prop('invisible', 'bool', true),
           ],
         }],
       },
       {
         name: 'CameraBounds',
-        type: 'objectgroup',
+        type: OBJECT_LAYER,
         objects: [{
           id: 3,
           x: 0,
@@ -107,8 +113,8 @@ function baseMap(): TiledMapDocument {
       image: '../../assets/Tilesets/fixture.png',
     }],
     properties: [
-      prop('sceneName', 'string', 'Fixture Route'),
-      prop('encounterTable', 'string', 'fixture-route'),
+      prop('sceneName', STRING_PROPERTY_TYPE, 'Fixture Route'),
+      prop('encounterTable', STRING_PROPERTY_TYPE, 'fixture-route'),
     ],
   }
 }
@@ -172,7 +178,7 @@ describe('TiledWorldImporter', () => {
     expect(scene.spawnDirection).toBe('right')
     expect(scene.doors).toEqual([{
       tile: { x: 0, y: 1 },
-      nextScene: 'res://Destination.tscn',
+      nextScene: DESTINATION_SCENE,
       spawnTile: { x: 3, y: 4 },
       spawnDirection: 'left',
       invisible: true,
@@ -183,7 +189,7 @@ describe('TiledWorldImporter', () => {
   it('preserves Tiled horizontal, vertical and diagonal transform flags', () => {
     const map = baseMap()
     const ground = map.layers[0]
-    if (ground.type !== 'tilelayer') throw new Error('Fixture Ground layer missing')
+    if (ground.type !== TILE_LAYER) throw new Error('Fixture Ground layer missing')
     ground.data = [
       0x80000000 + 1,
       0x40000000 + 2,
@@ -221,7 +227,7 @@ describe('TiledWorldImporter', () => {
       ...unknownLayer.layers,
       {
         name: 'TypoGround',
-        type: 'tilelayer',
+        type: TILE_LAYER,
         width: 2,
         height: 2,
         data: [0, 0, 0, 0],
@@ -233,9 +239,9 @@ describe('TiledWorldImporter', () => {
   it('rejects malformed transitions instead of silently creating broken doors', () => {
     const map = baseMap()
     const transitions = map.layers.find((layer) => layer.name === 'Transitions')
-    if (!transitions || transitions.type !== 'objectgroup') throw new Error('Fixture Transitions missing')
+    if (!transitions || transitions.type !== OBJECT_LAYER) throw new Error('Fixture Transitions missing')
     transitions.objects[0].properties = [
-      prop('destinationScene', 'string', 'res://Destination.tscn'),
+      prop('destinationScene', STRING_PROPERTY_TYPE, DESTINATION_SCENE),
     ]
 
     expect(() => new TiledWorldImporter().parseMap(map))

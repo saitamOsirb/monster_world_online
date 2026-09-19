@@ -481,7 +481,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **269 tests across 39 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **270 tests across 40 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -498,7 +498,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
 - Tidewater Coast: `b1fe9d55f1876c928dc902558d024facbfe8fecfc702d658b127ed651e3f2c46` (intentional Tiled migration/camera-bounds update)
 - Frosthollow Cavern: `c619170a76431b7e27e8b8442d1736c17983ce1e21ab567c489aace2355fb155` (intentional Tiled migration/camera-bounds update)
-- Duskmire Marsh: pending intentional Tiled migration baseline update in this PR
+- Duskmire Marsh: `76a496bdf7d280c9a9b750e54b2ea2a0399d4e5a99d060c46f45644cf5bec8a6` (intentional Tiled migration/camera-bounds update)
 
 ## Intentional architecture cleanups
 

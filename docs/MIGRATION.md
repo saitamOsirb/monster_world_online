@@ -482,7 +482,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite count for this Town migration is **pending CI validation**. Coverage includes import/collision, production Tiled-map contracts, species catalog/stat/learnset resolution, encounters, battle/capture/status/elemental resolution, persistence, party/storage/recovery, inventory/economy, NPC interaction/dialogue and quest progression.
+The unit suite now contains **280 tests across 42 test files** covering import/collision, production Tiled-map contracts, animated-water source caching, species catalog/stat/learnset resolution, encounters, battle/capture/status/elemental resolution, persistence, party/storage/recovery, inventory/economy, NPC interaction/dialogue and quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -499,7 +499,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
 - Tidewater Coast: `b1fe9d55f1876c928dc902558d024facbfe8fecfc702d658b127ed651e3f2c46` (intentional Tiled migration/camera-bounds update)
 - Frosthollow Cavern: `c619170a76431b7e27e8b8442d1736c17983ce1e21ab567c489aace2355fb155` (intentional Tiled migration/camera-bounds update)
-- Town: `PENDING_TOWN_TILED_BASELINE` (pending intentional Tiled migration baseline)
+- Town: `3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0` (Tiled migration preserved the historical pixel baseline exactly)
 - Duskmire Marsh: `76a496bdf7d280c9a9b750e54b2ea2a0399d4e5a99d060c46f45644cf5bec8a6` (intentional Tiled migration/camera-bounds update)
 
 ## Intentional architecture cleanups

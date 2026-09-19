@@ -22,6 +22,6 @@ export interface InteractableNpcDefinition {
   dialoguePages?: readonly string[]
   vendorId?: string
   serviceId?: string
-  questId?: QuestId
+  questIds?: readonly QuestId[]
   texturePath: string
 }

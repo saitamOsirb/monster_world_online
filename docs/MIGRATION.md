@@ -154,7 +154,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | Persistent quests | Implemented foundation | Versioned quest store with available/active/ready/completed states. |
 | Dialogue choices | Implemented foundation | Generic deterministic choice navigation; quest logic remains outside Pixi. |
 | The Three Roads | Implemented | Orin tracks visits to Coast/Cavern/Marsh and grants a one-time 120-credit reward. |
-| Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state. |
+| Field Methods | Implemented | Chained after The Three Roads: defeat 2 Skyrill, capture 1 Rillfin, obtain + deliver 1 Healing Tonic; one-time 220-credit reward. |
+| Advanced quest objectives | Implemented foundation | Visit, defeat-species, capture-species, collect-item and deliver-item objectives with quantitative progress. |
+| Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state, including counters such as 1/2. |
 
 ## Battle, elemental, status and progression rules
 
@@ -373,10 +375,18 @@ Inventory rules:
 - Orin's conversation is state-driven: `available → active → ready-to-turn-in → completed`. Declining/later choices do not mutate quest state.
 - Scene visits are recorded only after the quest is accepted; duplicate visits do not duplicate objective progress.
 - Turn-in is crash/retry safe at the reward boundary because `QuestService` uses wallet transaction id `quest:orin-three-roads:reward`.
+- After `The Three Roads` is completed, Orin unlocks **Field Methods**. Locked chained quests cannot be accepted early.
+- `Field Methods` requires **2 Skyrill defeats**, **1 Rillfin capture**, obtaining **1 Healing Tonic**, then explicitly delivering **1 Healing Tonic** to Orin for **220 credits**.
+- Defeat/capture progress is emitted from terminal battle results; collect-item progress is emitted after successful shop purchases and battle-loot inventory grants.
+- Collect objectives synchronize against existing inventory when a quest is accepted, so already-owned required items are recognized without manufacturing stock.
+- Deliver-item objectives do not auto-consume inventory. Delivery is offered only after every non-delivery objective is complete and full delivery stock is present.
+- Delivery preflights all required items, consumes them as one logical action and restores every consumed quantity if later quest persistence unexpectedly fails.
+- Both quest rewards use independent wallet transaction ids, so repeated/reloaded turn-ins remain idempotent.
 - The main menu's former legacy **Arkeve** slot is now **QUESTS**, opening the Quest Journal without adding an extra menu row.
 - `QuestJournalService` projects only accepted/completed quests; unavailable quests remain hidden until accepted.
 - The journal has **ACTIVE** and **DONE** tabs. `ready-to-turn-in` remains under ACTIVE and is labeled **READY TO REPORT**.
-- Objective completion, `completed/total` progress and credit reward are regenerated from `QuestService` every time the journal opens, so the UI never owns a stale persisted copy.
+- Objective completion, `current/required`, `completed/total` progress and credit reward are regenerated from `QuestService` every time the journal opens, so the UI never owns a stale persisted copy.
+- Quantitative objectives render counters only when `required > 1`; existing 1/1 exploration rows retain their prior geometry.
 - Mira and Nia keep their specialized vendor/recovery flows.
 - **Mira** in Town is connected to `town-supplies`.
 - **Nia** in Town is connected to `party-recovery`.
@@ -407,7 +417,7 @@ Inventory rules:
 - `MonsterCollectionStore` storage key → `monster-world.collection.v1`, payload schema `version: 2`
 - `InventoryStore` → `monster-world.inventory.v1`
 - `WalletStore` storage key → `monster-world.wallet.v1`, payload schema `version: 2`
-- `QuestStore` → `monster-world.quests.v1`, payload schema `version: 1`
+- `QuestStore` storage key → `monster-world.quests.v1`, payload schema `version: 2`
 
 Collection payload `version: 2` remains backward compatible with records created before status or elements existed:
 
@@ -422,7 +432,7 @@ Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and
 
 Wallet payload `version: 1` migrates to `version: 2` by preserving the balance/initialized flag and initializing an empty idempotency transaction ledger. Invalid/corrupt wallet payloads still recover to an empty wallet.
 
-Quest payload `version: 1` persists only accepted/in-progress/ready/completed records. A missing record is the canonical `available` state; corrupt/unknown quest payloads recover safely without manufacturing progress.
+Quest payload `version: 2` persists quantitative `objectiveProgress` counters for accepted/in-progress/ready/completed records. A missing record is the canonical `available` state. Valid version-1 `The Three Roads` saves migrate in place: each legacy completed objective becomes count `1`, the stable storage key is retained, and no new quest is auto-accepted. Corrupt/unknown quest payloads recover safely without manufacturing progress.
 
 ## Regression protection
 
@@ -434,7 +444,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **213 tests across 34 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **226 tests across 34 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -442,6 +452,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - quest dialogue choices: `679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a`
 - menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
 - quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
+- advanced quest journal: `408b75233ab3c43adcaf543bb70ec922636f32d2c7e0efd6502b5d343f28cf3c` (`Field Methods`, Skyrill 1/2)
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -480,7 +491,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
 8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-9. Expand beyond the first exploration quest with chained objectives, item/capture/battle objectives, additional quest-giver NPCs and journal filtering/pagination as the quest catalog grows.
+9. Expand the quest catalog beyond the first two Orin quests with additional quest-giver NPCs, richer objective predicates/rewards and journal filtering/pagination as content grows.
 10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note

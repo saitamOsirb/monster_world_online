@@ -1,4 +1,4 @@
-import { ORIN_THREE_ROADS_QUEST_ID } from '../quests/types'
+import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID } from '../quests/types'
 import { TOWN_SUPPLY_SHOP } from '../shop/catalog'
 import type { InteractableNpcDefinition } from './types'
 
@@ -39,7 +39,7 @@ export const TOWN_FIELD_GUIDE: InteractableNpcDefinition = {
     'Tidewater Coast favors Water creatures, while Frosthollow Cavern is colder and more dangerous.',
     'Duskmire Marsh has Toxic and Spirit creatures. Bring recovery items before going deep.',
   ],
-  questId: ORIN_THREE_ROADS_QUEST_ID,
+  questIds: [ORIN_THREE_ROADS_QUEST_ID, ORIN_FIELD_METHODS_QUEST_ID],
   texturePath: '/assets/Player/Male_Spritesheet.png',
 }
 

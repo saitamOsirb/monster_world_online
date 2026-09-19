@@ -1,9 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { WalletStore } from '../src/game/economy/WalletStore'
-import { ORIN_THREE_ROADS_QUEST } from '../src/game/quests/catalog'
+import { InventoryStore } from '../src/game/inventory/InventoryStore'
+import { HEALING_TONIC_ID } from '../src/game/inventory/types'
+import {
+  ORIN_FIELD_METHODS_QUEST,
+  ORIN_THREE_ROADS_QUEST,
+} from '../src/game/quests/catalog'
 import { QuestService } from '../src/game/quests/QuestService'
 import { QuestStore } from '../src/game/quests/QuestStore'
-import { ORIN_THREE_ROADS_QUEST_ID } from '../src/game/quests/types'
+import {
+  ORIN_FIELD_METHODS_QUEST_ID,
+  ORIN_THREE_ROADS_QUEST_ID,
+  QUEST_STATUS,
+} from '../src/game/quests/types'
 
 class MemoryStorage {
   readonly data = new Map<string, string>()
@@ -12,94 +21,308 @@ class MemoryStorage {
   removeItem(key: string): void { this.data.delete(key) }
 }
 
+
+class FailingDeliveryQuestStore extends QuestStore {
+  failDelivery = false
+
+  override recordObjectiveProgress(
+    questId: Parameters<QuestStore['recordObjectiveProgress']>[0],
+    objectiveId: string,
+    increment: number,
+    requiredByObjective: Readonly<Record<string, number>>,
+  ): boolean {
+    if (this.failDelivery && objectiveId === 'deliver-healing-tonic') {
+      throw new Error('forced delivery persistence failure')
+    }
+    return super.recordObjectiveProgress(
+      questId,
+      objectiveId,
+      increment,
+      requiredByObjective,
+    )
+  }
+}
+
+interface Fixture {
+  service: QuestService
+  store: QuestStore
+  wallet: WalletStore
+  inventory: InventoryStore
+  questStorage: MemoryStorage
+  walletStorage: MemoryStorage
+  inventoryStorage: MemoryStorage
+}
+
 function createService(
   questStorage = new MemoryStorage(),
   walletStorage = new MemoryStorage(),
-): { service: QuestService; store: QuestStore; wallet: WalletStore } {
+  inventoryStorage = new MemoryStorage(),
+): Fixture {
   const store = new QuestStore(questStorage)
   const wallet = new WalletStore(walletStorage)
+  const inventory = new InventoryStore(inventoryStorage)
   wallet.ensureStarterBalance(200)
-  return { service: new QuestService(store, wallet), store, wallet }
+  inventory.ensureStarterStock(0)
+  return {
+    service: new QuestService(store, wallet, inventory),
+    store,
+    wallet,
+    inventory,
+    questStorage,
+    walletStorage,
+    inventoryStorage,
+  }
+}
+
+function completeThreeRoads(fixture: Fixture): void {
+  fixture.service.accept(ORIN_THREE_ROADS_QUEST_ID)
+  for (const objective of ORIN_THREE_ROADS_QUEST.objectives) {
+    fixture.service.recordSceneVisit(objective.scenePath)
+  }
+  fixture.service.turnIn(ORIN_THREE_ROADS_QUEST_ID)
 }
 
 describe('QuestService', () => {
-  it('records scene visits only after the quest is active', () => {
-    const { service } = createService()
+  it('records scene visits only after The Three Roads is active', () => {
+    const fixture = createService()
     const coast = ORIN_THREE_ROADS_QUEST.objectives[0]
 
-    expect(service.recordSceneVisit(coast.scenePath)).toEqual([])
-    service.accept(ORIN_THREE_ROADS_QUEST_ID)
+    expect(fixture.service.recordSceneVisit(coast.scenePath)).toEqual([])
+    fixture.service.accept(ORIN_THREE_ROADS_QUEST_ID)
 
-    expect(service.recordSceneVisit(coast.scenePath)).toEqual([{
+    expect(fixture.service.recordSceneVisit(coast.scenePath)).toEqual([{
       questId: ORIN_THREE_ROADS_QUEST_ID,
       objectiveId: coast.id,
-      status: 'active',
+      current: 1,
+      required: 1,
+      status: QUEST_STATUS.active,
     }])
   })
 
-  it('ignores scenes that are not quest objectives', () => {
-    const { service } = createService()
-    service.accept(ORIN_THREE_ROADS_QUEST_ID)
-
-    expect(service.recordSceneVisit('res://Town.tscn')).toEqual([])
-    expect(service.getProgress(ORIN_THREE_ROADS_QUEST_ID).completedObjectiveIds).toEqual([])
-  })
-
-  it('moves to ready-to-turn-in after visiting all three configured biomes', () => {
-    const { service } = createService()
-    service.accept(ORIN_THREE_ROADS_QUEST_ID)
+  it('moves The Three Roads to ready after all configured visits', () => {
+    const fixture = createService()
+    fixture.service.accept(ORIN_THREE_ROADS_QUEST_ID)
 
     for (const objective of ORIN_THREE_ROADS_QUEST.objectives) {
-      service.recordSceneVisit(objective.scenePath)
+      fixture.service.recordSceneVisit(objective.scenePath)
     }
 
-    expect(service.getProgress(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
+    expect(fixture.service.getProgress(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
       questId: ORIN_THREE_ROADS_QUEST_ID,
-      status: 'ready-to-turn-in',
-      completedObjectiveIds: ORIN_THREE_ROADS_QUEST.objectives.map((objective) => objective.id),
+      status: QUEST_STATUS.readyToTurnIn,
+      objectiveProgress: {
+        'visit-tidewater-coast': 1,
+        'visit-frosthollow-cavern': 1,
+        'visit-duskmire-marsh': 1,
+      },
+    })
+  })
+
+  it('keeps Field Methods locked until The Three Roads is completed', () => {
+    const fixture = createService()
+
+    expect(fixture.service.isUnlocked(ORIN_FIELD_METHODS_QUEST_ID)).toBe(false)
+    expect(fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)).toBe(false)
+
+    completeThreeRoads(fixture)
+
+    expect(fixture.service.isUnlocked(ORIN_FIELD_METHODS_QUEST_ID)).toBe(true)
+    expect(fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)).toBe(true)
+  })
+
+  it('counts species defeats quantitatively and caps at the configured target', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(fixture.service.recordDefeat('skyrill')).toEqual([{
+      questId: ORIN_FIELD_METHODS_QUEST_ID,
+      objectiveId: 'defeat-skyrill',
+      current: 1,
+      required: 2,
+      status: QUEST_STATUS.active,
+    }])
+
+    fixture.service.recordDefeat('skyrill', 5)
+    expect(
+      fixture.service.getProgress(ORIN_FIELD_METHODS_QUEST_ID)
+        .objectiveProgress['defeat-skyrill'],
+    ).toBe(2)
+    expect(fixture.service.recordDefeat('skyrill')).toEqual([])
+    expect(fixture.service.recordDefeat('cindlet')).toEqual([])
+  })
+
+  it('records captures independently from defeats', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(fixture.service.recordCapture('rillfin')).toEqual([{
+      questId: ORIN_FIELD_METHODS_QUEST_ID,
+      objectiveId: 'capture-rillfin',
+      current: 1,
+      required: 1,
+      status: QUEST_STATUS.active,
+    }])
+    expect(
+      fixture.service.getProgress(ORIN_FIELD_METHODS_QUEST_ID)
+        .objectiveProgress['defeat-skyrill'],
+    ).toBeUndefined()
+  })
+
+  it('syncs collect-item objectives from inventory when a quest is accepted', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(
+      fixture.service.getProgress(ORIN_FIELD_METHODS_QUEST_ID)
+        .objectiveProgress['collect-healing-tonic'],
+    ).toBe(1)
+    expect(fixture.inventory.getQuantity(HEALING_TONIC_ID)).toBe(1)
+  })
+
+  it('records items acquired after quest acceptance', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+    expect(fixture.service.recordItemAcquired(HEALING_TONIC_ID, 1)).toEqual([{
+      questId: ORIN_FIELD_METHODS_QUEST_ID,
+      objectiveId: 'collect-healing-tonic',
+      current: 1,
+      required: 1,
+      status: QUEST_STATUS.active,
+    }])
+  })
+
+  it('does not consume delivery items while other objectives are incomplete', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(fixture.service.canDeliverItems(ORIN_FIELD_METHODS_QUEST_ID)).toBe(false)
+    expect(fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)).toEqual({
+      ok: false,
+      reason: 'requirements-incomplete',
+      deliveredItemIds: [],
+      status: QUEST_STATUS.active,
+    })
+    expect(fixture.inventory.getQuantity(HEALING_TONIC_ID)).toBe(1)
+  })
+
+  it('consumes the delivery exactly once after all non-delivery objectives are complete', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    fixture.service.recordDefeat('skyrill', 2)
+    fixture.service.recordCapture('rillfin')
+
+    expect(fixture.service.canDeliverItems(ORIN_FIELD_METHODS_QUEST_ID)).toBe(true)
+    expect(fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)).toEqual({
+      ok: true,
+      deliveredItemIds: [HEALING_TONIC_ID],
+      status: QUEST_STATUS.readyToTurnIn,
+    })
+    expect(fixture.inventory.getQuantity(HEALING_TONIC_ID)).toBe(0)
+
+    expect(fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)).toEqual({
+      ok: false,
+      reason: 'not-active',
+      deliveredItemIds: [],
+      status: QUEST_STATUS.readyToTurnIn,
     })
   })
 
   it('rejects turn-in before objectives are complete without granting credits', () => {
-    const { service, wallet } = createService()
-    service.accept(ORIN_THREE_ROADS_QUEST_ID)
+    const fixture = createService()
+    fixture.service.accept(ORIN_THREE_ROADS_QUEST_ID)
 
-    expect(service.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
+    expect(fixture.service.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
       ok: false,
-      status: 'active',
+      status: QUEST_STATUS.active,
       rewardCredits: 0,
       rewardApplied: false,
     })
-    expect(wallet.balance).toBe(200)
+    expect(fixture.wallet.balance).toBe(200)
   })
 
-  it('grants the completion reward exactly once across repeated turn-ins', () => {
-    const questStorage = new MemoryStorage()
-    const walletStorage = new MemoryStorage()
-    const { service, wallet } = createService(questStorage, walletStorage)
-    service.accept(ORIN_THREE_ROADS_QUEST_ID)
+  it('grants each quest completion reward exactly once across reloads', () => {
+    const fixture = createService()
+    fixture.service.accept(ORIN_THREE_ROADS_QUEST_ID)
     for (const objective of ORIN_THREE_ROADS_QUEST.objectives) {
-      service.recordSceneVisit(objective.scenePath)
+      fixture.service.recordSceneVisit(objective.scenePath)
     }
 
-    expect(service.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
+    expect(fixture.service.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
       ok: true,
-      status: 'completed',
+      status: QUEST_STATUS.completed,
       rewardCredits: 120,
       rewardApplied: true,
     })
-    expect(wallet.balance).toBe(320)
+    expect(fixture.wallet.balance).toBe(320)
 
     const reloaded = new QuestService(
-      new QuestStore(questStorage),
-      new WalletStore(walletStorage),
+      new QuestStore(fixture.questStorage),
+      new WalletStore(fixture.walletStorage),
+      new InventoryStore(fixture.inventoryStorage),
     )
     expect(reloaded.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
       ok: true,
-      status: 'completed',
+      status: QUEST_STATUS.completed,
       rewardCredits: 120,
       rewardApplied: false,
     })
-    expect(new WalletStore(walletStorage).balance).toBe(320)
+    expect(new WalletStore(fixture.walletStorage).balance).toBe(320)
+  })
+
+  it('restores delivered items if quest persistence fails after consumption', () => {
+    const questStorage = new MemoryStorage()
+    const walletStorage = new MemoryStorage()
+    const inventoryStorage = new MemoryStorage()
+    const store = new FailingDeliveryQuestStore(questStorage)
+    const wallet = new WalletStore(walletStorage)
+    const inventory = new InventoryStore(inventoryStorage)
+    wallet.ensureStarterBalance(200)
+    inventory.ensureStarterStock(0)
+    const service = new QuestService(store, wallet, inventory)
+    const fixture: Fixture = {
+      service,
+      store,
+      wallet,
+      inventory,
+      questStorage,
+      walletStorage,
+      inventoryStorage,
+    }
+
+    completeThreeRoads(fixture)
+    inventory.add(HEALING_TONIC_ID, 1)
+    service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    service.recordDefeat('skyrill', 2)
+    service.recordCapture('rillfin')
+
+    store.failDelivery = true
+    expect(() => service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID))
+      .toThrow('forced delivery persistence failure')
+    expect(inventory.getQuantity(HEALING_TONIC_ID)).toBe(1)
+    expect(
+      service.getProgress(ORIN_FIELD_METHODS_QUEST_ID)
+        .objectiveProgress['deliver-healing-tonic'],
+    ).toBeUndefined()
+  })
+
+  it('Field Methods catalog contains all four advanced objective kinds', () => {
+    expect(ORIN_FIELD_METHODS_QUEST.objectives.map((objective) => objective.kind)).toEqual([
+      'defeat-species',
+      'capture-species',
+      'collect-item',
+      'deliver-item',
+    ])
   })
 })

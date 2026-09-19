@@ -10,6 +10,7 @@ type VisualFixture =
   | 'dialogue'
   | 'questDialogue'
   | 'questJournal'
+  | 'advancedQuestJournal'
   | 'recovery'
   | 'battle'
   | 'oaksLab'
@@ -28,6 +29,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   dialogue: '658557163d7ee580c3f3a74bee7be14ff0a949a6597e31181d1a4a4665001c02',
   questDialogue: '679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a',
   questJournal: 'ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713',
+  advancedQuestJournal: '408b75233ab3c43adcaf543bb70ec922636f32d2c7e0efd6502b5d343f28cf3c',
   recovery: 'd6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5',
   battle: '34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd',
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',
@@ -197,6 +199,21 @@ test('Quest journal remains pixel-stable', async ({ page }) => {
   })
   await setTickers(page, false)
   verifyHash('questJournal', await hashCanvas(page))
+
+  expect(browserErrors).toEqual([])
+})
+
+test('Advanced quest journal progress remains pixel-stable', async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page)
+  await bootVisualTest(page)
+
+  await page.evaluate(() => {
+    const harness = window.__MONSTER_WORLD_VISUAL_TEST__
+    if (!harness) throw new Error('Visual test harness was not initialized')
+    harness.game.openAdvancedQuestJournalForVisualTest()
+  })
+  await setTickers(page, false)
+  verifyHash('advancedQuestJournal', await hashCanvas(page))
 
   expect(browserErrors).toEqual([])
 })

@@ -1,12 +1,17 @@
-import { ORIN_THREE_ROADS_QUEST_ID, QUEST_STATUS, type QuestId, type QuestProgress, type QuestState, type QuestStatus } from './types'
-
-const PERSISTED_QUEST_STATUSES: ReadonlySet<QuestStatus> = new Set([
-  QUEST_STATUS.active,
-  QUEST_STATUS.readyToTurnIn,
-  QUEST_STATUS.completed,
-])
+import {
+  ORIN_THREE_ROADS_QUEST_ID,
+  QUEST_IDS,
+  QUEST_STATUS,
+  type LegacyQuestProgress,
+  type LegacyQuestState,
+  type QuestId,
+  type QuestProgress,
+  type QuestState,
+  type QuestStatus,
+} from './types'
 
 const DEFAULT_KEY = 'monster-world.quests.v1'
+const QUEST_ID_SET: ReadonlySet<string> = new Set(QUEST_IDS)
 
 export class QuestStore {
   private state: QuestState
@@ -29,7 +34,7 @@ export class QuestStore {
       : {
           questId,
           status: QUEST_STATUS.available,
-          completedObjectiveIds: [],
+          objectiveProgress: {},
         }
   }
 
@@ -40,33 +45,44 @@ export class QuestStore {
     this.state.quests[questId] = {
       questId,
       status: QUEST_STATUS.active,
-      completedObjectiveIds: [],
+      objectiveProgress: {},
     }
     this.persist()
     return true
   }
 
-  recordObjective(
+  recordObjectiveProgress(
     questId: QuestId,
     objectiveId: string,
-    requiredObjectiveIds: readonly string[],
+    increment: number,
+    requiredByObjective: Readonly<Record<string, number>>,
   ): boolean {
-    this.assertObjectiveIds(requiredObjectiveIds)
-    if (!requiredObjectiveIds.includes(objectiveId)) {
+    this.assertProgressIncrement(increment)
+    this.assertObjectiveRequirements(requiredByObjective)
+
+    const required = requiredByObjective[objectiveId]
+    if (!required) {
       throw new Error(`Unknown objective "${objectiveId}" for quest "${questId}"`)
     }
 
     const current = this.getProgress(questId)
     if (current.status !== QUEST_STATUS.active) return false
-    if (current.completedObjectiveIds.includes(objectiveId)) return false
 
-    const completedObjectiveIds = [...current.completedObjectiveIds, objectiveId]
-    const ready = requiredObjectiveIds.every((id) => completedObjectiveIds.includes(id))
+    const previous = current.objectiveProgress[objectiveId] ?? 0
+    const next = Math.min(required, previous + increment)
+    if (next === previous) return false
+
+    const objectiveProgress = {
+      ...current.objectiveProgress,
+      [objectiveId]: next,
+    }
+    const ready = Object.entries(requiredByObjective)
+      .every(([id, target]) => (objectiveProgress[id] ?? 0) >= target)
 
     this.state.quests[questId] = {
       questId,
       status: ready ? QUEST_STATUS.readyToTurnIn : QUEST_STATUS.active,
-      completedObjectiveIds,
+      objectiveProgress,
     }
     this.persist()
     return true
@@ -79,7 +95,7 @@ export class QuestStore {
     this.state.quests[questId] = {
       ...current,
       status: QUEST_STATUS.completed,
-      completedObjectiveIds: [...current.completedObjectiveIds],
+      objectiveProgress: { ...current.objectiveProgress },
     }
     this.persist()
     return true
@@ -96,8 +112,13 @@ export class QuestStore {
 
     try {
       const parsed = JSON.parse(raw) as unknown
-      if (!this.isQuestState(parsed)) return this.emptyState()
-      return this.cloneState(parsed)
+      if (this.isQuestState(parsed)) return this.cloneState(parsed)
+      if (this.isLegacyQuestState(parsed)) {
+        const migrated = this.migrateLegacyState(parsed)
+        this.storage.setItem(this.storageKey, JSON.stringify(migrated))
+        return migrated
+      }
+      return this.emptyState()
     } catch {
       return this.emptyState()
     }
@@ -108,55 +129,133 @@ export class QuestStore {
   }
 
   private emptyState(): QuestState {
-    return { version: 1, quests: {} }
+    return { version: 2, quests: {} }
   }
 
   private cloneState(state: QuestState): QuestState {
     const quests: QuestState['quests'] = {}
-    const progress = state.quests[ORIN_THREE_ROADS_QUEST_ID]
-    if (progress) quests[ORIN_THREE_ROADS_QUEST_ID] = this.cloneProgress(progress)
-    return { version: 1, quests }
+    for (const questId of QUEST_IDS) {
+      const progress = state.quests[questId]
+      if (progress) quests[questId] = this.cloneProgress(progress)
+    }
+    return { version: 2, quests }
   }
 
   private cloneProgress(progress: QuestProgress): QuestProgress {
     return {
       questId: progress.questId,
       status: progress.status,
-      completedObjectiveIds: [...progress.completedObjectiveIds],
+      objectiveProgress: { ...progress.objectiveProgress },
+    }
+  }
+
+  private migrateLegacyState(state: LegacyQuestState): QuestState {
+    const legacy = state.quests[ORIN_THREE_ROADS_QUEST_ID]
+    if (!legacy) return this.emptyState()
+
+    return {
+      version: 2,
+      quests: {
+        [ORIN_THREE_ROADS_QUEST_ID]: this.migrateLegacyProgress(legacy),
+      },
+    }
+  }
+
+  private migrateLegacyProgress(progress: LegacyQuestProgress): QuestProgress {
+    return {
+      questId: ORIN_THREE_ROADS_QUEST_ID,
+      status: progress.status,
+      objectiveProgress: Object.fromEntries(
+        progress.completedObjectiveIds.map((objectiveId) => [objectiveId, 1]),
+      ),
     }
   }
 
   private isQuestState(value: unknown): value is QuestState {
     if (!value || typeof value !== 'object') return false
     const candidate = value as Partial<QuestState>
+    if (candidate.version !== 2 || !candidate.quests || typeof candidate.quests !== 'object') {
+      return false
+    }
+
+    const entries = Object.entries(candidate.quests)
+    return entries.every(([questId, progress]) =>
+      this.isQuestId(questId) && this.isQuestProgress(questId, progress))
+  }
+
+  private isLegacyQuestState(value: unknown): value is LegacyQuestState {
+    if (!value || typeof value !== 'object') return false
+    const candidate = value as Partial<LegacyQuestState>
     if (candidate.version !== 1 || !candidate.quests || typeof candidate.quests !== 'object') {
       return false
     }
 
     const entries = Object.entries(candidate.quests)
-    if (entries.some(([questId]) => questId !== ORIN_THREE_ROADS_QUEST_ID)) return false
+    return entries.every(([questId, progress]) =>
+      questId === ORIN_THREE_ROADS_QUEST_ID && this.isLegacyQuestProgress(progress))
+  }
 
-    return entries.every(([, progress]) =>
-      this.isQuestProgress(ORIN_THREE_ROADS_QUEST_ID, progress))
+  private isLegacyQuestProgress(value: unknown): value is LegacyQuestProgress {
+    if (!value || typeof value !== 'object') return false
+    const progress = value as Partial<LegacyQuestProgress>
+    if (progress.questId !== ORIN_THREE_ROADS_QUEST_ID) return false
+    if (!this.isPersistedQuestStatus(progress.status)) return false
+    return this.isValidCompletedObjectiveIds(progress.completedObjectiveIds)
+  }
+
+  private isValidCompletedObjectiveIds(value: unknown): value is readonly string[] {
+    if (!Array.isArray(value)) return false
+    if (!value.every((id) => typeof id === 'string' && id.length > 0)) return false
+    return new Set(value).size === value.length
+  }
+
+  private isQuestId(value: string): value is QuestId {
+    return QUEST_ID_SET.has(value)
+  }
+
+  private isPersistedQuestStatus(value: unknown): value is QuestStatus {
+    return value === QUEST_STATUS.active
+      || value === QUEST_STATUS.readyToTurnIn
+      || value === QUEST_STATUS.completed
   }
 
   private isQuestProgress(questId: QuestId, value: unknown): value is QuestProgress {
     if (!value || typeof value !== 'object') return false
     const progress = value as Partial<QuestProgress>
     if (progress.questId !== questId) return false
-    if (!progress.status || !PERSISTED_QUEST_STATUSES.has(progress.status)) return false
-    return Array.isArray(progress.completedObjectiveIds)
-      && progress.completedObjectiveIds.every((id) => typeof id === 'string' && id.length > 0)
-      && new Set(progress.completedObjectiveIds).size === progress.completedObjectiveIds.length
+    if (!this.isPersistedQuestStatus(progress.status)) return false
+    return this.isValidObjectiveProgress(progress.objectiveProgress)
   }
 
-  private assertObjectiveIds(objectiveIds: readonly string[]): void {
-    if (
-      objectiveIds.length === 0
-      || objectiveIds.some((id) => id.trim().length === 0)
-      || new Set(objectiveIds).size !== objectiveIds.length
-    ) {
-      throw new Error('Quest objective ids must be unique non-empty strings')
+  private isValidObjectiveProgress(value: unknown): value is Record<string, number> {
+    if (!value || typeof value !== 'object') return false
+    return Object.entries(value).every(([objectiveId, count]) =>
+      this.isValidObjectiveProgressEntry(objectiveId, count))
+  }
+
+  private isValidObjectiveProgressEntry(objectiveId: string, count: unknown): boolean {
+    return objectiveId.length > 0
+      && typeof count === 'number'
+      && Number.isSafeInteger(count)
+      && count >= 0
+  }
+
+  private assertProgressIncrement(increment: number): void {
+    if (!Number.isSafeInteger(increment) || increment <= 0) {
+      throw new Error('Quest objective progress increment must be a positive integer')
     }
+  }
+
+  private assertObjectiveRequirements(requiredByObjective: Readonly<Record<string, number>>): void {
+    const entries = Object.entries(requiredByObjective)
+    if (entries.length === 0 || entries.some(([id, target]) => !this.isValidRequirement(id, target))) {
+      throw new Error('Quest objective requirements must use non-empty ids and positive integer targets')
+    }
+  }
+
+  private isValidRequirement(id: string, target: number): boolean {
+    return id.trim().length > 0
+      && Number.isSafeInteger(target)
+      && target > 0
   }
 }

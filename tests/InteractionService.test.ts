@@ -39,6 +39,7 @@ describe('InteractionService', () => {
     expect(npc?.vendorId).toBeUndefined()
     expect(npc?.serviceId).toBeUndefined()
     expect(npc?.dialoguePages).toHaveLength(3)
+    expect(npc?.questIds).toEqual(['orin-three-roads', 'orin-field-methods'])
   })
 
 })

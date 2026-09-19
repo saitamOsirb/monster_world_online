@@ -125,7 +125,7 @@ The upstream prototype does not contain these systems. They are original Monster
 | --- | --- | --- |
 | Tiled world maps | Implemented foundation | External 16×16 orthogonal Tiled JSON maps load before native/Godot fallbacks with strict semantic layers and validation. |
 | World topology | Implemented foundation | Town now enters Trailhead Route; Coast/Cavern/Marsh branch from that route and return to their branch instead of teleporting directly to Town. |
-| Scene-scoped encounters | Implemented foundation | Town, Trailhead Route and three native Monster World biomes have canonical encounter populations with normalized rarity weights. |
+| Scene-scoped encounters | Implemented foundation | Town, Trailhead Route and the three external Tiled Monster World biomes have canonical encounter populations with normalized rarity weights. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
 | Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |

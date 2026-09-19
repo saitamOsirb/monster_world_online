@@ -43,7 +43,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   frosthollowCavern: 'ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc',
   duskmireMarsh: 'e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad',
   researchStation: 'f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8',
-  trailheadRoute: 'PENDING_TRAILHEAD_ROUTE_BASELINE',
+  trailheadRoute: '6b6614d2eb7e5621ba7e8a4ef6a8d47dcefd2544ee1c1b6a6a635cfc710c56d4',
 }
 
 const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [

@@ -24,7 +24,7 @@ type VisualFixture =
   | 'trailheadRoute'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
-  town: 'PENDING_TOWN_TILED_BASELINE',
+  town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
   menu: '8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b',
   party: 'd26f80375bff1effcfbd992edcd618fe5803089bb77e2b34252a39b854995987',
   bag: 'd2df940aa96cdbf22e6f2ab9c57c5d71fa7fa5cb08e48c7cefdb0bef1cf97228',

@@ -1,7 +1,7 @@
 import frosthollowMap from '../public/monster-world/maps/frosthollow-cavern.json'
-import { FROSTHOLLOW_CAVERN_SCENE } from '../src/game/world/NativeSceneCatalog'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import {
+  FROSTHOLLOW_CAVERN_SCENE,
   getTiledWorldMapUrl,
   listTiledWorldScenes,
 } from '../src/game/world/tiled/catalog'

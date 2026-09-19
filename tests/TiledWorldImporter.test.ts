@@ -67,6 +67,32 @@ function baseMap(): TiledMapDocument {
         visible: false,
       },
       {
+        name: 'WorldObjects',
+        type: OBJECT_LAYER,
+        objects: [
+          {
+            id: 4,
+            name: 'Tree',
+            x: -32,
+            y: 48,
+            point: true,
+            properties: [prop('instancePath', STRING_PROPERTY_TYPE, 'res://Tree.tscn')],
+          },
+          {
+            id: 5,
+            name: 'Custom Lab',
+            x: 64,
+            y: -16,
+            point: true,
+            properties: [
+              prop('instancePath', STRING_PROPERTY_TYPE, 'res://House.tscn'),
+              prop('texturePath', STRING_PROPERTY_TYPE, '/assets/Buildings/lab.png'),
+              prop('zIndex', INT_PROPERTY_TYPE, 96),
+            ],
+          },
+        ],
+      },
+      {
         name: 'PlayerSpawn',
         type: OBJECT_LAYER,
         objects: [{
@@ -177,6 +203,40 @@ describe('TiledWorldImporter', () => {
     expect(scene.tiles.filter((tile) => tile.tileId === -1 && !tile.texturePath)).toHaveLength(2)
   })
 
+  it('projects declarative world objects with exact pixel positions', () => {
+    const scene = new TiledWorldImporter().parseMap(baseMap())
+
+    expect(scene.objects).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        name: 'Tree',
+        instancePath: 'res://Tree.tscn',
+        position: { x: -32, y: 48 },
+      }),
+      expect.objectContaining({
+        name: 'Custom Lab',
+        instancePath: 'res://House.tscn',
+        texturePath: '/assets/Buildings/lab.png',
+        position: { x: 64, y: -16 },
+        zIndex: 96,
+      }),
+    ]))
+  })
+
+  it('projects optional transition animation textures', () => {
+    const map = baseMap()
+    const transitions = map.layers.find((layer) => layer.name === 'Transitions')
+    if (!transitions || transitions.type !== OBJECT_LAYER) throw new Error('Fixture Transitions missing')
+    transitions.objects[0].properties = [
+      ...(transitions.objects[0].properties ?? []),
+      prop('animationTexturePath', STRING_PROPERTY_TYPE, '/assets/Buildings/Door%20Animations/lab.png'),
+    ]
+
+    const scene = new TiledWorldImporter().parseMap(map)
+
+    expect(scene.doors[0].animationTexturePath)
+      .toBe('/assets/Buildings/Door%20Animations/lab.png')
+  })
+
   it('projects player spawn, transitions and explicit camera bounds', () => {
     const scene = new TiledWorldImporter().parseMap(baseMap())
     const player = scene.objects.find((object) => object.instancePath === 'res://Player.tscn')
@@ -273,6 +333,16 @@ describe('TiledWorldImporter', () => {
 
     expect(() => new TiledWorldImporter().parseMap(map))
       .toThrow('requires destinationScene, spawnX and spawnY')
+  })
+
+  it('rejects malformed declarative world objects', () => {
+    const map = baseMap()
+    const worldObjects = map.layers.find((layer) => layer.name === 'WorldObjects')
+    if (!worldObjects || worldObjects.type !== OBJECT_LAYER) throw new Error('Fixture WorldObjects missing')
+    worldObjects.objects[0].properties = []
+
+    expect(() => new TiledWorldImporter().parseMap(map))
+      .toThrow('requires instancePath or texturePath')
   })
 
   it('rejects maps without one canonical player spawn', () => {

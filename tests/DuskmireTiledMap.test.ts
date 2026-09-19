@@ -1,7 +1,7 @@
 import duskmireMap from '../public/monster-world/maps/duskmire-marsh.json'
-import { DUSKMIRE_MARSH_SCENE } from '../src/game/world/NativeSceneCatalog'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import {
+  DUSKMIRE_MARSH_SCENE,
   getTiledWorldMapUrl,
   listTiledWorldScenes,
 } from '../src/game/world/tiled/catalog'

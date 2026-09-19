@@ -5,8 +5,8 @@ import {
   DUSKMIRE_MARSH_SCENE,
   FROSTHOLLOW_CAVERN_SCENE,
   TIDEWATER_COAST_SCENE,
-} from '../src/game/world/NativeSceneCatalog'
-import { TRAILHEAD_ROUTE_SCENE } from '../src/game/world/tiled/catalog'
+  TRAILHEAD_ROUTE_SCENE,
+} from '../src/game/world/tiled/catalog'
 
 describe('encounter tables', () => {
   it('defines a six-species Town grass population with normalized weights', () => {

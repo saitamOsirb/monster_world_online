@@ -4,7 +4,7 @@ import { CollisionWorld } from './CollisionWorld'
 import { DoorAnimator } from './DoorAnimator'
 import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionImporter'
 import { LegacyGodotImporter } from './LegacyGodotImporter'
-import { decorateLegacyScene, getNativeSceneDefinition } from './NativeSceneCatalog'
+import { getNativeSceneDefinition } from './NativeSceneCatalog'
 import { TileMapRenderer } from './TileMapRenderer'
 import { TiledWorldImporter } from './tiled/TiledWorldImporter'
 import { getTiledWorldMapUrl } from './tiled/catalog'
@@ -100,7 +100,7 @@ export class WorldScene {
     const tiledScene = await this.loadTiledScene(scenePath)
     const nativeScene = tiledScene ?? getNativeSceneDefinition(scenePath)
     const isNativeScene = nativeScene !== null
-    this.scene = nativeScene ?? decorateLegacyScene(scenePath, await this.importer.loadScene(scenePath))
+    this.scene = nativeScene ?? await this.importer.loadScene(scenePath)
     this.scenePath = scenePath
 
     await Promise.all([

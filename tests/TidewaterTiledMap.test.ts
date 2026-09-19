@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import tidewaterMap from '../public/monster-world/maps/tidewater-coast.json'
-import { TIDEWATER_COAST_SCENE } from '../src/game/world/NativeSceneCatalog'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import {
+  TIDEWATER_COAST_SCENE,
   getTiledWorldMapUrl,
   listTiledWorldScenes,
 } from '../src/game/world/tiled/catalog'

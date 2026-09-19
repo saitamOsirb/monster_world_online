@@ -36,7 +36,11 @@ function baseMap(): TiledMapDocument {
         width: 2,
         height: 2,
         data: [0, 0, 3, 0],
-        properties: [prop('zIndex', INT_PROPERTY_TYPE, 12)],
+        properties: [
+          prop('zIndex', INT_PROPERTY_TYPE, 12),
+          prop('tint', INT_PROPERTY_TYPE, 0x123456),
+          prop('nativeTileId', INT_PROPERTY_TYPE, 2),
+        ],
       },
       {
         name: 'AbovePlayer',
@@ -142,6 +146,8 @@ describe('TiledWorldImporter', () => {
       .toMatchObject({
         sourceX: 0,
         sourceY: 16,
+        tileId: 2,
+        tint: 0x123456,
         zIndex: 12,
       })
     expect(scene.foregroundTiles?.[0]).toMatchObject({
@@ -234,6 +240,26 @@ describe('TiledWorldImporter', () => {
       },
     ]
     expect(() => importer.parseMap(unknownLayer)).toThrow('Unsupported Tiled tile layer')
+  })
+
+  it('rejects invalid Tiled visual layer tint and native tile metadata', () => {
+    const invalidTint = baseMap()
+    const decoration = invalidTint.layers.find((layer) => layer.name === 'Decoration')
+    if (!decoration || decoration.type !== TILE_LAYER) throw new Error('Fixture Decoration layer missing')
+    decoration.properties = [prop('tint', INT_PROPERTY_TYPE, 0x1000000)]
+
+    expect(() => new TiledWorldImporter().parseMap(invalidTint))
+      .toThrow('must be a 24-bit RGB color')
+
+    const invalidNativeTile = baseMap()
+    const nativeDecoration = invalidNativeTile.layers.find((layer) => layer.name === 'Decoration')
+    if (!nativeDecoration || nativeDecoration.type !== TILE_LAYER) {
+      throw new Error('Fixture Decoration layer missing')
+    }
+    nativeDecoration.properties = [prop('nativeTileId', 'float', 1.5)]
+
+    expect(() => new TiledWorldImporter().parseMap(invalidNativeTile))
+      .toThrow('must be an integer')
   })
 
   it('rejects malformed transitions instead of silently creating broken doors', () => {

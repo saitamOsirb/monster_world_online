@@ -41,7 +41,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   rivalHomeFloor: '73a8386930802d4363579797ee7e2cf966760d25378bdff1fe155898538ffdfa',
   tidewaterCoast: 'b1fe9d55f1876c928dc902558d024facbfe8fecfc702d658b127ed651e3f2c46',
   frosthollowCavern: 'c619170a76431b7e27e8b8442d1736c17983ce1e21ab567c489aace2355fb155',
-  duskmireMarsh: 'PENDING_DUSKMIRE_TILED_BASELINE',
+  duskmireMarsh: '76a496bdf7d280c9a9b750e54b2ea2a0399d4e5a99d060c46f45644cf5bec8a6',
   researchStation: 'f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8',
   trailheadRoute: '6b6614d2eb7e5621ba7e8a4ef6a8d47dcefd2544ee1c1b6a6a635cfc710c56d4',
 }

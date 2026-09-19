@@ -448,10 +448,23 @@ export class Game {
     if (!this.player) return
     const centerX = this.player.view.x + TILE_SIZE / 2
     const centerY = this.player.view.y + TILE_SIZE / 2
-    this.world.view.position.set(
-      Math.round(LOGICAL_WIDTH / 2 - centerX),
-      Math.round(LOGICAL_HEIGHT / 2 - centerY),
-    )
+    const desiredX = Math.round(LOGICAL_WIDTH / 2 - centerX)
+    const desiredY = Math.round(LOGICAL_HEIGHT / 2 - centerY)
+    const bounds = this.world.currentCameraBounds
+
+    if (!bounds) {
+      this.world.view.position.set(desiredX, desiredY)
+      return
+    }
+
+    const cameraX = bounds.width <= LOGICAL_WIDTH
+      ? Math.round((LOGICAL_WIDTH - bounds.width) / 2 - bounds.x)
+      : Math.max(LOGICAL_WIDTH - bounds.x - bounds.width, Math.min(-bounds.x, desiredX))
+    const cameraY = bounds.height <= LOGICAL_HEIGHT
+      ? Math.round((LOGICAL_HEIGHT - bounds.height) / 2 - bounds.y)
+      : Math.max(LOGICAL_HEIGHT - bounds.y - bounds.height, Math.min(-bounds.y, desiredY))
+
+    this.world.view.position.set(cameraX, cameraY)
   }
 
   private applyBattleResult(
@@ -553,7 +566,10 @@ export class Game {
     if (this.transitioning || this.battle.isActive || this.menu.inputLocked) return
     if (!this.collection.party.some((monster) => monster.currentHp > 0)) return
 
-    const table = getEncounterTableForScene(this.world.currentScenePath)
+    const table = getEncounterTableForScene(
+      this.world.currentScenePath,
+      this.world.currentEncounterTableId,
+    )
     if (!table) return
     const encounter = this.encounters.tryEncounter(table)
     if (!encounter) return

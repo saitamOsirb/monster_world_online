@@ -3,6 +3,7 @@ import { FIELD_RESEARCH_CLEARANCE_ID } from '../unlocks/types'
 import {
   ORIN_FIELD_METHODS_QUEST_ID,
   ORIN_THREE_ROADS_QUEST_ID,
+  RESEARCH_BASELINE_SAMPLES_QUEST_ID,
   type QuestDefinition,
   type QuestId,
 } from './types'
@@ -87,9 +88,48 @@ export const ORIN_FIELD_METHODS_QUEST = {
   completedText: 'Your Field Methods report is complete. That is proper field work.',
 } as const satisfies QuestDefinition
 
+export const RESEARCH_BASELINE_SAMPLES_QUEST = {
+  id: RESEARCH_BASELINE_SAMPLES_QUEST_ID,
+  title: 'Baseline Samples',
+  prerequisiteQuestIds: [ORIN_FIELD_METHODS_QUEST_ID],
+  objectives: [
+    {
+      id: 'capture-glacub-sample',
+      kind: 'capture-species',
+      description: 'Capture Glacub',
+      speciesId: 'glacub',
+      required: 1,
+    },
+    {
+      id: 'capture-miretoad-sample',
+      kind: 'capture-species',
+      description: 'Capture Miretoad',
+      speciesId: 'miretoad',
+      required: 1,
+    },
+    {
+      id: 'capture-wispurr-sample',
+      kind: 'capture-species',
+      description: 'Capture Wispurr',
+      speciesId: 'wispurr',
+      required: 1,
+    },
+  ],
+  rewards: {
+    credits: 300,
+    items: [{ itemId: CAPTURE_CAPSULE_ID, quantity: 3 }],
+  },
+  offerText: 'Our station needs a clean baseline across Ice, Toxic and Spirit populations. Will you collect three live samples?',
+  acceptChoiceLabel: 'I can collect them.',
+  acceptText: 'Capture one Glacub, one Miretoad and one Wispurr, then return to the Research Station.',
+  readyText: 'All three samples are registered. Ready to submit the baseline report?',
+  completedText: 'The baseline set is cataloged. Future field studies can build on those samples.',
+} as const satisfies QuestDefinition
+
 export const QUEST_CATALOG: Readonly<Record<QuestId, QuestDefinition>> = {
   [ORIN_THREE_ROADS_QUEST_ID]: ORIN_THREE_ROADS_QUEST,
   [ORIN_FIELD_METHODS_QUEST_ID]: ORIN_FIELD_METHODS_QUEST,
+  [RESEARCH_BASELINE_SAMPLES_QUEST_ID]: RESEARCH_BASELINE_SAMPLES_QUEST,
 }
 
 export function getQuestDefinition(questId: QuestId): QuestDefinition {

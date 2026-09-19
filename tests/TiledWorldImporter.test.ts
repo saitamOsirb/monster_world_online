@@ -169,6 +169,7 @@ describe('TiledWorldImporter', () => {
     const player = scene.objects.find((object) => object.instancePath === 'res://Player.tscn')
 
     expect(player?.position).toEqual({ x: 16, y: 16 })
+    expect(scene.spawnDirection).toBe('right')
     expect(scene.doors).toEqual([{
       tile: { x: 0, y: 1 },
       nextScene: 'res://Destination.tscn',

@@ -59,13 +59,7 @@ export class TileMapRenderer {
     const waterFrameCache = new Map<string, Texture[]>()
 
     for (const tile of tiles) {
-      const source = tile.texturePath
-        ? {
-            path: tile.texturePath,
-            originX: tile.sourceX ?? 0,
-            originY: tile.sourceY ?? 0,
-          }
-        : TILE_SOURCES[tile.tileId]
+      const source = this.resolveTileSource(tile)
       if (!source) continue
       const base = textures.get(source.path)
       if (!base) continue
@@ -119,6 +113,15 @@ export class TileMapRenderer {
     this.waterFrame = (this.waterFrame + advance) % WATER_PATHS.length
     for (const water of this.animatedWater) {
       water.sprite.texture = water.frames[this.waterFrame]
+    }
+  }
+
+  private resolveTileSource(tile: TileDefinition): TileSource | undefined {
+    if (!tile.texturePath) return TILE_SOURCES[tile.tileId]
+    return {
+      path: tile.texturePath,
+      originX: tile.sourceX ?? 0,
+      originY: tile.sourceY ?? 0,
     }
   }
 

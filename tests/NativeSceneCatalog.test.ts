@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DUSKMIRE_MARSH_SCENE,
-  FROSTHOLLOW_CAVERN_SCENE,
   NATIVE_BIOME_SCENES,
   RESEARCH_STATION_SCENE,
-  TIDEWATER_COAST_SCENE,
-  TOWN_SCENE,
   getNativeSceneDefinition,
 } from '../src/game/world/NativeSceneCatalog'
+import {
+  DUSKMIRE_MARSH_SCENE,
+  FROSTHOLLOW_CAVERN_SCENE,
+  TIDEWATER_COAST_SCENE,
+  TOWN_SCENE,
+} from '../src/game/world/tiled/catalog'
 
 describe('native biome scenes', () => {
   it('has no generated native biomes after Tiled migration', () => {

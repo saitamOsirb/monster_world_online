@@ -1,7 +1,7 @@
-import type { WalletStore } from '../economy/WalletStore'
 import type { InventoryStore } from '../inventory/InventoryStore'
 import type { InventoryItemId } from '../inventory/types'
 import { QUEST_CATALOG, getQuestDefinition } from './catalog'
+import { QuestRewardService } from './QuestRewardService'
 import { QuestStore } from './QuestStore'
 import {
   QUEST_STATUS,
@@ -26,7 +26,7 @@ export interface QuestProgressUpdate {
 export class QuestService {
   constructor(
     private readonly store: QuestStore,
-    private readonly wallet: WalletStore,
+    private readonly rewards: QuestRewardService,
     private readonly inventory: InventoryStore,
   ) {}
 
@@ -124,23 +124,43 @@ export class QuestService {
     if (before.status === QUEST_STATUS.readyToTurnIn) {
       this.store.complete(questId)
     } else if (before.status !== QUEST_STATUS.completed) {
-      return {
-        ok: false,
-        status: before.status,
-        rewardCredits: 0,
-        rewardApplied: false,
-      }
+      return this.failedTurnIn(before.status)
     }
 
-    const reward = this.wallet.creditOnce(
-      `quest:${questId}:reward`,
-      definition.rewardCredits,
-    )
+    return this.grantCompletedQuestRewards(definition)
+  }
+
+  reconcileCompletedRewards(): readonly QuestTurnInResult[] {
+    const reconciled: QuestTurnInResult[] = []
+
+    for (const definition of Object.values(QUEST_CATALOG)) {
+      if (this.getProgress(definition.id).status !== QUEST_STATUS.completed) continue
+      reconciled.push(this.grantCompletedQuestRewards(definition))
+    }
+
+    return reconciled
+  }
+
+  private grantCompletedQuestRewards(definition: QuestDefinition): QuestTurnInResult {
+    const reward = this.rewards.grant(definition.id, definition.rewards)
     return {
       ok: true,
       status: QUEST_STATUS.completed,
-      rewardCredits: definition.rewardCredits,
+      rewardCredits: reward.credits,
+      rewardItems: reward.items,
+      rewardUnlocks: reward.unlocks,
       rewardApplied: reward.applied,
+    }
+  }
+
+  private failedTurnIn(status: QuestProgress['status']): QuestTurnInResult {
+    return {
+      ok: false,
+      status,
+      rewardCredits: 0,
+      rewardItems: [],
+      rewardUnlocks: [],
+      rewardApplied: false,
     }
   }
 

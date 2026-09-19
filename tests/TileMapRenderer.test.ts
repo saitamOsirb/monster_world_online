@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { tileMapRendererInternals } from '../src/game/world/TileMapRenderer'
 import type { TileDefinition } from '../src/game/world/types'
 
+const WATER_TEXTURE_PATH = WATER_TEXTURE_PATH
+
 const baseWaterTile = (): TileDefinition => ({
   x: 0,
   y: 0,
@@ -18,11 +20,11 @@ describe('TileMapRenderer animated water cache', () => {
     const tile = baseWaterTile()
 
     const first = tileMapRendererInternals.waterFrameCacheKey(
-      { path: '/assets/Water/water_tileset1.png', originX: 0, originY: 0 },
+      { path: WATER_TEXTURE_PATH, originX: 0, originY: 0 },
       tile,
     )
     const second = tileMapRendererInternals.waterFrameCacheKey(
-      { path: '/assets/Water/water_tileset1.png', originX: 16, originY: 0 },
+      { path: WATER_TEXTURE_PATH, originX: 16, originY: 0 },
       tile,
     )
 
@@ -30,7 +32,7 @@ describe('TileMapRenderer animated water cache', () => {
   })
 
   it('still distinguishes legacy water autotile coordinates', () => {
-    const source = { path: '/assets/Water/water_tileset1.png', originX: 0, originY: 0 }
+    const source = { path: WATER_TEXTURE_PATH, originX: 0, originY: 0 }
     const left = baseWaterTile()
     const right = { ...baseWaterTile(), autotileX: 1 }
 

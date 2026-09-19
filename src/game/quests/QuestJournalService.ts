@@ -1,4 +1,5 @@
 import { QUEST_CATALOG } from './catalog'
+import { describeQuestReward } from './QuestRewardPresentation'
 import { QuestService } from './QuestService'
 import { QUEST_STATUS, type QuestId, type QuestStatus } from './types'
 
@@ -17,6 +18,8 @@ export interface QuestJournalEntry {
   completedObjectives: number
   totalObjectives: number
   rewardCredits: number
+  rewardText: string
+  rewardComponentCount: number
   objectives: readonly QuestJournalObjective[]
 }
 
@@ -50,13 +53,16 @@ export class QuestJournalService {
         }
       })
 
+      const reward = describeQuestReward(definition.rewards)
       const entry: QuestJournalEntry = {
         questId: definition.id,
         title: definition.title,
         status: progress.status,
         completedObjectives: objectives.filter((objective) => objective.completed).length,
         totalObjectives: objectives.length,
-        rewardCredits: definition.rewardCredits,
+        rewardCredits: definition.rewards.credits ?? 0,
+        rewardText: reward.text,
+        rewardComponentCount: reward.componentCount,
         objectives,
       }
 

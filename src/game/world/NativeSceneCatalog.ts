@@ -186,11 +186,7 @@ function createResearchStationScene(): ImportedSceneDefinition {
         flipX: false,
         flipY: false,
         transpose: false,
-        tint: boundary
-          ? 0x56677a
-          : workstationBand
-            ? 0x9fb1c4
-            : 0xc8d5e2,
+        tint: researchStationTileTint(boundary, workstationBand),
         blocked: boundary || workstationBand,
       })
     }
@@ -222,6 +218,15 @@ function createResearchStationScene(): ImportedSceneDefinition {
     objects,
     doors,
   }
+}
+
+function researchStationTileTint(
+  boundary: boolean,
+  workstationBand: boolean,
+): number {
+  if (boundary) return 0x56677a
+  if (workstationBand) return 0x9fb1c4
+  return 0xc8d5e2
 }
 
 function createBiomeScene(

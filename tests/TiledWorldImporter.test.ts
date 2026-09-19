@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import type { TiledMapDocument, TiledProperty } from '../src/game/world/tiled/types'
 
-const TILE_LAYER = TILE_LAYER
-const OBJECT_LAYER = OBJECT_LAYER
+const TILE_LAYER = 'tilelayer'
+const OBJECT_LAYER = 'objectgroup'
 const STRING_PROPERTY_TYPE = 'string'
 const INT_PROPERTY_TYPE = 'int'
-const DESTINATION_SCENE = DESTINATION_SCENE
+const DESTINATION_SCENE = 'res://Destination.tscn'
 
 const prop = (name: string, type: string, value: unknown): TiledProperty => ({
   name,

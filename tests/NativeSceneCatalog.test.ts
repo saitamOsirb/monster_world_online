@@ -25,40 +25,8 @@ function emptyScene(): ImportedSceneDefinition {
 }
 
 describe('native biome scenes', () => {
-  it('keeps only Duskmire as a generated native biome', () => {
-    expect(NATIVE_BIOME_SCENES).toEqual([
-      DUSKMIRE_MARSH_SCENE,
-    ])
-
-    for (const scenePath of NATIVE_BIOME_SCENES) {
-      const scene = getNativeSceneDefinition(scenePath)
-      expect(scene).not.toBeNull()
-      expect(scene?.tiles).toHaveLength(26 * 20)
-      expect(scene?.objects.some((object) => object.instancePath === 'res://Player.tscn')).toBe(true)
-      expect(scene?.doors).toHaveLength(1)
-      expect(scene?.doors[0].nextScene).toBe(TRAILHEAD_ROUTE_SCENE)
-    }
-  })
-
-  it('marks encounter terrain without pretending it is TallGrass', () => {
-    for (const scenePath of NATIVE_BIOME_SCENES) {
-      const scene = getNativeSceneDefinition(scenePath)
-      const encounterTiles = scene?.tiles.filter((tile) => tile.encounterZone) ?? []
-      expect(encounterTiles.length).toBeGreaterThan(100)
-      expect(encounterTiles.every((tile) => !tile.blocked && tile.tileId !== 2)).toBe(true)
-    }
-  })
-
-  it('blocks map boundaries and leaves the return door traversable by WorldScene', () => {
-    for (const scenePath of NATIVE_BIOME_SCENES) {
-      const scene = getNativeSceneDefinition(scenePath)
-      const boundary = scene?.tiles.filter((tile) =>
-        tile.x === 0 || tile.y === 0 || tile.x === 25 || tile.y === 19
-      ) ?? []
-      expect(boundary).toHaveLength(2 * 26 + 2 * 18)
-      expect(boundary.every((tile) => tile.blocked)).toBe(true)
-      expect(scene?.doors[0].tile).toEqual({ x: 13, y: 19 })
-    }
+  it('has no generated native biomes after Tiled migration', () => {
+    expect(NATIVE_BIOME_SCENES).toEqual([])
   })
 
   it('decorates Town with one off-screen world gateway without mutating the source scene', () => {
@@ -83,23 +51,10 @@ describe('native biome scenes', () => {
     })])
   })
 
-  it('returns each native biome to its dedicated Trailhead branch', () => {
-    const expected = new Map([
-      [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
-    ])
-
-    for (const [scenePath, spawnTile] of expected) {
-      expect(getNativeSceneDefinition(scenePath)?.doors[0]).toMatchObject({
-        nextScene: TRAILHEAD_ROUTE_SCENE,
-        spawnTile,
-        spawnDirection: 'down',
-      })
-    }
-  })
-
-  it('no longer generates Tidewater Coast or Frosthollow Cavern from NativeSceneCatalog', () => {
+  it('no longer generates any primary biome from NativeSceneCatalog', () => {
     expect(getNativeSceneDefinition(TIDEWATER_COAST_SCENE)).toBeNull()
     expect(getNativeSceneDefinition(FROSTHOLLOW_CAVERN_SCENE)).toBeNull()
+    expect(getNativeSceneDefinition(DUSKMIRE_MARSH_SCENE)).toBeNull()
   })
 
   it('does not decorate non-Town legacy scenes', () => {

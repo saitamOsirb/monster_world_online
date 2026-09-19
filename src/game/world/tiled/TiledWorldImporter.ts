@@ -201,6 +201,8 @@ export class TiledWorldImporter {
   ): void {
     const offset = layerOffset(layer)
     const zIndex = numberProperty(layer.properties, 'zIndex') ?? VISUAL_LAYER_Z[role] ?? 0
+    const tint = optionalColorProperty(layer.properties, 'tint')
+    const nativeTileId = optionalIntegerProperty(layer.properties, 'nativeTileId') ?? -1
 
     for (let index = 0; index < layer.data.length; index += 1) {
       const encoded = validEncodedGid(layer, layer.data[index])
@@ -212,6 +214,8 @@ export class TiledWorldImporter {
         resolved,
         mapUrl,
         zIndex,
+        tint,
+        nativeTileId,
       ))
     }
   }
@@ -358,6 +362,8 @@ function createVisualTile(
   resolved: ResolvedTile,
   mapUrl: string,
   zIndex: number,
+  tint: number | undefined,
+  nativeTileId: number,
 ): TileDefinition {
   const { tileset, localId } = resolved
   const margin = tileset.margin ?? 0
@@ -367,7 +373,7 @@ function createVisualTile(
 
   return {
     ...point,
-    tileId: -1,
+    tileId: nativeTileId,
     autotileX: 0,
     autotileY: 0,
     flipX: resolved.flipX,
@@ -376,6 +382,7 @@ function createVisualTile(
     texturePath: resolveImagePath(mapUrl, tileset.image),
     sourceX: margin + sourceColumn * (TILE_SIZE + spacing),
     sourceY: margin + sourceRow * (TILE_SIZE + spacing),
+    tint,
     zIndex,
   }
 }
@@ -554,6 +561,31 @@ function optionalNumber(value: unknown): number | undefined {
 function optionalBoolean(value: unknown): boolean | undefined {
   return typeof value === 'boolean' ? value : undefined
 }
+
+function optionalIntegerProperty(
+  properties: readonly TiledProperty[] | undefined,
+  name: string,
+): number | undefined {
+  const value = numberProperty(properties, name)
+  if (value === undefined) return undefined
+  if (!Number.isInteger(value)) {
+    throw new Error(`Tiled property ${name} must be an integer`)
+  }
+  return value
+}
+
+function optionalColorProperty(
+  properties: readonly TiledProperty[] | undefined,
+  name: string,
+): number | undefined {
+  const value = optionalIntegerProperty(properties, name)
+  if (value === undefined) return undefined
+  if (value < 0 || value > 0xffffff) {
+    throw new Error(`Tiled property ${name} must be a 24-bit RGB color`)
+  }
+  return value
+}
+
 
 function parseOptionalProperties(value: unknown): TiledProperty[] | undefined {
   if (value === undefined) return undefined

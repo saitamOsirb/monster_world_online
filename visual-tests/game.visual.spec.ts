@@ -39,7 +39,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',
   playerHomeFloor1: '25305efbe948aa9ba74af1c91399803ae37a6ee64194f8d8f48d897bd3d7b692',
   rivalHomeFloor: '73a8386930802d4363579797ee7e2cf966760d25378bdff1fe155898538ffdfa',
-  tidewaterCoast: 'd438a72eabf3066ad046f9e00746cb82d0f7862321adf60f9ec4ed4da947e3b8',
+  tidewaterCoast: 'b1fe9d55f1876c928dc902558d024facbfe8fecfc702d658b127ed651e3f2c46',
   frosthollowCavern: 'ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc',
   duskmireMarsh: 'e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad',
   researchStation: 'f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8',

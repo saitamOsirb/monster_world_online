@@ -25,9 +25,8 @@ function emptyScene(): ImportedSceneDefinition {
 }
 
 describe('native biome scenes', () => {
-  it('defines three deterministic Monster World biome scenes', () => {
+  it('keeps only Frosthollow and Duskmire as generated native biomes', () => {
     expect(NATIVE_BIOME_SCENES).toEqual([
-      TIDEWATER_COAST_SCENE,
       FROSTHOLLOW_CAVERN_SCENE,
       DUSKMIRE_MARSH_SCENE,
     ])
@@ -87,7 +86,6 @@ describe('native biome scenes', () => {
 
   it('returns each native biome to its dedicated Trailhead branch', () => {
     const expected = new Map([
-      [TIDEWATER_COAST_SCENE, { x: 7, y: 1 }],
       [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
       [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
     ])
@@ -99,6 +97,10 @@ describe('native biome scenes', () => {
         spawnDirection: 'down',
       })
     }
+  })
+
+  it('no longer generates Tidewater Coast from NativeSceneCatalog', () => {
+    expect(getNativeSceneDefinition(TIDEWATER_COAST_SCENE)).toBeNull()
   })
 
   it('does not decorate non-Town legacy scenes', () => {

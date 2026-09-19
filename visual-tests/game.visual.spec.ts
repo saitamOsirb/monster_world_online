@@ -21,6 +21,7 @@ type VisualFixture =
   | 'frosthollowCavern'
   | 'duskmireMarsh'
   | 'researchStation'
+  | 'trailheadRoute'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
@@ -42,6 +43,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   frosthollowCavern: 'ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc',
   duskmireMarsh: 'e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad',
   researchStation: 'f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8',
+  trailheadRoute: 'PENDING_TRAILHEAD_ROUTE_BASELINE',
 }
 
 const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
@@ -52,6 +54,7 @@ const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
   { name: 'frosthollowCavern', scene: 'res://MonsterWorld/FrosthollowCavern.tscn' },
   { name: 'duskmireMarsh', scene: 'res://MonsterWorld/DuskmireMarsh.tscn' },
   { name: 'researchStation', scene: 'res://MonsterWorld/ResearchStation.tscn' },
+  { name: 'trailheadRoute', scene: 'res://MonsterWorld/TrailheadRoute.tscn' },
 ]
 
 async function setTickers(page: Page, running: boolean): Promise<void> {

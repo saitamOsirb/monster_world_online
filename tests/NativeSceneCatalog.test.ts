@@ -7,8 +7,9 @@ import {
   TIDEWATER_COAST_SCENE,
   decorateLegacyScene,
   getNativeSceneDefinition,
-  listTownBiomeGateways,
+  listTownWorldGateways,
 } from '../src/game/world/NativeSceneCatalog'
+import { TRAILHEAD_ROUTE_SCENE } from '../src/game/world/tiled/catalog'
 import type { ImportedSceneDefinition } from '../src/game/world/types'
 
 function emptyScene(): ImportedSceneDefinition {
@@ -35,7 +36,7 @@ describe('native biome scenes', () => {
       expect(scene?.tiles).toHaveLength(26 * 20)
       expect(scene?.objects.some((object) => object.instancePath === 'res://Player.tscn')).toBe(true)
       expect(scene?.doors).toHaveLength(1)
-      expect(scene?.doors[0].nextScene).toBe('res://Town.tscn')
+      expect(scene?.doors[0].nextScene).toBe(TRAILHEAD_ROUTE_SCENE)
     }
   })
 
@@ -60,18 +61,42 @@ describe('native biome scenes', () => {
     }
   })
 
-  it('decorates Town with three off-screen biome gateways without mutating the source scene', () => {
+  it('decorates Town with one off-screen world gateway without mutating the source scene', () => {
     const source = emptyScene()
     const decorated = decorateLegacyScene('res://Town.tscn', source)
-    const gateways = listTownBiomeGateways()
+    const gateways = listTownWorldGateways()
 
     expect(source.doors).toHaveLength(0)
     expect(source.objects).toHaveLength(0)
-    expect(decorated.doors).toHaveLength(3)
-    expect(decorated.objects).toHaveLength(3)
-    expect(decorated.doors.map((door) => door.nextScene)).toEqual(NATIVE_BIOME_SCENES)
-    expect(gateways.map((gateway) => gateway.tile.y)).toEqual([-24, -24, -24])
-    expect(gateways.every((gateway) => gateway.returnSpawn.y === -23)).toBe(true)
+    expect(decorated.doors).toHaveLength(1)
+    expect(decorated.objects).toHaveLength(1)
+    expect(decorated.doors[0]).toMatchObject({
+      nextScene: TRAILHEAD_ROUTE_SCENE,
+      spawnTile: { x: 20, y: 27 },
+      spawnDirection: 'up',
+    })
+    expect(gateways).toEqual([expect.objectContaining({
+      scenePath: TRAILHEAD_ROUTE_SCENE,
+      tile: { x: 7, y: -24 },
+      returnSpawn: { x: 7, y: -23 },
+      name: 'Trailhead Route Gate',
+    })])
+  })
+
+  it('returns each native biome to its dedicated Trailhead branch', () => {
+    const expected = new Map([
+      [TIDEWATER_COAST_SCENE, { x: 7, y: 1 }],
+      [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
+      [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
+    ])
+
+    for (const [scenePath, spawnTile] of expected) {
+      expect(getNativeSceneDefinition(scenePath)?.doors[0]).toMatchObject({
+        nextScene: TRAILHEAD_ROUTE_SCENE,
+        spawnTile,
+        spawnDirection: 'down',
+      })
+    }
   })
 
   it('does not decorate non-Town legacy scenes', () => {

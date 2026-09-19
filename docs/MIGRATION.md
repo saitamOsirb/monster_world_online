@@ -480,8 +480,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
 - quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
 - advanced quest journal: `9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646` (`Field Methods` composite reward summary)
-- research quest journal: pending first deterministic `Baseline Samples` 1/3 baseline in this PR
-- Research Station: pending first deterministic native-scene baseline in this PR
+- research quest journal: `062ba5a82ab67a52146aece58416ee1a3d6d4cc920e55053078a625088de61c8` (`Baseline Samples`, Glacub 1/3)
+- Research Station: `f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8`
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`

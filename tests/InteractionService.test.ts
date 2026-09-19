@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { InteractionService } from '../src/game/interaction/InteractionService'
-import { TOWN_FIELD_GUIDE, TOWN_RECOVERY_ATTENDANT, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { TOWN_FIELD_GUIDE, TOWN_RECOVERY_ATTENDANT, TOWN_RESEARCH_AIDE, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
 
 const service = new InteractionService()
 
@@ -40,6 +41,17 @@ describe('InteractionService', () => {
     expect(npc?.serviceId).toBeUndefined()
     expect(npc?.dialoguePages).toHaveLength(3)
     expect(npc?.questIds).toEqual(['orin-three-roads', 'orin-field-methods'])
+  })
+
+
+  it('keeps the research aide hidden until Field Research Clearance is unlocked', () => {
+    expect(service.findNpc(TOWN_RESEARCH_AIDE.scenePath, TOWN_RESEARCH_AIDE.tile)).toBeUndefined()
+
+    const unlocked = new InteractionService(
+      (unlockId) => unlockId === FIELD_RESEARCH_CLEARANCE_ID,
+    )
+    expect(unlocked.findNpc(TOWN_RESEARCH_AIDE.scenePath, TOWN_RESEARCH_AIDE.tile)?.id)
+      .toBe(TOWN_RESEARCH_AIDE.id)
   })
 
 })

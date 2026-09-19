@@ -1,5 +1,6 @@
 import type { Direction } from '../constants'
 import type { QuestId } from '../quests/types'
+import type { UnlockId } from '../unlocks/types'
 import type { GridPoint } from '../world/types'
 
 export interface DialogueChoice {
@@ -23,5 +24,6 @@ export interface InteractableNpcDefinition {
   vendorId?: string
   serviceId?: string
   questIds?: readonly QuestId[]
+  requiredUnlockId?: UnlockId
   texturePath: string
 }

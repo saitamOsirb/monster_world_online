@@ -18,6 +18,13 @@ export const INVENTORY_CATEGORIES: readonly InventoryCategory[] = [
 ]
 
 export interface InventoryState {
+  version: 2
+  initialized: boolean
+  quantities: Record<InventoryItemId, number>
+  appliedTransactions: readonly string[]
+}
+
+export interface LegacyInventoryState {
   version: 1
   initialized: boolean
   quantities: Record<InventoryItemId, number>

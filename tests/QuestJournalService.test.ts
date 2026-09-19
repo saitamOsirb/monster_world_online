@@ -5,6 +5,7 @@ import {
   ORIN_THREE_ROADS_QUEST,
 } from '../src/game/quests/catalog'
 import { QuestJournalService } from '../src/game/quests/QuestJournalService'
+import { QuestRewardService } from '../src/game/quests/QuestRewardService'
 import { QuestService } from '../src/game/quests/QuestService'
 import { QuestStore } from '../src/game/quests/QuestStore'
 import {
@@ -12,6 +13,7 @@ import {
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
 } from '../src/game/quests/types'
+import { UnlockStore } from '../src/game/unlocks/UnlockStore'
 
 class MemoryStorage {
   readonly data = new Map<string, string>()
@@ -28,9 +30,14 @@ function setup(): {
   const questStore = new QuestStore(new MemoryStorage())
   const wallet = new WalletStore(new MemoryStorage())
   const inventory = new InventoryStore(new MemoryStorage())
+  const unlocks = new UnlockStore(new MemoryStorage())
   wallet.ensureStarterBalance(200)
   inventory.ensureStarterStock(0)
-  const quests = new QuestService(questStore, wallet, inventory)
+  const quests = new QuestService(
+    questStore,
+    new QuestRewardService(wallet, inventory, unlocks),
+    inventory,
+  )
   return {
     quests,
     journal: new QuestJournalService(quests),
@@ -71,6 +78,8 @@ describe('QuestJournalService', () => {
       completedObjectives: 1,
       totalObjectives: 3,
       rewardCredits: 120,
+      rewardText: '120 credits',
+      rewardComponentCount: 1,
     })
     expect(snapshot.active[0].objectives.map((objective) => ({
       current: objective.current,
@@ -125,6 +134,8 @@ describe('QuestJournalService', () => {
       completedObjectives: 0,
       totalObjectives: 4,
       rewardCredits: 220,
+      rewardText: '220 credits + 2 Capture Capsules + Field Research Clearance',
+      rewardComponentCount: 3,
     })
     expect(entry.objectives[0]).toMatchObject({
       id: 'defeat-skyrill',

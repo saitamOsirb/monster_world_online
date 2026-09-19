@@ -109,4 +109,48 @@ describe('InventoryStore', () => {
     expect(store.snapshot.initialized).toBe(false)
     expect(store.getQuantity(CAPTURE_CAPSULE_ID)).toBe(0)
   })
+
+  it('applies an idempotent item grant exactly once across reloads', () => {
+    const storage = new MemoryStorage()
+    const store = new InventoryStore(storage)
+    store.ensureStarterStock(0)
+
+    expect(store.addOnce('quest:field-methods:reward:item:capture-capsule', CAPTURE_CAPSULE_ID, 2))
+      .toEqual({ applied: true, quantity: 2 })
+    expect(store.addOnce('quest:field-methods:reward:item:capture-capsule', CAPTURE_CAPSULE_ID, 2))
+      .toEqual({ applied: false, quantity: 2 })
+
+    const reloaded = new InventoryStore(storage)
+    expect(reloaded.addOnce(
+      'quest:field-methods:reward:item:capture-capsule',
+      CAPTURE_CAPSULE_ID,
+      2,
+    )).toEqual({ applied: false, quantity: 2 })
+  })
+
+  it('migrates valid v1 inventory state to v2 without losing quantities', () => {
+    const storage = new MemoryStorage()
+    storage.setItem('monster-world.inventory.v1', JSON.stringify({
+      version: 1,
+      initialized: true,
+      quantities: { [CAPTURE_CAPSULE_ID]: 4 },
+    }))
+
+    const store = new InventoryStore(storage)
+
+    expect(store.getQuantity(CAPTURE_CAPSULE_ID)).toBe(4)
+    expect(store.snapshot.version).toBe(2)
+    expect(store.snapshot.appliedTransactions).toEqual([])
+    expect(JSON.parse(storage.getItem('monster-world.inventory.v1') ?? '{}').version).toBe(2)
+  })
+
+  it('rejects invalid inventory transaction ids', () => {
+    const store = new InventoryStore(new MemoryStorage())
+
+    expect(() => store.addOnce('', CAPTURE_CAPSULE_ID, 1))
+      .toThrow('Inventory transaction id')
+    expect(() => store.addOnce('../unsafe', CAPTURE_CAPSULE_ID, 1))
+      .toThrow('Inventory transaction id')
+  })
+
 })

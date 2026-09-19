@@ -188,7 +188,11 @@ export class QuestJournalController {
       )
     })
 
-    this.addText(`Reward: ${entry.rewardCredits} credits`, 105, 128, 7, 0xbec9d8)
+    if (entry.rewardComponentCount <= 1) {
+      this.addText(`Reward: ${entry.rewardText}`, 105, 128, 7, 0xbec9d8)
+    } else {
+      this.addText(`Reward: ${entry.rewardText}`, 105, 119, 6, 0xbec9d8, 126)
+    }
   }
 
   private statusLabel(entry: QuestJournalEntry): string {

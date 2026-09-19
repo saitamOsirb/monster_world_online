@@ -56,4 +56,5 @@ export interface ImportedSceneDefinition {
   doors: DoorDefinition[]
   encounterTableId?: string
   cameraBounds?: WorldBounds
+  spawnDirection?: Direction
 }

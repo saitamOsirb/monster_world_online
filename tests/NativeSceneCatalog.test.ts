@@ -5,50 +5,13 @@ import {
   NATIVE_BIOME_SCENES,
   RESEARCH_STATION_SCENE,
   TIDEWATER_COAST_SCENE,
-  decorateLegacyScene,
+  TOWN_SCENE,
   getNativeSceneDefinition,
-  listTownWorldGateways,
 } from '../src/game/world/NativeSceneCatalog'
-import { TRAILHEAD_ROUTE_SCENE } from '../src/game/world/tiled/catalog'
-import type { ImportedSceneDefinition } from '../src/game/world/types'
-
-const TOWN_SCENE = 'res://Town.tscn'
-
-function emptyScene(): ImportedSceneDefinition {
-  return {
-    name: 'Town',
-    tiles: [],
-    ledgeTiles: [],
-    objects: [],
-    doors: [],
-  }
-}
 
 describe('native biome scenes', () => {
   it('has no generated native biomes after Tiled migration', () => {
     expect(NATIVE_BIOME_SCENES).toEqual([])
-  })
-
-  it('decorates Town with one off-screen world gateway without mutating the source scene', () => {
-    const source = emptyScene()
-    const decorated = decorateLegacyScene(TOWN_SCENE, source)
-    const gateways = listTownWorldGateways()
-
-    expect(source.doors).toHaveLength(0)
-    expect(source.objects).toHaveLength(0)
-    expect(decorated.doors).toHaveLength(1)
-    expect(decorated.objects).toHaveLength(1)
-    expect(decorated.doors[0]).toMatchObject({
-      nextScene: TRAILHEAD_ROUTE_SCENE,
-      spawnTile: { x: 20, y: 27 },
-      spawnDirection: 'up',
-    })
-    expect(gateways).toEqual([expect.objectContaining({
-      scenePath: TRAILHEAD_ROUTE_SCENE,
-      tile: { x: 7, y: -24 },
-      returnSpawn: { x: 7, y: -23 },
-      name: 'Trailhead Route Gate',
-    })])
   })
 
   it('no longer generates any primary biome from NativeSceneCatalog', () => {
@@ -57,9 +20,7 @@ describe('native biome scenes', () => {
     expect(getNativeSceneDefinition(DUSKMIRE_MARSH_SCENE)).toBeNull()
   })
 
-  it('does not decorate non-Town legacy scenes', () => {
-    const source = emptyScene()
-    expect(decorateLegacyScene('res://OaksLab.tscn', source)).toBe(source)
+  it('does not generate Town from NativeSceneCatalog after the Tiled migration', () => {
     expect(getNativeSceneDefinition(TOWN_SCENE)).toBeNull()
   })
 

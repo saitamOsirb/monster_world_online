@@ -5,6 +5,13 @@ export interface GridPoint {
   y: number
 }
 
+export interface WorldBounds {
+  x: number
+  y: number
+  width: number
+  height: number
+}
+
 export interface DoorDefinition {
   tile: GridPoint
   nextScene: string
@@ -34,12 +41,19 @@ export interface TileDefinition {
   tint?: number
   blocked?: boolean
   encounterZone?: boolean
+  texturePath?: string
+  sourceX?: number
+  sourceY?: number
+  zIndex?: number
 }
 
 export interface ImportedSceneDefinition {
   name: string
   tiles: TileDefinition[]
+  foregroundTiles?: TileDefinition[]
   ledgeTiles: TileDefinition[]
   objects: WorldObjectDefinition[]
   doors: DoorDefinition[]
+  encounterTableId?: string
+  cameraBounds?: WorldBounds
 }

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { tileMapRendererInternals } from '../src/game/world/TileMapRenderer'
 import type { TileDefinition } from '../src/game/world/types'
 
-const WATER_TEXTURE_PATH = WATER_TEXTURE_PATH
+const WATER_TEXTURE_PATH = '/assets/Water/water_tileset1.png'
 
 const baseWaterTile = (): TileDefinition => ({
   x: 0,

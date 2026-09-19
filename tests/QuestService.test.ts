@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { WalletStore } from '../src/game/economy/WalletStore'
 import { InventoryStore } from '../src/game/inventory/InventoryStore'
-import { HEALING_TONIC_ID } from '../src/game/inventory/types'
+import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../src/game/inventory/types'
 import {
   ORIN_FIELD_METHODS_QUEST,
   ORIN_THREE_ROADS_QUEST,
 } from '../src/game/quests/catalog'
+import { QuestRewardService } from '../src/game/quests/QuestRewardService'
 import { QuestService } from '../src/game/quests/QuestService'
 import { QuestStore } from '../src/game/quests/QuestStore'
 import {
@@ -13,6 +14,8 @@ import {
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
 } from '../src/game/quests/types'
+import { UnlockStore } from '../src/game/unlocks/UnlockStore'
+import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
 
 class MemoryStorage {
   readonly data = new Map<string, string>()
@@ -48,29 +51,36 @@ interface Fixture {
   store: QuestStore
   wallet: WalletStore
   inventory: InventoryStore
+  unlocks: UnlockStore
   questStorage: MemoryStorage
   walletStorage: MemoryStorage
   inventoryStorage: MemoryStorage
+  unlockStorage: MemoryStorage
 }
 
 function createService(
   questStorage = new MemoryStorage(),
   walletStorage = new MemoryStorage(),
   inventoryStorage = new MemoryStorage(),
+  unlockStorage = new MemoryStorage(),
 ): Fixture {
   const store = new QuestStore(questStorage)
   const wallet = new WalletStore(walletStorage)
   const inventory = new InventoryStore(inventoryStorage)
+  const unlocks = new UnlockStore(unlockStorage)
+  const rewards = new QuestRewardService(wallet, inventory, unlocks)
   wallet.ensureStarterBalance(200)
   inventory.ensureStarterStock(0)
   return {
-    service: new QuestService(store, wallet, inventory),
+    service: new QuestService(store, rewards, inventory),
     store,
     wallet,
     inventory,
+    unlocks,
     questStorage,
     walletStorage,
     inventoryStorage,
+    unlockStorage,
   }
 }
 
@@ -247,6 +257,8 @@ describe('QuestService', () => {
       ok: false,
       status: QUEST_STATUS.active,
       rewardCredits: 0,
+      rewardItems: [],
+      rewardUnlocks: [],
       rewardApplied: false,
     })
     expect(fixture.wallet.balance).toBe(200)
@@ -263,19 +275,26 @@ describe('QuestService', () => {
       ok: true,
       status: QUEST_STATUS.completed,
       rewardCredits: 120,
+      rewardItems: [],
+      rewardUnlocks: [],
       rewardApplied: true,
     })
     expect(fixture.wallet.balance).toBe(320)
 
+    const reloadedWallet = new WalletStore(fixture.walletStorage)
+    const reloadedInventory = new InventoryStore(fixture.inventoryStorage)
+    const reloadedUnlocks = new UnlockStore(fixture.unlockStorage)
     const reloaded = new QuestService(
       new QuestStore(fixture.questStorage),
-      new WalletStore(fixture.walletStorage),
-      new InventoryStore(fixture.inventoryStorage),
+      new QuestRewardService(reloadedWallet, reloadedInventory, reloadedUnlocks),
+      reloadedInventory,
     )
     expect(reloaded.turnIn(ORIN_THREE_ROADS_QUEST_ID)).toEqual({
       ok: true,
       status: QUEST_STATUS.completed,
       rewardCredits: 120,
+      rewardItems: [],
+      rewardUnlocks: [],
       rewardApplied: false,
     })
     expect(new WalletStore(fixture.walletStorage).balance).toBe(320)
@@ -290,15 +309,23 @@ describe('QuestService', () => {
     const inventory = new InventoryStore(inventoryStorage)
     wallet.ensureStarterBalance(200)
     inventory.ensureStarterStock(0)
-    const service = new QuestService(store, wallet, inventory)
+    const unlockStorage = new MemoryStorage()
+    const unlocks = new UnlockStore(unlockStorage)
+    const service = new QuestService(
+      store,
+      new QuestRewardService(wallet, inventory, unlocks),
+      inventory,
+    )
     const fixture: Fixture = {
       service,
       store,
       wallet,
       inventory,
+      unlocks,
       questStorage,
       walletStorage,
       inventoryStorage,
+      unlockStorage,
     }
 
     completeThreeRoads(fixture)
@@ -325,4 +352,31 @@ describe('QuestService', () => {
       'deliver-item',
     ])
   })
+
+  it('grants the full Field Methods reward package exactly once', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    fixture.service.recordDefeat('skyrill', 2)
+    fixture.service.recordCapture('rillfin')
+    fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(fixture.service.turnIn(ORIN_FIELD_METHODS_QUEST_ID)).toEqual({
+      ok: true,
+      status: QUEST_STATUS.completed,
+      rewardCredits: 220,
+      rewardItems: [{ itemId: CAPTURE_CAPSULE_ID, quantity: 2 }],
+      rewardUnlocks: [FIELD_RESEARCH_CLEARANCE_ID],
+      rewardApplied: true,
+    })
+    expect(fixture.wallet.balance).toBe(540)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
+    expect(fixture.unlocks.has(FIELD_RESEARCH_CLEARANCE_ID)).toBe(true)
+
+    expect(fixture.service.turnIn(ORIN_FIELD_METHODS_QUEST_ID).rewardApplied).toBe(false)
+    expect(fixture.wallet.balance).toBe(540)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
+  })
+
 })

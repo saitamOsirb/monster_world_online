@@ -7,6 +7,7 @@ const OBJECT_LAYER = 'objectgroup'
 const STRING_PROPERTY_TYPE = 'string'
 const INT_PROPERTY_TYPE = 'int'
 const DESTINATION_SCENE = 'res://Destination.tscn'
+const DECORATION_LAYER_NAME = 'Decoration'
 
 const prop = (name: string, type: string, value: unknown): TiledProperty => ({
   name,
@@ -31,7 +32,7 @@ function baseMap(): TiledMapDocument {
         data: [1, 2, 0, 0],
       },
       {
-        name: 'Decoration',
+        name: DECORATION_LAYER_NAME,
         type: TILE_LAYER,
         width: 2,
         height: 2,
@@ -244,7 +245,7 @@ describe('TiledWorldImporter', () => {
 
   it('rejects invalid Tiled visual layer tint and native tile metadata', () => {
     const invalidTint = baseMap()
-    const decoration = invalidTint.layers.find((layer) => layer.name === 'Decoration')
+    const decoration = invalidTint.layers.find((layer) => layer.name === DECORATION_LAYER_NAME)
     if (!decoration || decoration.type !== TILE_LAYER) throw new Error('Fixture Decoration layer missing')
     decoration.properties = [prop('tint', INT_PROPERTY_TYPE, 0x1000000)]
 
@@ -252,7 +253,7 @@ describe('TiledWorldImporter', () => {
       .toThrow('must be a 24-bit RGB color')
 
     const invalidNativeTile = baseMap()
-    const nativeDecoration = invalidNativeTile.layers.find((layer) => layer.name === 'Decoration')
+    const nativeDecoration = invalidNativeTile.layers.find((layer) => layer.name === DECORATION_LAYER_NAME)
     if (!nativeDecoration || nativeDecoration.type !== TILE_LAYER) {
       throw new Error('Fixture Decoration layer missing')
     }

@@ -54,7 +54,7 @@ export type TiledLayer = TiledTileLayer | TiledObjectLayer
 
 export interface TiledMapDocument {
   type: 'map'
-  orientation: 'orthogonal' | string
+  orientation: string
   width: number
   height: number
   tilewidth: number

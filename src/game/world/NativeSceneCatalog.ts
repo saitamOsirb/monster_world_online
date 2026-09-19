@@ -1,11 +1,17 @@
 import { TILE_SIZE } from '../constants'
-import { TOWN_SCENE } from './tiled/catalog'
-export {
+import {
   DUSKMIRE_MARSH_SCENE,
   FROSTHOLLOW_CAVERN_SCENE,
   TIDEWATER_COAST_SCENE,
   TOWN_SCENE,
 } from './tiled/catalog'
+
+export {
+  DUSKMIRE_MARSH_SCENE,
+  FROSTHOLLOW_CAVERN_SCENE,
+  TIDEWATER_COAST_SCENE,
+  TOWN_SCENE,
+}
 import type {
   DoorDefinition,
   ImportedSceneDefinition,

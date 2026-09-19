@@ -78,7 +78,7 @@ const ALL_TABLES = [
   TIDEWATER_COAST_ENCOUNTERS,
   FROSTHOLLOW_CAVERN_ENCOUNTERS,
   DUSKMIRE_MARSH_ENCOUNTERS,
-] as const
+]
 
 const TABLES_BY_ID = new Map<string, EncounterTable>(
   ALL_TABLES.map((table) => [table.id, table]),

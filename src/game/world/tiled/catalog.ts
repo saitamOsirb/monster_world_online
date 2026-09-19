@@ -1,7 +1,9 @@
 export const TRAILHEAD_ROUTE_SCENE = 'res://MonsterWorld/TrailheadRoute.tscn'
+export const TIDEWATER_COAST_SCENE = 'res://MonsterWorld/TidewaterCoast.tscn'
 
 const TILED_WORLD_SCENES: Readonly<Record<string, string>> = {
   [TRAILHEAD_ROUTE_SCENE]: '/monster-world/maps/trailhead-route.json',
+  [TIDEWATER_COAST_SCENE]: '/monster-world/maps/tidewater-coast.json',
 }
 
 export function getTiledWorldMapUrl(scenePath: string): string | null {

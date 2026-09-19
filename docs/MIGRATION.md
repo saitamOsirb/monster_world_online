@@ -85,6 +85,10 @@ src/
       WorldEffects.ts
       WorldObjectRenderer.ts
       WorldScene.ts
+      tiled/
+        TiledWorldImporter.ts      strict Tiled JSON → world scene adapter
+        catalog.ts                 Tiled scene path → public map asset
+        types.ts                   supported Tiled JSON contracts
 visual-tests/
   game.visual.spec.ts             deterministic Town/UI/Bag/vendor/recovery/interior hashes
 ```
@@ -119,7 +123,9 @@ The upstream prototype does not contain these systems. They are original Monster
 
 | System | Status | Notes |
 | --- | --- | --- |
-| Scene-scoped encounters | Implemented foundation | Town plus three native Monster World biomes have canonical encounter populations with normalized rarity weights. |
+| Tiled world maps | Implemented foundation | External 16×16 orthogonal Tiled JSON maps load before native/Godot fallbacks with strict semantic layers and validation. |
+| World topology | Implemented foundation | Town now enters Trailhead Route; Coast/Cavern/Marsh branch from that route and return to their branch instead of teleporting directly to Town. |
+| Scene-scoped encounters | Implemented foundation | Town, Trailhead Route and three native Monster World biomes have canonical encounter populations with normalized rarity weights. |
 | Weighted/step-based encounters | Implemented | Injectable RNG and cooldown. |
 | Battle engine | Implemented foundation | Stats, priority, speed, accuracy, elemental damage, KO, capture, statuses and active-party switching. |
 | Battle event stream | Implemented | Pixi renders events but does not own combat rules. |
@@ -286,8 +292,9 @@ Cindlet remains starter-only. Rillfin, Glacub and Duskfin are now reachable in b
 
 The upstream reference contains Town and interiors only, so Monster World biomes are native TypeScript/Pixi scenes rather than fabricated Godot files. `NativeSceneCatalog.ts` produces deterministic `ImportedSceneDefinition` objects and `WorldScene` resolves them before falling back to `LegacyGodotImporter`.
 
-Current native scenes:
+Current Monster World world scenes:
 
+- **Trailhead Route** — `res://MonsterWorld/TrailheadRoute.tscn`; first external Tiled map (40×30), one Town entrance, three biome branches, collision/encounter layers and camera bounds loaded from JSON.
 - **Research Station** — `res://MonsterWorld/ResearchStation.tscn`; 16×11 non-encounter interior, central traversable aisle, workstation bands, Dr. Sera quest NPC and deterministic return door to Town.
 - **Tidewater Coast** — `res://MonsterWorld/TidewaterCoast.tscn`; Rillfin 50%, Skyrill 20%, Mossprig 12%, Duskfin 10%, Voltail 8%, levels 4–8.
 - **Frosthollow Cavern** — `res://MonsterWorld/FrosthollowCavern.tscn`; Glacub 55%, Terrun 25%, Wispurr 15%, Skyrill 5%, levels 5–8.
@@ -482,6 +489,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - advanced quest journal: `9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646` (`Field Methods` composite reward summary)
 - research quest journal: `062ba5a82ab67a52146aece58416ee1a3d6d4cc920e55053078a625088de61c8` (`Baseline Samples`, Glacub 1/3)
 - Research Station: `f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8`
+- Trailhead Route: pending first deterministic Tiled-world baseline in this PR
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -498,7 +506,14 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
 - `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata. Legacy reference ids are aliases rather than runtime identities.
-- `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways/interiors; legacy Godot import remains a separate fallback path.
+- Tiled JSON is now the preferred authoring format for new large world maps. `WorldScene` resolves **Tiled → native TypeScript scene → legacy Godot** in that order.
+- Supported semantic Tiled tile layers are `Ground`, `Decoration`, `AbovePlayer`, `Collision` and `Encounter`. Unknown tile-layer names fail fast.
+- Supported semantic Tiled object layers are `PlayerSpawn`, `Transitions` and `CameraBounds`. Transition properties are `destinationScene`, `spawnX`, `spawnY`, `spawnDirection` and optional `invisible`.
+- Tiled map properties `sceneName` and `encounterTable` drive display metadata and encounter-table selection.
+- New world maps must remain orthogonal, finite and **16×16**. Tilesets are embedded in the map JSON and may reference public images relatively; unsupported map geometry fails during import.
+- `AbovePlayer` renders through a dedicated foreground tile renderer above actors, while encounter/collision marker layers never render.
+- `CameraBounds` clamps the Pixi world camera without changing legacy-scene camera behavior.
+- `NativeSceneCatalog.ts` remains responsible for smaller generated/native scenes and the temporary legacy Town decoration; legacy Godot import remains a separate fallback path.
 - NPC travel destinations are declarative metadata; `Game` owns fade/scene-load/spawn orchestration rather than embedding destination-specific branches in NPC services.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
@@ -516,7 +531,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
 3. Replace the remaining temporary third-party creature/NPC art with original production assets using the versioned Monster World art contract; canonical Monster World ids/names are already active.
-4. Replace temporary tinted biome terrain with original Monster World coast/cavern/marsh environment art while preserving the native scene contract.
+4. Migrate the remaining temporary native/legacy overworld areas into external Tiled maps, then replace temporary terrain with original Monster World environment art while preserving the Tiled semantic-layer contract.
 5. Expand beyond the initial 10-species foundation as additional maps/biomes are introduced.
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.

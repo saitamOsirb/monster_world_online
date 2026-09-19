@@ -2,8 +2,8 @@ import {
   DUSKMIRE_MARSH_SCENE,
   FROSTHOLLOW_CAVERN_SCENE,
   TIDEWATER_COAST_SCENE,
-} from '../world/NativeSceneCatalog'
-import { TRAILHEAD_ROUTE_SCENE } from '../world/tiled/catalog'
+  TRAILHEAD_ROUTE_SCENE,
+} from '../world/tiled/catalog'
 import type { EncounterTable } from './types'
 
 const SKYRILL_ID = 'skyrill'

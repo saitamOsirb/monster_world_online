@@ -304,25 +304,34 @@ export class TiledWorldImporter {
   }
 
   private assertMapDocument(source: unknown): TiledMapDocument {
-    if (!source || typeof source !== 'object') {
+    if (!isRecord(source)) {
       throw new Error('Invalid Tiled map document')
     }
-
-    const map = source as Partial<TiledMapDocument>
-    if (map.type !== 'map') {
+    if (source.type !== 'map') {
       throw new Error('Tiled document type must be map')
     }
-    if (!isPositiveInteger(map.width) || !isPositiveInteger(map.height)) {
+    if (!isPositiveInteger(source.width) || !isPositiveInteger(source.height)) {
       throw new Error('Tiled map requires positive integer dimensions')
     }
-    if (!Array.isArray(map.layers) || !Array.isArray(map.tilesets)) {
+    if (!Array.isArray(source.layers) || !Array.isArray(source.tilesets)) {
       throw new Error('Tiled map requires layers and tilesets arrays')
     }
-    if (!Number.isInteger(map.tilewidth) || !Number.isInteger(map.tileheight)) {
+    if (!isInteger(source.tilewidth) || !isInteger(source.tileheight)) {
       throw new Error('Tiled map requires integer tile dimensions')
     }
 
-    return map as TiledMapDocument
+    return {
+      type: 'map',
+      orientation: stringValue(source.orientation, 'orientation'),
+      width: source.width,
+      height: source.height,
+      tilewidth: source.tilewidth,
+      tileheight: source.tileheight,
+      infinite: optionalBoolean(source.infinite),
+      layers: source.layers.map(parseLayerRecord),
+      tilesets: source.tilesets.map(parseTilesetRecord),
+      properties: parseOptionalProperties(source.properties),
+    }
   }
 
   private assertSupportedMap(map: TiledMapDocument): void {
@@ -519,6 +528,126 @@ function visualTargetForRole(
 
 function isDirection(value: string): value is Direction {
   return DIRECTIONS.has(value)
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function isInteger(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value)
+}
+
+function stringValue(value: unknown, field: string): string {
+  if (typeof value !== 'string') throw new Error(`Tiled field ${field} must be a string`)
+  return value
+}
+
+function optionalString(value: unknown): string | undefined {
+  return typeof value === 'string' ? value : undefined
+}
+
+function optionalNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
+function parseOptionalProperties(value: unknown): TiledProperty[] | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value)) throw new Error('Tiled properties must be an array')
+  return value.map(parsePropertyRecord)
+}
+
+function parsePropertyRecord(value: unknown): TiledProperty {
+  if (!isRecord(value)) throw new Error('Tiled property must be an object')
+  if (typeof value.name !== 'string') throw new Error('Tiled property requires a name')
+  return {
+    name: value.name,
+    type: optionalString(value.type),
+    value: value.value,
+  }
+}
+
+function parseLayerRecord(value: unknown): TiledMapDocument['layers'][number] {
+  if (!isRecord(value)) throw new Error('Tiled layer must be an object')
+  if (value.type === 'tilelayer') return parseTileLayerRecord(value)
+  if (value.type === 'objectgroup') return parseObjectLayerRecord(value)
+  throw new Error(`Unsupported Tiled layer type: ${String(value.type)}`)
+}
+
+function parseTileLayerRecord(value: Record<string, unknown>): TiledTileLayer {
+  if (!isPositiveInteger(value.width) || !isPositiveInteger(value.height)) {
+    throw new Error('Tiled tile layer requires positive dimensions')
+  }
+  if (!Array.isArray(value.data) || !value.data.every(isInteger)) {
+    throw new Error('Tiled tile layer requires integer data')
+  }
+  return {
+    id: optionalNumber(value.id),
+    name: stringValue(value.name, 'layer.name'),
+    type: 'tilelayer',
+    width: value.width,
+    height: value.height,
+    data: value.data,
+    x: optionalNumber(value.x),
+    y: optionalNumber(value.y),
+    visible: optionalBoolean(value.visible),
+    properties: parseOptionalProperties(value.properties),
+  }
+}
+
+function parseObjectLayerRecord(value: Record<string, unknown>): TiledObjectLayer {
+  if (!Array.isArray(value.objects)) throw new Error('Tiled object layer requires objects')
+  return {
+    id: optionalNumber(value.id),
+    name: stringValue(value.name, 'layer.name'),
+    type: 'objectgroup',
+    objects: value.objects.map(parseObjectRecord),
+    visible: optionalBoolean(value.visible),
+    properties: parseOptionalProperties(value.properties),
+  }
+}
+
+function parseObjectRecord(value: unknown): TiledObject {
+  if (!isRecord(value)) throw new Error('Tiled object must be an object')
+  if (!isInteger(value.id)) throw new Error('Tiled object requires an integer id')
+  if (typeof value.x !== 'number' || typeof value.y !== 'number') {
+    throw new Error('Tiled object requires numeric coordinates')
+  }
+  return {
+    id: value.id,
+    name: optionalString(value.name),
+    type: optionalString(value.type),
+    x: value.x,
+    y: value.y,
+    width: optionalNumber(value.width),
+    height: optionalNumber(value.height),
+    point: optionalBoolean(value.point),
+    properties: parseOptionalProperties(value.properties),
+  }
+}
+
+function parseTilesetRecord(value: unknown): TiledTileset {
+  if (!isRecord(value)) throw new Error('Tiled tileset must be an object')
+  if (!isPositiveInteger(value.firstgid)) throw new Error('Tiled tileset requires firstgid')
+  if (!isPositiveInteger(value.tilewidth) || !isPositiveInteger(value.tileheight)) {
+    throw new Error('Tiled tileset requires positive tile dimensions')
+  }
+  if (!isPositiveInteger(value.columns)) throw new Error('Tiled tileset requires positive columns')
+  return {
+    firstgid: value.firstgid,
+    name: optionalString(value.name),
+    tilewidth: value.tilewidth,
+    tileheight: value.tileheight,
+    columns: value.columns,
+    tilecount: optionalNumber(value.tilecount),
+    image: stringValue(value.image, 'tileset.image'),
+    margin: optionalNumber(value.margin),
+    spacing: optionalNumber(value.spacing),
+  }
 }
 
 function resolveImagePath(mapUrl: string, image: string): string {

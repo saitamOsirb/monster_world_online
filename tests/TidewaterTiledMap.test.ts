@@ -1,5 +1,5 @@
-import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
+import tidewaterMap from '../public/monster-world/maps/tidewater-coast.json'
 import { TIDEWATER_COAST_SCENE } from '../src/game/world/NativeSceneCatalog'
 import { TiledWorldImporter } from '../src/game/world/tiled/TiledWorldImporter'
 import {
@@ -8,11 +8,8 @@ import {
 } from '../src/game/world/tiled/catalog'
 
 const MAP_URL = '/monster-world/maps/tidewater-coast.json'
-const MAP_FILE = new URL('../public/monster-world/maps/tidewater-coast.json', import.meta.url)
-
 function loadTidewaterScene() {
-  const source: unknown = JSON.parse(readFileSync(MAP_FILE, 'utf8'))
-  return new TiledWorldImporter().parseMap(source, MAP_URL)
+  return new TiledWorldImporter().parseMap(tidewaterMap, MAP_URL)
 }
 
 describe('Tidewater Coast Tiled map', () => {

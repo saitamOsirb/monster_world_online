@@ -3,10 +3,12 @@ import type { UnlockId } from '../unlocks/types'
 
 export const ORIN_THREE_ROADS_QUEST_ID = 'orin-three-roads' as const
 export const ORIN_FIELD_METHODS_QUEST_ID = 'orin-field-methods' as const
+export const RESEARCH_BASELINE_SAMPLES_QUEST_ID = 'research-baseline-samples' as const
 
 export const QUEST_IDS = [
   ORIN_THREE_ROADS_QUEST_ID,
   ORIN_FIELD_METHODS_QUEST_ID,
+  RESEARCH_BASELINE_SAMPLES_QUEST_ID,
 ] as const
 
 export type QuestId = typeof QUEST_IDS[number]

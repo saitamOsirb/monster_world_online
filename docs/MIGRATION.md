@@ -478,7 +478,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **248 tests across 36 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **259 tests across 37 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -489,7 +489,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - advanced quest journal: `9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646` (`Field Methods` composite reward summary)
 - research quest journal: `062ba5a82ab67a52146aece58416ee1a3d6d4cc920e55053078a625088de61c8` (`Baseline Samples`, Glacub 1/3)
 - Research Station: `f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8`
-- Trailhead Route: pending first deterministic Tiled-world baseline in this PR
+- Trailhead Route: `6b6614d2eb7e5621ba7e8a4ef6a8d47dcefd2544ee1c1b6a6a635cfc710c56d4`
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`

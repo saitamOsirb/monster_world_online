@@ -8,7 +8,6 @@ import type {
   WorldObjectDefinition,
 } from '../types'
 import type {
-  TiledLayer,
   TiledMapDocument,
   TiledObject,
   TiledObjectLayer,
@@ -110,6 +109,7 @@ export class TiledWorldImporter {
         width: map.width * TILE_SIZE,
         height: map.height * TILE_SIZE,
       },
+      spawnDirection: playerSpawn.direction,
     }
   }
 

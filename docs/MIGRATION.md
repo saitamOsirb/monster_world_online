@@ -294,7 +294,8 @@ The upstream reference contains Town and interiors only, so Monster World biomes
 
 Current Monster World world scenes:
 
-- **Trailhead Route** — `res://MonsterWorld/TrailheadRoute.tscn`; first external Tiled map (40×30), one Town entrance, three biome branches, collision/encounter layers and camera bounds loaded from JSON.
+- **Trailhead Route** — `res://MonsterWorld/TrailheadRoute.tscn`; external Tiled map (40×30), one Town entrance, three biome branches, collision/encounter layers and camera bounds loaded from JSON.
+- **Tidewater Coast** — `res://MonsterWorld/TidewaterCoast.tscn`; external Tiled map (26×20) preserving the original 220 encounter cells, 136 blocked/water cells, animated water semantics, route return and coast-specific terrain tints.
 - **Research Station** — `res://MonsterWorld/ResearchStation.tscn`; 16×11 non-encounter interior, central traversable aisle, workstation bands, Dr. Sera quest NPC and deterministic return door to Town.
 - **Tidewater Coast** — `res://MonsterWorld/TidewaterCoast.tscn`; Rillfin 50%, Skyrill 20%, Mossprig 12%, Duskfin 10%, Voltail 8%, levels 4–8.
 - **Frosthollow Cavern** — `res://MonsterWorld/FrosthollowCavern.tscn`; Glacub 55%, Terrun 25%, Wispurr 15%, Skyrill 5%, levels 5–8.
@@ -493,7 +494,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
-- Tidewater Coast: `d438a72eabf3066ad046f9e00746cb82d0f7862321adf60f9ec4ed4da947e3b8`
+- Tidewater Coast: pending intentional Tiled migration baseline update in this PR
 - Frosthollow Cavern: `ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc`
 - Duskmire Marsh: `e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad`
 
@@ -510,10 +511,11 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - Supported semantic Tiled tile layers are `Ground`, `Decoration`, `AbovePlayer`, `Collision` and `Encounter`. Unknown tile-layer names fail fast.
 - Supported semantic Tiled object layers are `PlayerSpawn`, `Transitions` and `CameraBounds`. Transition properties are `destinationScene`, `spawnX`, `spawnY`, `spawnDirection` and optional `invisible`.
 - Tiled map properties `sceneName` and `encounterTable` drive display metadata and encounter-table selection.
+- Visual tile layers may declare integer `tint` (24-bit RGB) and `nativeTileId` metadata. `nativeTileId=2` preserves the shared animated-water renderer when a Tiled layer uses the synchronized water tileset.
 - New world maps must remain orthogonal, finite and **16×16**. Tilesets are embedded in the map JSON and may reference public images relatively; unsupported map geometry fails during import.
 - `AbovePlayer` renders through a dedicated foreground tile renderer above actors, while encounter/collision marker layers never render.
 - `CameraBounds` clamps the Pixi world camera without changing legacy-scene camera behavior.
-- `NativeSceneCatalog.ts` remains responsible for smaller generated/native scenes and the temporary legacy Town decoration; legacy Godot import remains a separate fallback path.
+- `NativeSceneCatalog.ts` remains responsible for smaller generated/native scenes, temporary Frosthollow/Duskmire geometry and the temporary legacy Town decoration; Tidewater Coast no longer has generated geometry there. Legacy Godot import remains a separate fallback path.
 - NPC travel destinations are declarative metadata; `Game` owns fade/scene-load/spawn orchestration rather than embedding destination-specific branches in NPC services.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
@@ -531,7 +533,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 1. Add controlled cross-engine golden screenshots if the original Godot runtime can be captured in a controlled environment.
 2. Extend deterministic visual fixtures as maps/scenes/product screens are added.
 3. Replace the remaining temporary third-party creature/NPC art with original production assets using the versioned Monster World art contract; canonical Monster World ids/names are already active.
-4. Migrate the remaining temporary native/legacy overworld areas into external Tiled maps, then replace temporary terrain with original Monster World environment art while preserving the Tiled semantic-layer contract.
+4. Migrate Frosthollow Cavern, Duskmire Marsh and remaining legacy overworld areas into external Tiled maps, then replace temporary terrain with original Monster World environment art while preserving the Tiled semantic-layer contract.
 5. Expand beyond the initial 10-species foundation as additional maps/biomes are introduced.
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.

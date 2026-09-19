@@ -448,9 +448,18 @@ export class Game {
     if (!this.player) return
     const centerX = this.player.view.x + TILE_SIZE / 2
     const centerY = this.player.view.y + TILE_SIZE / 2
+    const desiredX = Math.round(LOGICAL_WIDTH / 2 - centerX)
+    const desiredY = Math.round(LOGICAL_HEIGHT / 2 - centerY)
+    const bounds = this.world.currentCameraBounds
+
+    if (!bounds) {
+      this.world.view.position.set(desiredX, desiredY)
+      return
+    }
+
     this.world.view.position.set(
-      Math.round(LOGICAL_WIDTH / 2 - centerX),
-      Math.round(LOGICAL_HEIGHT / 2 - centerY),
+      clampCameraAxis(desiredX, LOGICAL_WIDTH, bounds.x, bounds.width),
+      clampCameraAxis(desiredY, LOGICAL_HEIGHT, bounds.y, bounds.height),
     )
   }
 
@@ -553,7 +562,10 @@ export class Game {
     if (this.transitioning || this.battle.isActive || this.menu.inputLocked) return
     if (!this.collection.party.some((monster) => monster.currentHp > 0)) return
 
-    const table = getEncounterTableForScene(this.world.currentScenePath)
+    const table = getEncounterTableForScene(
+      this.world.currentScenePath,
+      this.world.currentEncounterTableId,
+    )
     if (!table) return
     const encounter = this.encounters.tryEncounter(table)
     if (!encounter) return
@@ -771,4 +783,19 @@ export class Game {
   private delay(milliseconds: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
   }
+}
+
+function clampCameraAxis(
+  desired: number,
+  viewportSize: number,
+  boundsStart: number,
+  boundsSize: number,
+): number {
+  if (boundsSize <= viewportSize) {
+    return Math.round((viewportSize - boundsSize) / 2 - boundsStart)
+  }
+
+  const min = viewportSize - boundsStart - boundsSize
+  const max = -boundsStart
+  return Math.max(min, Math.min(max, desired))
 }

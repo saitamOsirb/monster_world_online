@@ -6,9 +6,18 @@ import { LegacyCollisionImporter, type CollisionRect } from './LegacyCollisionIm
 import { LegacyGodotImporter } from './LegacyGodotImporter'
 import { decorateLegacyScene, getNativeSceneDefinition } from './NativeSceneCatalog'
 import { TileMapRenderer } from './TileMapRenderer'
+import { TiledWorldImporter } from './tiled/TiledWorldImporter'
+import { getTiledWorldMapUrl } from './tiled/catalog'
 import { WorldEffects } from './WorldEffects'
 import { WorldObjectRenderer } from './WorldObjectRenderer'
-import type { DoorDefinition, GridPoint, ImportedSceneDefinition, TileDefinition, WorldObjectDefinition } from './types'
+import type {
+  DoorDefinition,
+  GridPoint,
+  ImportedSceneDefinition,
+  TileDefinition,
+  WorldBounds,
+  WorldObjectDefinition,
+} from './types'
 
 const NON_BLOCKING_SCENES = [
   'Player.tscn',
@@ -29,10 +38,12 @@ export class WorldScene {
   readonly collision = new CollisionWorld()
 
   private readonly tileMap = new TileMapRenderer()
+  private readonly foregroundTileMap = new TileMapRenderer()
   private readonly ledgeLayer = new Container()
   private readonly objectLayer = new Container()
   private readonly effectLayer = new Container()
   private readonly importer = new LegacyGodotImporter()
+  private readonly tiledImporter = new TiledWorldImporter()
   private readonly collisionImporter = new LegacyCollisionImporter()
   private readonly objectRenderer = new WorldObjectRenderer(this.objectLayer)
   private readonly doorAnimator = new DoorAnimator(this.objectLayer)
@@ -44,15 +55,32 @@ export class WorldScene {
   constructor() {
     this.objectLayer.sortableChildren = true
     this.effectLayer.sortableChildren = true
-    this.view.addChild(this.tileMap.view, this.ledgeLayer, this.objectLayer, this.effectLayer)
+    this.view.addChild(
+      this.tileMap.view,
+      this.ledgeLayer,
+      this.objectLayer,
+      this.foregroundTileMap.view,
+      this.effectLayer,
+    )
   }
 
   get currentScenePath(): string | null {
     return this.scenePath
   }
 
+  get currentEncounterTableId(): string | null {
+    return this.scene?.encounterTableId ?? null
+  }
+
+  get currentCameraBounds(): WorldBounds | null {
+    const bounds = this.scene?.cameraBounds
+    if (!bounds) return null
+    return { ...bounds }
+  }
+
   update(deltaMs: number): void {
     this.tileMap.update(deltaMs)
+    this.foregroundTileMap.update(deltaMs)
   }
 
   addActor(actor: Container): void {
@@ -69,12 +97,16 @@ export class WorldScene {
     this.clearDynamicLayers()
     this.collision.clear()
     this.scenePath = null
-    const nativeScene = getNativeSceneDefinition(scenePath)
+    const tiledScene = await this.loadTiledScene(scenePath)
+    const nativeScene = tiledScene ?? getNativeSceneDefinition(scenePath)
     const isNativeScene = nativeScene !== null
     this.scene = nativeScene ?? decorateLegacyScene(scenePath, await this.importer.loadScene(scenePath))
     this.scenePath = scenePath
 
-    await this.tileMap.render(this.scene.tiles)
+    await Promise.all([
+      this.tileMap.render(this.scene.tiles),
+      this.foregroundTileMap.render(this.scene.foregroundTiles ?? []),
+    ])
     for (const tile of this.scene.tiles) {
       if (tile.tileId === 2 || tile.blocked) this.collision.setBlocked(tile)
       if (tile.encounterZone) this.collision.setEncounterZone(tile)
@@ -109,7 +141,7 @@ export class WorldScene {
       tile: playerNode
         ? { x: Math.round(playerNode.position.x / TILE_SIZE), y: Math.round(playerNode.position.y / TILE_SIZE) }
         : { x: 0, y: 0 },
-      direction: 'down',
+      direction: this.scene.spawnDirection ?? 'down',
     }
   }
 
@@ -127,6 +159,12 @@ export class WorldScene {
 
   showLandingDust(tile: GridPoint): Promise<void> {
     return this.effects.landingDust(tile)
+  }
+
+  private async loadTiledScene(scenePath: string): Promise<ImportedSceneDefinition | null> {
+    const tiledMapUrl = getTiledWorldMapUrl(scenePath)
+    if (!tiledMapUrl) return null
+    return this.tiledImporter.loadScene(tiledMapUrl)
   }
 
   private clearDynamicLayers(): void {

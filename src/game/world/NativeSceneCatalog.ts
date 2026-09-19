@@ -1,4 +1,5 @@
 import { TILE_SIZE } from '../constants'
+import { TRAILHEAD_ROUTE_SCENE } from './tiled/catalog'
 import type {
   DoorDefinition,
   ImportedSceneDefinition,
@@ -20,6 +21,7 @@ export const NATIVE_BIOME_SCENES = [
 const TOWN_SCENE = 'res://Town.tscn'
 const BIOME_SPAWN = { x: 13, y: 17 }
 const RETURN_DOOR_TILE = { x: 13, y: 19 }
+const TRAILHEAD_ROUTE_SPAWN = { x: 20, y: 27 }
 const RESEARCH_STATION_SPAWN = { x: 8, y: 8 }
 const RESEARCH_STATION_EXIT = { x: 8, y: 10 }
 const RESEARCH_STATION_TOWN_RETURN = { x: 6, y: 2 }
@@ -42,26 +44,20 @@ interface TownGateway {
   name: string
 }
 
-const TOWN_GATEWAYS: readonly TownGateway[] = [
+const TOWN_WORLD_GATEWAYS: readonly TownGateway[] = [
   {
-    scenePath: TIDEWATER_COAST_SCENE,
-    tile: { x: -12, y: -24 },
-    returnSpawn: { x: -12, y: -23 },
-    name: 'Tidewater Coast Gate',
-  },
-  {
-    scenePath: FROSTHOLLOW_CAVERN_SCENE,
+    scenePath: TRAILHEAD_ROUTE_SCENE,
     tile: { x: 7, y: -24 },
     returnSpawn: { x: 7, y: -23 },
-    name: 'Frosthollow Cavern Gate',
-  },
-  {
-    scenePath: DUSKMIRE_MARSH_SCENE,
-    tile: { x: 26, y: -24 },
-    returnSpawn: { x: 26, y: -23 },
-    name: 'Duskmire Marsh Gate',
+    name: 'Trailhead Route Gate',
   },
 ]
+
+const BIOME_ROUTE_RETURNS = new Map<string, { x: number; y: number }>([
+  [TIDEWATER_COAST_SCENE, { x: 7, y: 1 }],
+  [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
+  [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
+])
 
 const STYLES = new Map<string, BiomeStyle>([
   [TIDEWATER_COAST_SCENE, {
@@ -108,10 +104,10 @@ export function getNativeSceneDefinition(scenePath: string): ImportedSceneDefini
   const style = STYLES.get(scenePath)
   if (!style) return null
 
-  const gateway = TOWN_GATEWAYS.find((entry) => entry.scenePath === scenePath)
-  if (!gateway) throw new Error(`Missing Town gateway for native biome: ${scenePath}`)
+  const routeReturnSpawn = BIOME_ROUTE_RETURNS.get(scenePath)
+  if (!routeReturnSpawn) throw new Error(`Missing Trailhead return for native biome: ${scenePath}`)
 
-  return createBiomeScene(style, gateway.returnSpawn)
+  return createBiomeScene(style, routeReturnSpawn)
 }
 
 export function decorateLegacyScene(
@@ -120,15 +116,15 @@ export function decorateLegacyScene(
 ): ImportedSceneDefinition {
   if (scenePath !== TOWN_SCENE) return scene
 
-  const gatewayDoors: DoorDefinition[] = TOWN_GATEWAYS.map((gateway) => ({
+  const gatewayDoors: DoorDefinition[] = TOWN_WORLD_GATEWAYS.map((gateway) => ({
     tile: { ...gateway.tile },
     nextScene: gateway.scenePath,
-    spawnTile: { ...BIOME_SPAWN },
+    spawnTile: { ...TRAILHEAD_ROUTE_SPAWN },
     spawnDirection: 'up',
     invisible: true,
   }))
 
-  const gatewayMarkers: WorldObjectDefinition[] = TOWN_GATEWAYS.map((gateway) => ({
+  const gatewayMarkers: WorldObjectDefinition[] = TOWN_WORLD_GATEWAYS.map((gateway) => ({
     name: gateway.name,
     texturePath: GATE_MARKER_TEXTURE,
     position: {
@@ -153,13 +149,13 @@ export function decorateLegacyScene(
   }
 }
 
-export function listTownBiomeGateways(): readonly {
+export function listTownWorldGateways(): readonly {
   scenePath: string
   tile: { x: number; y: number }
   returnSpawn: { x: number; y: number }
   name: string
 }[] {
-  return TOWN_GATEWAYS.map((gateway) => ({
+  return TOWN_WORLD_GATEWAYS.map((gateway) => ({
     ...gateway,
     tile: { ...gateway.tile },
     returnSpawn: { ...gateway.returnSpawn },
@@ -258,13 +254,13 @@ function createBiomeScene(
       tiles.push({
         x,
         y,
-        tileId: inPool ? 2 : boundary ? style.boundaryTileId : style.groundTileId,
+        tileId: biomeTileId(style, inPool, boundary),
         autotileX: 0,
         autotileY: 0,
         flipX: false,
         flipY: false,
         transpose: false,
-        tint: encounterZone ? style.encounterTint : boundary ? style.boundaryTint : style.groundTint,
+        tint: biomeTileTint(style, encounterZone, boundary),
         blocked: boundary || inPool,
         encounterZone,
       })
@@ -281,7 +277,7 @@ function createBiomeScene(
 
   const doors: DoorDefinition[] = [{
     tile: { ...RETURN_DOOR_TILE },
-    nextScene: TOWN_SCENE,
+    nextScene: TRAILHEAD_ROUTE_SCENE,
     spawnTile: { ...townReturnSpawn },
     spawnDirection: 'down',
     invisible: true,
@@ -294,6 +290,26 @@ function createBiomeScene(
     objects,
     doors,
   }
+}
+
+function biomeTileId(
+  style: BiomeStyle,
+  inPool: boolean,
+  boundary: boolean,
+): number {
+  if (inPool) return 2
+  if (boundary) return style.boundaryTileId
+  return style.groundTileId
+}
+
+function biomeTileTint(
+  style: BiomeStyle,
+  encounterZone: boolean,
+  boundary: boolean,
+): number {
+  if (encounterZone) return style.encounterTint
+  if (boundary) return style.boundaryTint
+  return style.groundTint
 }
 
 function cloneDoor(door: DoorDefinition): DoorDefinition {

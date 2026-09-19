@@ -30,13 +30,21 @@ export class TileMapRenderer {
   private waterElapsedMs = 0
   private waterFrame = 0
 
+  constructor() {
+    this.view.sortableChildren = true
+  }
+
   async render(tiles: TileDefinition[]): Promise<void> {
     this.view.removeChildren().forEach((child) => child.destroy())
     this.animatedWater.length = 0
     this.waterElapsedMs = 0
     this.waterFrame = 0
 
-    const paths = new Set(tiles.map((tile) => TILE_SOURCES[tile.tileId]?.path).filter((path): path is string => Boolean(path)))
+    const paths = new Set(
+      tiles
+        .map((tile) => tile.texturePath ?? TILE_SOURCES[tile.tileId]?.path)
+        .filter((path): path is string => Boolean(path)),
+    )
     if (tiles.some((tile) => tile.tileId === 2)) {
       WATER_PATHS.forEach((path) => paths.add(path))
     }
@@ -51,7 +59,7 @@ export class TileMapRenderer {
     const waterFrameCache = new Map<string, Texture[]>()
 
     for (const tile of tiles) {
-      const source = TILE_SOURCES[tile.tileId]
+      const source = this.resolveTileSource(tile)
       if (!source) continue
       const base = textures.get(source.path)
       if (!base) continue
@@ -78,6 +86,7 @@ export class TileMapRenderer {
       sprite.position.set(tile.x * TILE_SIZE, tile.y * TILE_SIZE)
       if (tile.tint !== undefined) sprite.tint = tile.tint
       sprite.roundPixels = true
+      sprite.zIndex = tile.zIndex ?? 0
 
       if (tile.transpose) sprite.rotation = Math.PI / 2
       if (tile.flipX) {
@@ -104,6 +113,15 @@ export class TileMapRenderer {
     this.waterFrame = (this.waterFrame + advance) % WATER_PATHS.length
     for (const water of this.animatedWater) {
       water.sprite.texture = water.frames[this.waterFrame]
+    }
+  }
+
+  private resolveTileSource(tile: TileDefinition): TileSource | undefined {
+    if (!tile.texturePath) return TILE_SOURCES[tile.tileId]
+    return {
+      path: tile.texturePath,
+      originX: tile.sourceX ?? 0,
+      originY: tile.sourceY ?? 0,
     }
   }
 

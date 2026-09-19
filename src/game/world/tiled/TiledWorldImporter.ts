@@ -30,6 +30,7 @@ const ENCOUNTER_LAYER = 'encounter'
 const PLAYER_SPAWN_LAYER = 'playerspawn'
 const TRANSITIONS_LAYER = 'transitions'
 const CAMERA_BOUNDS_LAYER = 'camerabounds'
+const WORLD_OBJECTS_LAYER = 'worldobjects'
 const SPAWN_DIRECTION_PROPERTY = 'spawnDirection'
 
 const VISUAL_LAYER_Z: Readonly<Record<string, number>> = {
@@ -130,6 +131,9 @@ export class TiledWorldImporter {
         break
       case CAMERA_BOUNDS_LAYER:
         state.cameraBounds = this.parseCameraBounds(layer)
+        break
+      case WORLD_OBJECTS_LAYER:
+        state.objects.push(...this.parseWorldObjects(layer))
         break
       default:
         break
@@ -255,6 +259,29 @@ export class TiledWorldImporter {
     }
   }
 
+  private parseWorldObjects(layer: TiledObjectLayer): WorldObjectDefinition[] {
+    return layer.objects.map((object) => {
+      if (!Number.isFinite(object.x) || !Number.isFinite(object.y)) {
+        throw new Error(`WorldObjects entry ${object.name ?? object.id} requires finite coordinates`)
+      }
+
+      const instancePath = stringProperty(object.properties, 'instancePath')
+      const texturePath = stringProperty(object.properties, 'texturePath')
+      if (!instancePath && !texturePath) {
+        throw new Error(`WorldObjects entry ${object.name ?? object.id} requires instancePath or texturePath`)
+      }
+
+      const zIndex = numberProperty(object.properties, 'zIndex')
+      return {
+        name: object.name ?? `Object ${object.id}`,
+        ...(instancePath ? { instancePath } : {}),
+        ...(texturePath ? { texturePath } : {}),
+        position: { x: object.x, y: object.y },
+        ...(zIndex !== undefined ? { zIndex } : {}),
+      }
+    })
+  }
+
   private parsePlayerSpawn(layer: TiledObjectLayer): { tile: GridPoint; direction: Direction } {
     if (layer.objects.length !== 1) {
       throw new Error('PlayerSpawn layer must contain exactly one object')
@@ -283,12 +310,15 @@ export class TiledWorldImporter {
       throw new Error(`Transition ${object.name ?? object.id} spawn coordinates must be integers`)
     }
 
+    const animationTexturePath = stringProperty(object.properties, 'animationTexturePath')
+
     return {
       tile: objectTile(object),
       nextScene: destinationScene,
       spawnTile: { x: spawnX, y: spawnY },
       spawnDirection: directionProperty(object.properties, SPAWN_DIRECTION_PROPERTY, 'down'),
       invisible: booleanProperty(object.properties, 'invisible') ?? true,
+      ...(animationTexturePath ? { animationTexturePath } : {}),
     }
   }
 

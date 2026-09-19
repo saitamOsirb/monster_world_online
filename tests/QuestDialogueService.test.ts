@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { WalletStore } from '../src/game/economy/WalletStore'
 import { InventoryStore } from '../src/game/inventory/InventoryStore'
-import { HEALING_TONIC_ID } from '../src/game/inventory/types'
+import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../src/game/inventory/types'
 import { TOWN_FIELD_GUIDE } from '../src/game/interaction/npcs'
 import {
   ACCEPT_QUEST_CHOICE_ID,
@@ -12,6 +12,7 @@ import {
 import {
   ORIN_THREE_ROADS_QUEST,
 } from '../src/game/quests/catalog'
+import { QuestRewardService } from '../src/game/quests/QuestRewardService'
 import { QuestService } from '../src/game/quests/QuestService'
 import { QuestStore } from '../src/game/quests/QuestStore'
 import {
@@ -19,6 +20,8 @@ import {
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
 } from '../src/game/quests/types'
+import { UnlockStore } from '../src/game/unlocks/UnlockStore'
+import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
 
 class MemoryStorage {
   readonly data = new Map<string, string>()
@@ -32,20 +35,27 @@ interface Fixture {
   quests: QuestService
   wallet: WalletStore
   inventory: InventoryStore
+  unlocks: UnlockStore
 }
 
 function setup(): Fixture {
   const questStore = new QuestStore(new MemoryStorage())
   const wallet = new WalletStore(new MemoryStorage())
   const inventory = new InventoryStore(new MemoryStorage())
+  const unlocks = new UnlockStore(new MemoryStorage())
   wallet.ensureStarterBalance(200)
   inventory.ensureStarterStock(0)
-  const quests = new QuestService(questStore, wallet, inventory)
+  const quests = new QuestService(
+    questStore,
+    new QuestRewardService(wallet, inventory, unlocks),
+    inventory,
+  )
   return {
     dialogue: new QuestDialogueService(quests),
     quests,
     wallet,
     inventory,
+    unlocks,
   }
 }
 
@@ -165,7 +175,11 @@ describe('QuestDialogueService', () => {
     })
 
     expect(result?.pages[0]).toContain('220 credits')
+    expect(result?.pages[0]).toContain('2 Capture Capsules')
+    expect(result?.pages[0]).toContain('Field Research Clearance')
     expect(fixture.wallet.balance).toBe(540)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
+    expect(fixture.unlocks.has(FIELD_RESEARCH_CLEARANCE_ID)).toBe(true)
     expect(fixture.dialogue.contentFor(TOWN_FIELD_GUIDE)?.pages[0])
       .toContain('Field Methods report is complete')
   })

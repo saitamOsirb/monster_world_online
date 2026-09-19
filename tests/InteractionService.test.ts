@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { InteractionService } from '../src/game/interaction/InteractionService'
-import { TOWN_FIELD_GUIDE, TOWN_RECOVERY_ATTENDANT, TOWN_RESEARCH_AIDE, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { RESEARCH_STATION_LEAD, TOWN_FIELD_GUIDE, TOWN_RECOVERY_ATTENDANT, TOWN_RESEARCH_AIDE, TOWN_SUPPLY_MERCHANT } from '../src/game/interaction/npcs'
+import { RESEARCH_STATION_SCENE } from '../src/game/world/NativeSceneCatalog'
 import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
 
 const service = new InteractionService()
@@ -52,6 +53,28 @@ describe('InteractionService', () => {
     )
     expect(unlocked.findNpc(TOWN_RESEARCH_AIDE.scenePath, TOWN_RESEARCH_AIDE.tile)?.id)
       .toBe(TOWN_RESEARCH_AIDE.id)
+  })
+
+
+  it('exposes Lyra travel only through the unlocked NPC definition', () => {
+    const unlocked = new InteractionService(
+      (unlockId) => unlockId === FIELD_RESEARCH_CLEARANCE_ID,
+    )
+    const lyra = unlocked.findNpc(TOWN_RESEARCH_AIDE.scenePath, TOWN_RESEARCH_AIDE.tile)
+
+    expect(lyra?.travel).toEqual({
+      scenePath: RESEARCH_STATION_SCENE,
+      spawnTile: { x: 8, y: 8 },
+      spawnDirection: 'up',
+    })
+  })
+
+  it('finds Dr. Sera inside the Research Station with the research quest', () => {
+    const npc = service.findNpc(RESEARCH_STATION_SCENE, RESEARCH_STATION_LEAD.tile)
+
+    expect(npc?.id).toBe(RESEARCH_STATION_LEAD.id)
+    expect(npc?.displayName).toBe('Dr. Sera')
+    expect(npc?.questIds).toEqual(['research-baseline-samples'])
   })
 
 })

@@ -1,5 +1,6 @@
 import { TILE_SIZE } from '../constants'
 import { TRAILHEAD_ROUTE_SCENE } from './tiled/catalog'
+export { TIDEWATER_COAST_SCENE } from './tiled/catalog'
 import type {
   DoorDefinition,
   ImportedSceneDefinition,
@@ -7,13 +8,11 @@ import type {
   WorldObjectDefinition,
 } from './types'
 
-export const TIDEWATER_COAST_SCENE = 'res://MonsterWorld/TidewaterCoast.tscn'
 export const FROSTHOLLOW_CAVERN_SCENE = 'res://MonsterWorld/FrosthollowCavern.tscn'
 export const DUSKMIRE_MARSH_SCENE = 'res://MonsterWorld/DuskmireMarsh.tscn'
 export const RESEARCH_STATION_SCENE = 'res://MonsterWorld/ResearchStation.tscn'
 
 export const NATIVE_BIOME_SCENES = [
-  TIDEWATER_COAST_SCENE,
   FROSTHOLLOW_CAVERN_SCENE,
   DUSKMIRE_MARSH_SCENE,
 ] as const
@@ -54,24 +53,11 @@ const TOWN_WORLD_GATEWAYS: readonly TownGateway[] = [
 ]
 
 const BIOME_ROUTE_RETURNS = new Map<string, { x: number; y: number }>([
-  [TIDEWATER_COAST_SCENE, { x: 7, y: 1 }],
   [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
   [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
 ])
 
 const STYLES = new Map<string, BiomeStyle>([
-  [TIDEWATER_COAST_SCENE, {
-    name: 'Tidewater Coast',
-    groundTileId: 3,
-    groundTint: 0xe2d49b,
-    boundaryTileId: 2,
-    boundaryTint: 0xffffff,
-    encounterTint: 0xcdbf82,
-    waterPools: [
-      { x: 2, y: 3, width: 4, height: 6 },
-      { x: 20, y: 8, width: 4, height: 6 },
-    ],
-  }],
   [FROSTHOLLOW_CAVERN_SCENE, {
     name: 'Frosthollow Cavern',
     groundTileId: 3,

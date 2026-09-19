@@ -19,6 +19,7 @@ type VisualFixture =
   | 'tidewaterCoast'
   | 'frosthollowCavern'
   | 'duskmireMarsh'
+  | 'researchStation'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
@@ -38,6 +39,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   tidewaterCoast: 'd438a72eabf3066ad046f9e00746cb82d0f7862321adf60f9ec4ed4da947e3b8',
   frosthollowCavern: 'ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc',
   duskmireMarsh: 'e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad',
+  researchStation: 'PENDING_RESEARCH_STATION_BASELINE',
 }
 
 const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
@@ -47,6 +49,7 @@ const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
   { name: 'tidewaterCoast', scene: 'res://MonsterWorld/TidewaterCoast.tscn' },
   { name: 'frosthollowCavern', scene: 'res://MonsterWorld/FrosthollowCavern.tscn' },
   { name: 'duskmireMarsh', scene: 'res://MonsterWorld/DuskmireMarsh.tscn' },
+  { name: 'researchStation', scene: 'res://MonsterWorld/ResearchStation.tscn' },
 ]
 
 async function setTickers(page: Page, running: boolean): Promise<void> {

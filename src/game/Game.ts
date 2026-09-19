@@ -9,6 +9,7 @@ import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
 import { InteractionService } from './interaction/InteractionService'
+import type { NpcTravelDefinition } from './interaction/types'
 import {
   PARTY_RECOVERY_SERVICE_ID,
   TOWN_FIELD_GUIDE,
@@ -407,6 +408,10 @@ export class Game {
       this.recovery.show(npc)
       return true
     }
+    if (npc.travel) {
+      void this.transitionThroughNpcTravel(npc.travel)
+      return true
+    }
     this.dialogue.show(npc, this.questDialogue.contentFor(npc))
     return true
   }
@@ -584,6 +589,26 @@ export class Game {
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
       player.view.visible = true
+      this.transitioning = false
+    }
+  }
+
+
+  private async transitionThroughNpcTravel(travel: NpcTravelDefinition): Promise<void> {
+    const player = this.player
+    if (this.transitioning || !player) return
+
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.npcWorld.clear()
+      await this.world.load(travel.scenePath)
+      this.questService.recordSceneVisit(travel.scenePath)
+      await this.npcWorld.loadScene(travel.scenePath)
+      player.setSpawn(travel.spawnTile, travel.spawnDirection)
+      this.updateCamera()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
       this.transitioning = false
     }
   }

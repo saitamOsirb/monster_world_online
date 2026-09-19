@@ -1,4 +1,5 @@
-import { HEALING_TONIC_ID } from '../inventory/types'
+import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../inventory/types'
+import { FIELD_RESEARCH_CLEARANCE_ID } from '../unlocks/types'
 import {
   ORIN_FIELD_METHODS_QUEST_ID,
   ORIN_THREE_ROADS_QUEST_ID,
@@ -32,7 +33,7 @@ export const ORIN_THREE_ROADS_QUEST = {
       required: 1,
     },
   ],
-  rewardCredits: 120,
+  rewards: { credits: 120 },
   offerText: "I'm mapping The Three Roads. Will you scout all three routes for me?",
   acceptChoiceLabel: 'I will scout them.',
   acceptText: 'Good. Visit Tidewater Coast, Frosthollow Cavern and Duskmire Marsh, then return to me.',
@@ -74,7 +75,11 @@ export const ORIN_FIELD_METHODS_QUEST = {
       required: 1,
     },
   ],
-  rewardCredits: 220,
+  rewards: {
+    credits: 220,
+    items: [{ itemId: CAPTURE_CAPSULE_ID, quantity: 2 }],
+    unlocks: [FIELD_RESEARCH_CLEARANCE_ID],
+  },
   offerText: 'You know the roads now. Ready to practice proper field methods?',
   acceptChoiceLabel: "I'm ready.",
   acceptText: 'Defeat two Skyrill, capture one Rillfin, obtain a Healing Tonic, then bring the tonic to me.',

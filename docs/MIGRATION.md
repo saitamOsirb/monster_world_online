@@ -47,7 +47,9 @@ src/
       ProgressionService.ts       EXP/level/species growth rules
     quests/
       QuestStore.ts               versioned persistent quest state
-      QuestService.ts             objective progression + idempotent turn-in
+      QuestService.ts             objective progression + reward reconciliation
+      QuestRewardService.ts       idempotent composite reward grants
+      QuestRewardPresentation.ts  reward package → player-facing summary
       QuestDialogueService.ts     quest state → generic dialogue content
       QuestJournalService.ts      quest state → journal projection
       catalog.ts                  quest/objective/reward definitions
@@ -61,6 +63,10 @@ src/
     shop/
       ShopService.ts              wallet → inventory purchase rules
       catalog.ts                  shop definitions/offers
+    unlocks/
+      UnlockStore.ts              persistent gameplay unlock repository
+      catalog.ts                  unlock display metadata
+      types.ts                    canonical unlock ids
     ui/
       MenuController.ts
       BagController.ts
@@ -154,9 +160,11 @@ The upstream prototype does not contain these systems. They are original Monster
 | Persistent quests | Implemented foundation | Versioned quest store with available/active/ready/completed states. |
 | Dialogue choices | Implemented foundation | Generic deterministic choice navigation; quest logic remains outside Pixi. |
 | The Three Roads | Implemented | Orin tracks visits to Coast/Cavern/Marsh and grants a one-time 120-credit reward. |
-| Field Methods | Implemented | Chained after The Three Roads: defeat 2 Skyrill, capture 1 Rillfin, obtain + deliver 1 Healing Tonic; one-time 220-credit reward. |
+| Field Methods | Implemented | Chained after The Three Roads: defeat 2 Skyrill, capture 1 Rillfin, obtain + deliver 1 Healing Tonic; composite reward: 220 credits + 2 Capture Capsules + Field Research Clearance. |
 | Advanced quest objectives | Implemented foundation | Visit, defeat-species, capture-species, collect-item and deliver-item objectives with quantitative progress. |
-| Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state, including counters such as 1/2. |
+| Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state, including quantitative objectives and composite rewards. |
+| Composite quest rewards | Implemented foundation | Retry-safe credits/items/unlocks with per-store idempotency and completed-quest reconciliation. |
+| Persistent unlocks | Implemented foundation | Canonical unlock ids persist independently; Field Research Clearance gates Lyra in both render and interaction paths. |
 
 ## Battle, elemental, status and progression rules
 
@@ -325,7 +333,9 @@ Concrete items:
 Inventory rules:
 
 - New inventory receives **5 Capture Capsules** once; the other items are not granted retroactively.
-- Inventory payload remains `version: 1`; older payloads that lack newer item keys load them as quantity **0**.
+- Inventory storage key remains `monster-world.inventory.v1`, while payload schema is now `version: 2`.
+- Valid inventory v1 payloads migrate in place, preserving quantities/initialization and starting an empty idempotency transaction ledger.
+- `addOnce(transactionId, itemId, quantity)` persists the item grant and transaction id together, preventing duplicate quest-item rewards across reloads.
 - Quantities are non-negative integers; `add()`/`consume()` require positive integer mutations.
 - Capture attempts consume a capsule before success/failure resolution.
 - Capture with zero stock does not consume a battle turn.
@@ -376,16 +386,21 @@ Inventory rules:
 - Scene visits are recorded only after the quest is accepted; duplicate visits do not duplicate objective progress.
 - Turn-in is crash/retry safe at the reward boundary because `QuestService` uses wallet transaction id `quest:orin-three-roads:reward`.
 - After `The Three Roads` is completed, Orin unlocks **Field Methods**. Locked chained quests cannot be accepted early.
-- `Field Methods` requires **2 Skyrill defeats**, **1 Rillfin capture**, obtaining **1 Healing Tonic**, then explicitly delivering **1 Healing Tonic** to Orin for **220 credits**.
+- `Field Methods` requires **2 Skyrill defeats**, **1 Rillfin capture**, obtaining **1 Healing Tonic**, then explicitly delivering **1 Healing Tonic** to Orin.
+- Field Methods grants a composite package: **220 credits + 2 Capture Capsules + Field Research Clearance**.
 - Defeat/capture progress is emitted from terminal battle results; collect-item progress is emitted after successful shop purchases and battle-loot inventory grants.
 - Collect objectives synchronize against existing inventory when a quest is accepted, so already-owned required items are recognized without manufacturing stock.
 - Deliver-item objectives do not auto-consume inventory. Delivery is offered only after every non-delivery objective is complete and full delivery stock is present.
 - Delivery preflights all required items, consumes them as one logical action and restores every consumed quantity if later quest persistence unexpectedly fails.
-- Both quest rewards use independent wallet transaction ids, so repeated/reloaded turn-ins remain idempotent.
+- Credit rewards preserve the historical transaction id `quest:<questId>:reward`, so saves that already received credits cannot be double-paid after this migration.
+- Item reward components use deterministic inventory transaction ids such as `quest:<questId>:reward:item:<itemId>`.
+- Unlock components are naturally idempotent by canonical unlock id.
+- `QuestService.reconcileCompletedRewards()` runs on startup: if a completed quest was saved before all stores were updated, only missing reward components are applied.
+- **Lyra** is gated by `field-research-clearance`; before unlock she is absent from both `NpcWorldLayer` and `InteractionService`, and she appears immediately after Field Methods turn-in without reloading the map.
 - The main menu's former legacy **Arkeve** slot is now **QUESTS**, opening the Quest Journal without adding an extra menu row.
 - `QuestJournalService` projects only accepted/completed quests; unavailable quests remain hidden until accepted.
 - The journal has **ACTIVE** and **DONE** tabs. `ready-to-turn-in` remains under ACTIVE and is labeled **READY TO REPORT**.
-- Objective completion, `current/required`, `completed/total` progress and credit reward are regenerated from `QuestService` every time the journal opens, so the UI never owns a stale persisted copy.
+- Objective completion, `current/required`, `completed/total` progress and composite reward summary are regenerated from domain state every time the journal opens, so the UI never owns a stale persisted copy.
 - Quantitative objectives render counters only when `required > 1`; existing 1/1 exploration rows retain their prior geometry.
 - Mira and Nia keep their specialized vendor/recovery flows.
 - **Mira** in Town is connected to `town-supplies`.
@@ -415,9 +430,10 @@ Inventory rules:
 ## Persistence boundaries
 
 - `MonsterCollectionStore` storage key → `monster-world.collection.v1`, payload schema `version: 2`
-- `InventoryStore` → `monster-world.inventory.v1`
+- `InventoryStore` storage key → `monster-world.inventory.v1`, payload schema `version: 2`
 - `WalletStore` storage key → `monster-world.wallet.v1`, payload schema `version: 2`
 - `QuestStore` storage key → `monster-world.quests.v1`, payload schema `version: 2`
+- `UnlockStore` storage key → `monster-world.unlocks.v1`, payload schema `version: 1`
 
 Collection payload `version: 2` remains backward compatible with records created before status or elements existed:
 
@@ -428,11 +444,13 @@ Collection payload `version: 2` remains backward compatible with records created
 - legacy collection `version: 1` still migrates with `experience: 0`, normalized elements and normalized special stats;
 - version-2 saves using legacy reference species ids are canonicalized on load and persisted back with the Monster World id/name/sprite identity without recalculating level, EXP, HP, stats, moves or status.
 
-Inventory payload `version: 1` tolerates absent Healing Tonic, Status Remedy and Revive Kit keys and normalizes each missing quantity to zero. No migration manufactures new stock.
+Inventory payload `version: 2` adds an idempotency ledger while retaining the stable storage key. Valid version-1 saves preserve every existing quantity, normalize absent Healing Tonic/Status Remedy/Revive Kit quantities to zero and initialize an empty transaction ledger. The migration itself manufactures no stock.
 
 Wallet payload `version: 1` migrates to `version: 2` by preserving the balance/initialized flag and initializing an empty idempotency transaction ledger. Invalid/corrupt wallet payloads still recover to an empty wallet.
 
 Quest payload `version: 2` persists quantitative `objectiveProgress` counters for accepted/in-progress/ready/completed records. A missing record is the canonical `available` state. Valid version-1 `The Three Roads` saves migrate in place: each legacy completed objective becomes count `1`, the stable storage key is retained, and no new quest is auto-accepted. Corrupt/unknown quest payloads recover safely without manufacturing progress.
+
+Unlock payload `version: 1` stores only recognized canonical unlock ids. Unknown/corrupt unlock payloads recover to an empty set rather than granting access.
 
 ## Regression protection
 
@@ -444,7 +462,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **226 tests across 34 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **239 tests across 36 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -452,7 +470,7 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - quest dialogue choices: `679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a`
 - menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
 - quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
-- advanced quest journal: `408b75233ab3c43adcaf543bb70ec922636f32d2c7e0efd6502b5d343f28cf3c` (`Field Methods`, Skyrill 1/2)
+- advanced quest journal: `9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646` (`Field Methods` composite reward summary)
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -472,8 +490,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways; legacy Godot import remains a separate fallback path.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
-- `MonsterCollectionStore`, `InventoryStore`, `WalletStore` and `QuestStore` own persistence.
-- `QuestService` owns quest progression/reward orchestration; `QuestDialogueService` and `QuestJournalService` are read/adaptation layers over that domain state.
+- `MonsterCollectionStore`, `InventoryStore`, `WalletStore`, `QuestStore` and `UnlockStore` own persistence.
+- `QuestService` owns quest progression/reconciliation; `QuestRewardService` owns retry-safe multi-store reward grants; `QuestDialogueService` and `QuestJournalService` adapt domain state for UI.
 - `BagController`, `DialogueController`, `QuestJournalController`, `VendorController` and `RecoveryController` consume narrow callbacks and do not mutate storage directly.
 - Scene transitions preserve the existing world object instead of reloading on battle exit.
 - Animated water uses one shared clock rather than a ticker per tile.
@@ -491,7 +509,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
 8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-9. Expand the quest catalog beyond the first two Orin quests with additional quest-giver NPCs, richer objective predicates/rewards and journal filtering/pagination as content grows.
+9. Expand the quest catalog beyond the first two Orin quests with additional quest-giver NPCs, gated zones/services, richer reward components and journal filtering/pagination as content grows.
 10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note

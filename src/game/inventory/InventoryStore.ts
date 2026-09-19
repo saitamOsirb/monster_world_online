@@ -8,6 +8,7 @@ import {
   type InventoryEntry,
   type InventoryItemId,
   type InventoryState,
+  type LegacyInventoryState,
 } from './types'
 
 const DEFAULT_KEY = 'monster-world.inventory.v1'
@@ -54,6 +55,25 @@ export class InventoryStore {
     return next
   }
 
+  addOnce(
+    transactionId: string,
+    itemId: InventoryItemId,
+    quantity: number,
+  ): { applied: boolean; quantity: number } {
+    this.assertTransactionId(transactionId)
+    this.assertPositiveQuantity(quantity)
+
+    if (this.state.appliedTransactions.includes(transactionId)) {
+      return { applied: false, quantity: this.getQuantity(itemId) }
+    }
+
+    const next = this.getQuantity(itemId) + quantity
+    this.state.quantities[itemId] = next
+    this.state.appliedTransactions = [...this.state.appliedTransactions, transactionId]
+    this.persist()
+    return { applied: true, quantity: next }
+  }
+
   consume(itemId: InventoryItemId, quantity = 1): boolean {
     this.assertPositiveQuantity(quantity)
     const current = this.getQuantity(itemId)
@@ -74,8 +94,13 @@ export class InventoryStore {
 
     try {
       const parsed = JSON.parse(raw) as unknown
-      if (!this.isInventoryState(parsed)) return this.emptyState()
-      return this.cloneState(parsed)
+      if (this.isInventoryState(parsed)) return this.cloneState(parsed)
+      if (this.isLegacyInventoryState(parsed)) {
+        const migrated = this.migrateLegacyState(parsed)
+        this.storage.setItem(this.storageKey, JSON.stringify(migrated))
+        return migrated
+      }
+      return this.emptyState()
     } catch {
       return this.emptyState()
     }
@@ -87,7 +112,7 @@ export class InventoryStore {
 
   private emptyState(): InventoryState {
     return {
-      version: 1,
+      version: 2,
       initialized: false,
       quantities: {
         [CAPTURE_CAPSULE_ID]: 0,
@@ -95,12 +120,13 @@ export class InventoryStore {
         [STATUS_REMEDY_ID]: 0,
         [REVIVE_KIT_ID]: 0,
       },
+      appliedTransactions: [],
     }
   }
 
   private cloneState(state: InventoryState): InventoryState {
     return {
-      version: 1,
+      version: 2,
       initialized: state.initialized,
       quantities: {
         [CAPTURE_CAPSULE_ID]: state.quantities[CAPTURE_CAPSULE_ID] ?? 0,
@@ -108,13 +134,14 @@ export class InventoryStore {
         [STATUS_REMEDY_ID]: state.quantities[STATUS_REMEDY_ID] ?? 0,
         [REVIVE_KIT_ID]: state.quantities[REVIVE_KIT_ID] ?? 0,
       },
+      appliedTransactions: [...state.appliedTransactions],
     }
   }
 
   private isInventoryState(value: unknown): value is InventoryState {
     if (!value || typeof value !== 'object') return false
     const candidate = value as Partial<InventoryState>
-    if (candidate.version !== 1 || typeof candidate.initialized !== 'boolean') return false
+    if (candidate.version !== 2 || typeof candidate.initialized !== 'boolean') return false
     if (!candidate.quantities || typeof candidate.quantities !== 'object') return false
 
     const quantities = candidate.quantities as Partial<Record<InventoryItemId, unknown>>
@@ -125,7 +152,46 @@ export class InventoryStore {
       const quantity = quantities[itemId]
       if (quantity !== undefined && !this.isStoredQuantity(quantity)) return false
     }
+
+    return Array.isArray(candidate.appliedTransactions)
+      && candidate.appliedTransactions.every((id) => typeof id === 'string' && id.length > 0)
+      && new Set(candidate.appliedTransactions).size === candidate.appliedTransactions.length
+  }
+
+  private isLegacyInventoryState(value: unknown): value is LegacyInventoryState {
+    if (!value || typeof value !== 'object') return false
+    const candidate = value as Partial<LegacyInventoryState>
+    if (candidate.version !== 1 || typeof candidate.initialized !== 'boolean') return false
+    if (!candidate.quantities || typeof candidate.quantities !== 'object') return false
+
+    const quantities = candidate.quantities as Partial<Record<InventoryItemId, unknown>>
+    if (!this.isStoredQuantity(quantities[CAPTURE_CAPSULE_ID])) return false
+
+    for (const itemId of [HEALING_TONIC_ID, STATUS_REMEDY_ID, REVIVE_KIT_ID] as const) {
+      const quantity = quantities[itemId]
+      if (quantity !== undefined && !this.isStoredQuantity(quantity)) return false
+    }
     return true
+  }
+
+  private migrateLegacyState(state: LegacyInventoryState): InventoryState {
+    return {
+      version: 2,
+      initialized: state.initialized,
+      quantities: {
+        [CAPTURE_CAPSULE_ID]: state.quantities[CAPTURE_CAPSULE_ID] ?? 0,
+        [HEALING_TONIC_ID]: state.quantities[HEALING_TONIC_ID] ?? 0,
+        [STATUS_REMEDY_ID]: state.quantities[STATUS_REMEDY_ID] ?? 0,
+        [REVIVE_KIT_ID]: state.quantities[REVIVE_KIT_ID] ?? 0,
+      },
+      appliedTransactions: [],
+    }
+  }
+
+  private assertTransactionId(transactionId: string): void {
+    if (!/^[a-z0-9][a-z0-9:._-]{2,127}$/i.test(transactionId)) {
+      throw new Error('Inventory transaction id must be a stable non-empty identifier')
+    }
   }
 
   private isStoredQuantity(value: unknown): value is number {

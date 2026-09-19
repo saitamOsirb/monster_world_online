@@ -1,6 +1,6 @@
 import { Assets, Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js'
 import { TILE_SIZE, type Direction } from '../constants'
-import { getNpcsForScene } from '../interaction/npcs'
+import { getNpcsForScene, type UnlockPredicate } from '../interaction/npcs'
 import type { InteractableNpcDefinition } from '../interaction/types'
 import { WorldScene } from './WorldScene'
 
@@ -10,6 +10,7 @@ export class NpcWorldLayer {
   constructor(
     private readonly world: WorldScene,
     private readonly enabled = true,
+    private readonly isUnlocked: UnlockPredicate = () => false,
   ) {}
 
   clear(): void {
@@ -24,7 +25,7 @@ export class NpcWorldLayer {
     this.clear()
     if (!this.enabled || !scenePath) return
 
-    for (const npc of getNpcsForScene(scenePath)) {
+    for (const npc of getNpcsForScene(scenePath, this.isUnlocked)) {
       this.world.collision.setBlocked(npc.tile)
       const actor = await this.createActor(npc)
       this.actors.push(actor)

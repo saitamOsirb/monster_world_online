@@ -4,6 +4,7 @@ import type {
   InteractableNpcDefinition,
 } from '../interaction/types'
 import { getQuestDefinition } from './catalog'
+import { describeQuestReward } from './QuestRewardPresentation'
 import { QuestService } from './QuestService'
 import {
   QUEST_STATUS,
@@ -177,8 +178,9 @@ export class QuestDialogueService {
     const result = this.quests.turnIn(questId)
     if (!result.ok) return this.contentFor(npc) ?? null
 
+    const reward = describeQuestReward(getQuestDefinition(questId).rewards)
     const message = result.rewardApplied
-      ? `Excellent work. Here are ${result.rewardCredits} credits for your field report.`
+      ? `Excellent work. Reward received: ${reward.text}.`
       : 'Your field report is already recorded. The reward was issued earlier.'
 
     return { pages: [message] }

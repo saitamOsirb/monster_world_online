@@ -24,6 +24,7 @@ import { createCapturedMonster, createStarterMonster } from './monsters/MonsterF
 import { ProgressionService } from './progression/ProgressionService'
 import { QuestDialogueService } from './quests/QuestDialogueService'
 import { QuestJournalService } from './quests/QuestJournalService'
+import { QuestRewardService } from './quests/QuestRewardService'
 import { QuestService } from './quests/QuestService'
 import { QuestStore } from './quests/QuestStore'
 import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID } from './quests/types'
@@ -39,6 +40,7 @@ import { PartyStorageController } from './ui/PartyStorageController'
 import { QuestJournalController } from './ui/QuestJournalController'
 import { RecoveryController } from './ui/RecoveryController'
 import { VendorController } from './ui/VendorController'
+import { UnlockStore } from './unlocks/UnlockStore'
 import { NpcWorldLayer } from './world/NpcWorldLayer'
 import type { DoorDefinition, GridPoint } from './world/types'
 import { WorldScene } from './world/WorldScene'
@@ -60,8 +62,10 @@ export class Game {
   private readonly inventory = new InventoryStore()
   private readonly wallet = new WalletStore()
   private readonly progression = new ProgressionService()
+  private readonly unlocks = new UnlockStore()
   private readonly questStore = new QuestStore()
-  private readonly questService = new QuestService(this.questStore, this.wallet, this.inventory)
+  private readonly questRewards = new QuestRewardService(this.wallet, this.inventory, this.unlocks)
+  private readonly questService = new QuestService(this.questStore, this.questRewards, this.inventory)
   private readonly questDialogue = new QuestDialogueService(this.questService)
   private readonly questJournalService = new QuestJournalService(this.questService)
   private readonly rewards = new BattleRewardService(this.inventory, this.wallet)
@@ -69,7 +73,7 @@ export class Game {
   private readonly fieldItems = new FieldItemService(this.inventory, this.collection)
   private readonly battleItems = new BattleItemService(this.inventory)
   private readonly recoveryService = new PartyRecoveryService(this.collection)
-  private readonly interaction = new InteractionService()
+  private readonly interaction = new InteractionService((unlockId) => this.unlocks.has(unlockId))
   private readonly visualTestMode = new URLSearchParams(window.location.search).has('visualTest')
   private readonly npcWorld: NpcWorldLayer
   private readonly menu: MenuController
@@ -89,7 +93,12 @@ export class Game {
     this.collection.ensureStarter(createStarterMonster())
     this.inventory.ensureStarterStock(STARTER_CAPTURE_CAPSULES)
     this.wallet.ensureStarterBalance(STARTER_CREDITS)
-    this.npcWorld = new NpcWorldLayer(this.world, !this.visualTestMode)
+    this.questService.reconcileCompletedRewards()
+    this.npcWorld = new NpcWorldLayer(
+      this.world,
+      !this.visualTestMode,
+      (unlockId) => this.unlocks.has(unlockId),
+    )
 
     this.bag = new BagController({
       getEntries: (category) => this.inventory.getEntries(category),
@@ -137,7 +146,14 @@ export class Game {
       onPartyManageRequested: (instanceId) => void this.transitionToPartyStorage(instanceId),
     })
     this.dialogue = new DialogueController({
-      onChoice: (npc, choice) => this.questDialogue.handleChoice(npc, choice),
+      onChoice: (npc, choice) => {
+        const unlockCount = this.unlocks.snapshot.unlockedIds.length
+        const content = this.questDialogue.handleChoice(npc, choice)
+        if (this.unlocks.snapshot.unlockedIds.length > unlockCount) {
+          void this.npcWorld.loadScene(this.world.currentScenePath)
+        }
+        return content
+      },
     })
     this.battle = new BattleController({
       getLeadMonster: () => this.collection.lead,

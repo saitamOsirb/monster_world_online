@@ -1,5 +1,6 @@
 import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID } from '../quests/types'
 import { TOWN_SUPPLY_SHOP } from '../shop/catalog'
+import { FIELD_RESEARCH_CLEARANCE_ID, type UnlockId } from '../unlocks/types'
 import type { InteractableNpcDefinition } from './types'
 
 export const PARTY_RECOVERY_SERVICE_ID = 'party-recovery' as const
@@ -43,13 +44,34 @@ export const TOWN_FIELD_GUIDE: InteractableNpcDefinition = {
   texturePath: '/assets/Player/Male_Spritesheet.png',
 }
 
+
+export const TOWN_RESEARCH_AIDE: InteractableNpcDefinition = {
+  id: 'town-research-aide',
+  scenePath: 'res://Town.tscn',
+  tile: { x: 6, y: 1 },
+  facing: 'up',
+  displayName: 'Lyra',
+  dialogue: 'Your Field Research Clearance is active. Advanced survey work is now open to you.',
+  requiredUnlockId: FIELD_RESEARCH_CLEARANCE_ID,
+  texturePath: '/assets/Player/Male_Spritesheet.png',
+}
+
 export const INTERACTABLE_NPCS: readonly InteractableNpcDefinition[] = [
   TOWN_SUPPLY_MERCHANT,
   TOWN_RECOVERY_ATTENDANT,
   TOWN_FIELD_GUIDE,
+  TOWN_RESEARCH_AIDE,
 ]
 
-export function getNpcsForScene(scenePath: string | null): readonly InteractableNpcDefinition[] {
+export type UnlockPredicate = (unlockId: UnlockId) => boolean
+
+export function getNpcsForScene(
+  scenePath: string | null,
+  isUnlocked: UnlockPredicate = () => false,
+): readonly InteractableNpcDefinition[] {
   if (!scenePath) return []
-  return INTERACTABLE_NPCS.filter((npc) => npc.scenePath === scenePath)
+
+  return INTERACTABLE_NPCS
+    .filter((npc) => npc.scenePath === scenePath)
+    .filter((npc) => !npc.requiredUnlockId || isUnlocked(npc.requiredUnlockId))
 }

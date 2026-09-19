@@ -1,6 +1,9 @@
 import { TILE_SIZE } from '../constants'
 import { TRAILHEAD_ROUTE_SCENE } from './tiled/catalog'
-export { TIDEWATER_COAST_SCENE } from './tiled/catalog'
+export {
+  FROSTHOLLOW_CAVERN_SCENE,
+  TIDEWATER_COAST_SCENE,
+} from './tiled/catalog'
 import type {
   DoorDefinition,
   ImportedSceneDefinition,
@@ -8,12 +11,10 @@ import type {
   WorldObjectDefinition,
 } from './types'
 
-export const FROSTHOLLOW_CAVERN_SCENE = 'res://MonsterWorld/FrosthollowCavern.tscn'
 export const DUSKMIRE_MARSH_SCENE = 'res://MonsterWorld/DuskmireMarsh.tscn'
 export const RESEARCH_STATION_SCENE = 'res://MonsterWorld/ResearchStation.tscn'
 
 export const NATIVE_BIOME_SCENES = [
-  FROSTHOLLOW_CAVERN_SCENE,
   DUSKMIRE_MARSH_SCENE,
 ] as const
 
@@ -53,23 +54,10 @@ const TOWN_WORLD_GATEWAYS: readonly TownGateway[] = [
 ]
 
 const BIOME_ROUTE_RETURNS = new Map<string, { x: number; y: number }>([
-  [FROSTHOLLOW_CAVERN_SCENE, { x: 20, y: 1 }],
   [DUSKMIRE_MARSH_SCENE, { x: 33, y: 1 }],
 ])
 
 const STYLES = new Map<string, BiomeStyle>([
-  [FROSTHOLLOW_CAVERN_SCENE, {
-    name: 'Frosthollow Cavern',
-    groundTileId: 3,
-    groundTint: 0xc7e2f4,
-    boundaryTileId: 3,
-    boundaryTint: 0x7696ac,
-    encounterTint: 0xa9d0eb,
-    waterPools: [
-      { x: 3, y: 4, width: 3, height: 3 },
-      { x: 20, y: 4, width: 3, height: 3 },
-    ],
-  }],
   [DUSKMIRE_MARSH_SCENE, {
     name: 'Duskmire Marsh',
     groundTileId: 0,

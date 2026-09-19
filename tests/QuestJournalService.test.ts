@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { WalletStore } from '../src/game/economy/WalletStore'
 import { InventoryStore } from '../src/game/inventory/InventoryStore'
+import { HEALING_TONIC_ID } from '../src/game/inventory/types'
 import {
   ORIN_THREE_ROADS_QUEST,
 } from '../src/game/quests/catalog'
@@ -12,6 +13,7 @@ import {
   ORIN_FIELD_METHODS_QUEST_ID,
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
+  RESEARCH_BASELINE_SAMPLES_QUEST_ID,
 } from '../src/game/quests/types'
 import { UnlockStore } from '../src/game/unlocks/UnlockStore'
 
@@ -51,6 +53,20 @@ function completeThreeRoads(quests: QuestService): void {
     quests.recordSceneVisit(objective.scenePath)
   }
   quests.turnIn(ORIN_THREE_ROADS_QUEST_ID)
+}
+
+
+function completeFieldMethods(
+  quests: QuestService,
+  inventory: InventoryStore,
+): void {
+  completeThreeRoads(quests)
+  inventory.add(HEALING_TONIC_ID, 1)
+  quests.accept(ORIN_FIELD_METHODS_QUEST_ID)
+  quests.recordDefeat('skyrill', 2)
+  quests.recordCapture('rillfin')
+  quests.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+  quests.turnIn(ORIN_FIELD_METHODS_QUEST_ID)
 }
 
 describe('QuestJournalService', () => {
@@ -157,4 +173,32 @@ describe('QuestJournalService', () => {
     quests.recordSceneVisit(ORIN_THREE_ROADS_QUEST.objectives[1].scenePath)
     expect(journal.getSnapshot().active[0].completedObjectives).toBe(2)
   })
+
+  it('projects Baseline Samples and its composite research reward', () => {
+    const { quests, journal, inventory } = setup()
+    completeFieldMethods(quests, inventory)
+    quests.accept(RESEARCH_BASELINE_SAMPLES_QUEST_ID)
+    quests.recordCapture('glacub')
+
+    const entry = journal.getSnapshot().active.find(
+      (candidate) => candidate.questId === RESEARCH_BASELINE_SAMPLES_QUEST_ID,
+    )
+
+    expect(entry).toMatchObject({
+      questId: RESEARCH_BASELINE_SAMPLES_QUEST_ID,
+      title: 'Baseline Samples',
+      status: QUEST_STATUS.active,
+      completedObjectives: 1,
+      totalObjectives: 3,
+      rewardCredits: 300,
+      rewardText: '300 credits + 3 Capture Capsules',
+      rewardComponentCount: 2,
+    })
+    expect(entry?.objectives.map((objective) => objective.completed)).toEqual([
+      true,
+      false,
+      false,
+    ])
+  })
+
 })

@@ -12,6 +12,8 @@ import {
 import { TRAILHEAD_ROUTE_SCENE } from '../src/game/world/tiled/catalog'
 import type { ImportedSceneDefinition } from '../src/game/world/types'
 
+const TOWN_SCENE = 'res://Town.tscn'
+
 function emptyScene(): ImportedSceneDefinition {
   return {
     name: 'Town',
@@ -63,7 +65,7 @@ describe('native biome scenes', () => {
 
   it('decorates Town with one off-screen world gateway without mutating the source scene', () => {
     const source = emptyScene()
-    const decorated = decorateLegacyScene('res://Town.tscn', source)
+    const decorated = decorateLegacyScene(TOWN_SCENE, source)
     const gateways = listTownWorldGateways()
 
     expect(source.doors).toHaveLength(0)
@@ -102,7 +104,7 @@ describe('native biome scenes', () => {
   it('does not decorate non-Town legacy scenes', () => {
     const source = emptyScene()
     expect(decorateLegacyScene('res://OaksLab.tscn', source)).toBe(source)
-    expect(getNativeSceneDefinition('res://Town.tscn')).toBeNull()
+    expect(getNativeSceneDefinition(TOWN_SCENE)).toBeNull()
   })
 
   it('defines a deterministic Research Station without encounter terrain', () => {
@@ -115,7 +117,7 @@ describe('native biome scenes', () => {
     expect(scene?.doors).toHaveLength(1)
     expect(scene?.doors[0]).toMatchObject({
       tile: { x: 8, y: 10 },
-      nextScene: 'res://Town.tscn',
+      nextScene: TOWN_SCENE,
       spawnTile: { x: 6, y: 2 },
       spawnDirection: 'up',
       invisible: true,

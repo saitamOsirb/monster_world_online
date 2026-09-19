@@ -254,13 +254,13 @@ function createBiomeScene(
       tiles.push({
         x,
         y,
-        tileId: inPool ? 2 : boundary ? style.boundaryTileId : style.groundTileId,
+        tileId: biomeTileId(style, inPool, boundary),
         autotileX: 0,
         autotileY: 0,
         flipX: false,
         flipY: false,
         transpose: false,
-        tint: encounterZone ? style.encounterTint : boundary ? style.boundaryTint : style.groundTint,
+        tint: biomeTileTint(style, encounterZone, boundary),
         blocked: boundary || inPool,
         encounterZone,
       })
@@ -290,6 +290,26 @@ function createBiomeScene(
     objects,
     doors,
   }
+}
+
+function biomeTileId(
+  style: BiomeStyle,
+  inPool: boolean,
+  boundary: boolean,
+): number {
+  if (inPool) return 2
+  if (boundary) return style.boundaryTileId
+  return style.groundTileId
+}
+
+function biomeTileTint(
+  style: BiomeStyle,
+  encounterZone: boolean,
+  boundary: boolean,
+): number {
+  if (encounterZone) return style.encounterTint
+  if (boundary) return style.boundaryTint
+  return style.groundTint
 }
 
 function cloneDoor(door: DoorDefinition): DoorDefinition {

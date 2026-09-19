@@ -45,7 +45,7 @@ const SUPPORTED_TILE_LAYERS = new Set([
   ENCOUNTER_LAYER,
 ])
 
-const DIRECTIONS = new Set<Direction>(['left', 'right', 'up', 'down'])
+const DIRECTIONS: ReadonlySet<string> = new Set(['left', 'right', 'up', 'down'])
 
 interface ResolvedTile {
   tileset: TiledTileset
@@ -156,7 +156,7 @@ export class TiledWorldImporter {
     }
     if (layer.visible === false) return
 
-    const target = role === ABOVE_PLAYER_LAYER ? state.foregroundTiles : state.tiles
+    const target = visualTargetForRole(role, state)
     this.appendVisualTiles(map, layer, role, mapUrl, orderedTilesets, target)
   }
 
@@ -462,7 +462,8 @@ function stringProperty(
   name: string,
 ): string | undefined {
   const value = property(properties, name)
-  return typeof value === 'string' && value.length > 0 ? value : undefined
+  if (typeof value !== 'string' || value.length === 0) return undefined
+  return value
 }
 
 function numberProperty(
@@ -470,7 +471,8 @@ function numberProperty(
   name: string,
 ): number | undefined {
   const value = property(properties, name)
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
+  return value
 }
 
 function booleanProperty(
@@ -478,7 +480,8 @@ function booleanProperty(
   name: string,
 ): boolean | undefined {
   const value = property(properties, name)
-  return typeof value === 'boolean' ? value : undefined
+  if (typeof value !== 'boolean') return undefined
+  return value
 }
 
 function directionProperty(
@@ -488,10 +491,10 @@ function directionProperty(
 ): Direction {
   const value = stringProperty(properties, name)
   if (!value) return fallback
-  if (!DIRECTIONS.has(value as Direction)) {
+  if (!isDirection(value)) {
     throw new Error(`Invalid direction property ${name}: ${value}`)
   }
-  return value as Direction
+  return value
 }
 
 function integerOrZero(value: number | undefined): number {
@@ -506,8 +509,21 @@ function isPositiveInteger(value: unknown): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value > 0
 }
 
+function visualTargetForRole(
+  role: string,
+  state: LayerAccumulator,
+): TileDefinition[] {
+  if (role === ABOVE_PLAYER_LAYER) return state.foregroundTiles
+  return state.tiles
+}
+
+function isDirection(value: string): value is Direction {
+  return DIRECTIONS.has(value)
+}
+
 function resolveImagePath(mapUrl: string, image: string): string {
   if (image.startsWith('/')) return image
-  const normalizedMapUrl = mapUrl.startsWith('/') ? mapUrl : `/${mapUrl}`
+  let normalizedMapUrl = mapUrl
+  if (!normalizedMapUrl.startsWith('/')) normalizedMapUrl = `/${normalizedMapUrl}`
   return new URL(image, `https://monster-world.local${normalizedMapUrl}`).pathname
 }

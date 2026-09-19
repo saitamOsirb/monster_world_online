@@ -457,14 +457,10 @@ export class Game {
       return
     }
 
-    const cameraX = bounds.width <= LOGICAL_WIDTH
-      ? Math.round((LOGICAL_WIDTH - bounds.width) / 2 - bounds.x)
-      : Math.max(LOGICAL_WIDTH - bounds.x - bounds.width, Math.min(-bounds.x, desiredX))
-    const cameraY = bounds.height <= LOGICAL_HEIGHT
-      ? Math.round((LOGICAL_HEIGHT - bounds.height) / 2 - bounds.y)
-      : Math.max(LOGICAL_HEIGHT - bounds.y - bounds.height, Math.min(-bounds.y, desiredY))
-
-    this.world.view.position.set(cameraX, cameraY)
+    this.world.view.position.set(
+      clampCameraAxis(desiredX, LOGICAL_WIDTH, bounds.x, bounds.width),
+      clampCameraAxis(desiredY, LOGICAL_HEIGHT, bounds.y, bounds.height),
+    )
   }
 
   private applyBattleResult(
@@ -787,4 +783,19 @@ export class Game {
   private delay(milliseconds: number): Promise<void> {
     return new Promise((resolve) => window.setTimeout(resolve, milliseconds))
   }
+}
+
+function clampCameraAxis(
+  desired: number,
+  viewportSize: number,
+  boundsStart: number,
+  boundsSize: number,
+): number {
+  if (boundsSize <= viewportSize) {
+    return Math.round((viewportSize - boundsSize) / 2 - boundsStart)
+  }
+
+  const min = viewportSize - boundsStart - boundsSize
+  const max = -boundsStart
+  return Math.max(min, Math.min(max, desired))
 }

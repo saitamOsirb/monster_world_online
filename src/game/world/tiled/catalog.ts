@@ -1,4 +1,4 @@
-export const TRAILHEAD_ROUTE_SCENE = 'res://MonsterWorld/TrailheadRoute.tscn' as const
+export const TRAILHEAD_ROUTE_SCENE = 'res://MonsterWorld/TrailheadRoute.tscn'
 
 const TILED_WORLD_SCENES: Readonly<Record<string, string>> = {
   [TRAILHEAD_ROUTE_SCENE]: '/monster-world/maps/trailhead-route.json',

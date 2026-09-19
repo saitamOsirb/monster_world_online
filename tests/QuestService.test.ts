@@ -379,4 +379,41 @@ describe('QuestService', () => {
     expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
   })
 
+
+  it('reconciles missing composite components for an already-completed legacy reward', () => {
+    const fixture = createService()
+    completeThreeRoads(fixture)
+    fixture.inventory.add(HEALING_TONIC_ID, 1)
+    fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    fixture.service.recordDefeat('skyrill', 2)
+    fixture.service.recordCapture('rillfin')
+    fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+
+    expect(fixture.store.complete(ORIN_FIELD_METHODS_QUEST_ID)).toBe(true)
+    expect(fixture.wallet.creditOnce(
+      'quest:orin-field-methods:reward',
+      220,
+    ).applied).toBe(true)
+    expect(fixture.wallet.balance).toBe(540)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(0)
+    expect(fixture.unlocks.has(FIELD_RESEARCH_CLEARANCE_ID)).toBe(false)
+
+    const reloadedWallet = new WalletStore(fixture.walletStorage)
+    const reloadedInventory = new InventoryStore(fixture.inventoryStorage)
+    const reloadedUnlocks = new UnlockStore(fixture.unlockStorage)
+    const reloaded = new QuestService(
+      new QuestStore(fixture.questStorage),
+      new QuestRewardService(reloadedWallet, reloadedInventory, reloadedUnlocks),
+      reloadedInventory,
+    )
+
+    expect(reloaded.reconcileCompletedRewards().some((result) =>
+      result.rewardUnlocks.includes(FIELD_RESEARCH_CLEARANCE_ID)
+      && result.rewardApplied)).toBe(true)
+
+    expect(reloadedWallet.balance).toBe(540)
+    expect(reloadedInventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
+    expect(reloadedUnlocks.has(FIELD_RESEARCH_CLEARANCE_ID)).toBe(true)
+  })
+
 })

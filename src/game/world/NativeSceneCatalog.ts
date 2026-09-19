@@ -17,6 +17,10 @@ export const RESEARCH_STATION_SCENE = 'res://MonsterWorld/ResearchStation.tscn'
 
 export const NATIVE_BIOME_SCENES = [] as const
 
+const RESEARCH_STATION_SPAWN = { x: 8, y: 8 }
+const RESEARCH_STATION_EXIT = { x: 8, y: 10 }
+const RESEARCH_STATION_TOWN_RETURN = { x: 6, y: 2 }
+
 export function getNativeSceneDefinition(scenePath: string): ImportedSceneDefinition | null {
   if (scenePath === RESEARCH_STATION_SCENE) return createResearchStationScene()
   return null

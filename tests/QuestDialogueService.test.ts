@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { WalletStore } from '../src/game/economy/WalletStore'
 import { InventoryStore } from '../src/game/inventory/InventoryStore'
 import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../src/game/inventory/types'
-import { TOWN_FIELD_GUIDE } from '../src/game/interaction/npcs'
+import { RESEARCH_STATION_LEAD, TOWN_FIELD_GUIDE } from '../src/game/interaction/npcs'
 import {
   ACCEPT_QUEST_CHOICE_ID,
   DELIVER_QUEST_ITEMS_CHOICE_ID,
@@ -19,6 +19,7 @@ import {
   ORIN_FIELD_METHODS_QUEST_ID,
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
+  RESEARCH_BASELINE_SAMPLES_QUEST_ID,
 } from '../src/game/quests/types'
 import { UnlockStore } from '../src/game/unlocks/UnlockStore'
 import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
@@ -65,6 +66,17 @@ function completeThreeRoads(fixture: Fixture): void {
     fixture.quests.recordSceneVisit(objective.scenePath)
   }
   fixture.quests.turnIn(ORIN_THREE_ROADS_QUEST_ID)
+}
+
+
+function completeFieldMethods(fixture: Fixture): void {
+  completeThreeRoads(fixture)
+  fixture.inventory.add(HEALING_TONIC_ID, 1)
+  fixture.quests.accept(ORIN_FIELD_METHODS_QUEST_ID)
+  fixture.quests.recordDefeat('skyrill', 2)
+  fixture.quests.recordCapture('rillfin')
+  fixture.quests.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+  fixture.quests.turnIn(ORIN_FIELD_METHODS_QUEST_ID)
 }
 
 describe('QuestDialogueService', () => {
@@ -183,4 +195,39 @@ describe('QuestDialogueService', () => {
     expect(fixture.dialogue.contentFor(TOWN_FIELD_GUIDE)?.pages[0])
       .toContain('Field Methods report is complete')
   })
+
+  it('does not expose Dr. Sera research dialogue before Field Methods is complete', () => {
+    const fixture = setup()
+
+    expect(fixture.dialogue.contentFor(RESEARCH_STATION_LEAD)).toBeUndefined()
+    expect(fixture.quests.getProgress(RESEARCH_BASELINE_SAMPLES_QUEST_ID).status)
+      .toBe(QUEST_STATUS.available)
+  })
+
+  it('offers and tracks Baseline Samples through Dr. Sera after clearance', () => {
+    const fixture = setup()
+    completeFieldMethods(fixture)
+
+    const offer = fixture.dialogue.contentFor(RESEARCH_STATION_LEAD)
+    expect(offer?.pages[0]).toContain('baseline')
+    expect(offer?.choices?.[0]).toEqual({
+      id: ACCEPT_QUEST_CHOICE_ID,
+      label: 'I can collect them.',
+    })
+
+    const accepted = fixture.dialogue.handleChoice(RESEARCH_STATION_LEAD, {
+      id: ACCEPT_QUEST_CHOICE_ID,
+      label: 'I can collect them.',
+    })
+    expect(accepted?.pages[0]).toContain('Glacub')
+    expect(fixture.quests.getProgress(RESEARCH_BASELINE_SAMPLES_QUEST_ID).status)
+      .toBe(QUEST_STATUS.active)
+
+    fixture.quests.recordCapture('glacub')
+    const active = fixture.dialogue.contentFor(RESEARCH_STATION_LEAD)
+    expect(active?.pages[0]).toContain('1/3 objectives complete')
+    expect(active?.pages[1]).toContain('Capture Miretoad')
+    expect(active?.pages[1]).toContain('Capture Wispurr')
+  })
+
 })

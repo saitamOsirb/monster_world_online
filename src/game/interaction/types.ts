@@ -13,6 +13,12 @@ export interface DialogueContent {
   choices?: readonly DialogueChoice[]
 }
 
+export interface NpcTravelDefinition {
+  scenePath: string
+  spawnTile: GridPoint
+  spawnDirection: Direction
+}
+
 export interface InteractableNpcDefinition {
   id: string
   scenePath: string
@@ -25,5 +31,6 @@ export interface InteractableNpcDefinition {
   serviceId?: string
   questIds?: readonly QuestId[]
   requiredUnlockId?: UnlockId
+  travel?: NpcTravelDefinition
   texturePath: string
 }

@@ -30,7 +30,7 @@ src/
       tables.ts                   scene-scoped species/level/weight tables
     interaction/
       InteractionService.ts       front-tile NPC lookup from position/facing
-      npcs.ts                     scene-scoped NPC/vendor/service definitions
+      npcs.ts                     scene-scoped NPC/vendor/service/travel definitions
     inventory/
       InventoryStore.ts           versioned persistent item repository
       types.ts                    catalog/categories/item effects
@@ -165,6 +165,9 @@ The upstream prototype does not contain these systems. They are original Monster
 | Quest Journal | Implemented foundation | Main-menu QUESTS screen separates active/completed quests and renders objective/reward progress from live quest state, including quantitative objectives and composite rewards. |
 | Composite quest rewards | Implemented foundation | Retry-safe credits/items/unlocks with per-store idempotency and completed-quest reconciliation. |
 | Persistent unlocks | Implemented foundation | Canonical unlock ids persist independently; Field Research Clearance gates Lyra in both render and interaction paths. |
+| Research Station | Implemented foundation | Native 16×11 non-combat research interior reached through Lyra after Field Research Clearance, with deterministic Town return. |
+| Baseline Samples | Implemented | Dr. Sera requests one Glacub, Miretoad and Wispurr capture; reward is 300 credits + 3 Capture Capsules. |
+| NPC travel destinations | Implemented foundation | NPC definitions may declare a generic scene/spawn/direction destination; Game owns the transition orchestration. |
 
 ## Battle, elemental, status and progression rules
 
@@ -285,6 +288,7 @@ The upstream reference contains Town and interiors only, so Monster World biomes
 
 Current native scenes:
 
+- **Research Station** — `res://MonsterWorld/ResearchStation.tscn`; 16×11 non-encounter interior, central traversable aisle, workstation bands, Dr. Sera quest NPC and deterministic return door to Town.
 - **Tidewater Coast** — `res://MonsterWorld/TidewaterCoast.tscn`; Rillfin 50%, Skyrill 20%, Mossprig 12%, Duskfin 10%, Voltail 8%, levels 4–8.
 - **Frosthollow Cavern** — `res://MonsterWorld/FrosthollowCavern.tscn`; Glacub 55%, Terrun 25%, Wispurr 15%, Skyrill 5%, levels 5–8.
 - **Duskmire Marsh** — `res://MonsterWorld/DuskmireMarsh.tscn`; Miretoad 35%, Duskfin 30%, Rillfin 15%, Wispurr 15%, Mossprig 5%, levels 5–9.
@@ -397,6 +401,11 @@ Inventory rules:
 - Unlock components are naturally idempotent by canonical unlock id.
 - `QuestService.reconcileCompletedRewards()` runs on startup: if a completed quest was saved before all stores were updated, only missing reward components are applied.
 - **Lyra** is gated by `field-research-clearance`; before unlock she is absent from both `NpcWorldLayer` and `InteractionService`, and she appears immediately after Field Methods turn-in without reloading the map.
+- Lyra declares a generic NPC travel destination to `res://MonsterWorld/ResearchStation.tscn`; the same transition path records scene visits, reloads scene NPCs and applies the declared spawn/direction.
+- The Research Station exits through a normal native-scene door back to Town at `{ x: 6, y: 2 }`.
+- **Dr. Sera** is the first Research Station quest giver. `Baseline Samples` remains locked until Field Methods is completed.
+- Baseline Samples requires capturing **1 Glacub**, **1 Miretoad** and **1 Wispurr** and pays **300 credits + 3 Capture Capsules** exactly once.
+- Locked quests are no longer returned by `QuestDialogueService` fallback resolution; completed chains still resolve their last completed quest for post-completion dialogue.
 - The main menu's former legacy **Arkeve** slot is now **QUESTS**, opening the Quest Journal without adding an extra menu row.
 - `QuestJournalService` projects only accepted/completed quests; unavailable quests remain hidden until accepted.
 - The journal has **ACTIVE** and **DONE** tabs. `ready-to-turn-in` remains under ACTIVE and is labeled **READY TO REPORT**.
@@ -462,7 +471,7 @@ CI runs five gates:
 4. `pnpm test:visual`
 5. `pnpm build`
 
-The unit suite now contains **239 tests across 36 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
+The unit suite now contains **248 tests across 36 test files** covering import/collision, species catalog/stat/learnset resolution, encounters, physical/special damage separation, battle/capture/status/elemental resolution, species catch rates, HP/status/element/stat persistence, species-specific progression, party/storage/recovery, inventory/Bag field items, wallet migration/idempotency, loot/shop/rewards, NPC interaction/dialogue choices and persistent quest progression.
 
 Canonical species naming intentionally changes Recovery/Battle text while the remaining deterministic baselines stay unchanged. Product-screen baselines now include:
 
@@ -471,6 +480,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - menu: `8782c955196c808c37ccfa6dec80044c7283c2494e74e4627cb14cee6a20103b` (intentional `Arkeve → QUESTS` label change)
 - quest journal: `ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713`
 - advanced quest journal: `9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646` (`Field Methods` composite reward summary)
+- research quest journal: `062ba5a82ab67a52146aece58416ee1a3d6d4cc920e55053078a625088de61c8` (`Baseline Samples`, Glacub 1/3)
+- Research Station: `f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8`
 - vendor: `4d68832d551258379066a60e063a6d44f0ecf2b8678e34dbbd60460ee003c7f2`
 - recovery: `d6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5`
 - battle: `34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd`
@@ -487,7 +498,8 @@ Canonical species naming intentionally changes Recovery/Battle text while the re
 - `elements.ts` owns the Monster World effectiveness chart and normalization helpers.
 - `moves.ts` is the centralized typed move catalog.
 - `species/catalog.ts` is the species source of truth; encounters carry only spawn policy while battle/capture/progression resolve canonical species metadata. Legacy reference ids are aliases rather than runtime identities.
-- `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways; legacy Godot import remains a separate fallback path.
+- `NativeSceneCatalog.ts` owns Monster World-native scene geometry/gateways/interiors; legacy Godot import remains a separate fallback path.
+- NPC travel destinations are declarative metadata; `Game` owns fade/scene-load/spawn orchestration rather than embedding destination-specific branches in NPC services.
 - Terminal battle results are applied once before UI acknowledgement, preventing duplicate capture/reward/state writes.
 - `ProgressionService` owns level growth plus deterministic shared-EXP allocation; `BattleRewardService`, `LootService`, `ShopService`, `FieldItemService` and `PartyRecoveryService` each own one domain boundary.
 - `MonsterCollectionStore`, `InventoryStore`, `WalletStore`, `QuestStore` and `UnlockStore` own persistence.
@@ -509,7 +521,7 @@ The original Godot repository does not expose another major gameplay subsystem b
 6. Finalize balance numbers and replace `temporary-reference` creature sprite paths with original Monster World art.
 7. Expand the generic ability effect vocabulary only when new species require it; avoid species-id conditionals in `BattleEngine`.
 8. Add broader element/status interactions and additional ability/status combinations as species balance is finalized.
-9. Expand the quest catalog beyond the first two Orin quests with additional quest-giver NPCs, gated zones/services, richer reward components and journal filtering/pagination as content grows.
+9. Expand the Research Station program beyond Baseline Samples with additional research chains, station services and future gated facilities while keeping objective/reward logic data-driven.
 10. Replace browser persistence and local battle/encounter/economy authority with server-backed multiplayer authority.
 
 ## Scope note

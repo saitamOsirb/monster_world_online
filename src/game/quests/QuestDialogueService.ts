@@ -67,14 +67,18 @@ export class QuestDialogueService {
     const questIds = npc.questIds ?? []
     if (questIds.length === 0) return undefined
 
+    let lastCompleted: QuestId | undefined
     for (const questId of questIds) {
       const progress = this.quests.getProgress(questId)
-      if (progress.status === QUEST_STATUS.completed) continue
+      if (progress.status === QUEST_STATUS.completed) {
+        lastCompleted = questId
+        continue
+      }
       if (progress.status === QUEST_STATUS.available && !this.quests.isUnlocked(questId)) continue
       return questId
     }
 
-    return questIds.at(-1)
+    return lastCompleted
   }
 
   private availableContent(definition: QuestDefinition): DialogueContent {

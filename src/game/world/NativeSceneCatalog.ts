@@ -9,6 +9,7 @@ import type {
 export const TIDEWATER_COAST_SCENE = 'res://MonsterWorld/TidewaterCoast.tscn'
 export const FROSTHOLLOW_CAVERN_SCENE = 'res://MonsterWorld/FrosthollowCavern.tscn'
 export const DUSKMIRE_MARSH_SCENE = 'res://MonsterWorld/DuskmireMarsh.tscn'
+export const RESEARCH_STATION_SCENE = 'res://MonsterWorld/ResearchStation.tscn'
 
 export const NATIVE_BIOME_SCENES = [
   TIDEWATER_COAST_SCENE,
@@ -19,6 +20,9 @@ export const NATIVE_BIOME_SCENES = [
 const TOWN_SCENE = 'res://Town.tscn'
 const BIOME_SPAWN = { x: 13, y: 17 }
 const RETURN_DOOR_TILE = { x: 13, y: 19 }
+const RESEARCH_STATION_SPAWN = { x: 8, y: 8 }
+const RESEARCH_STATION_EXIT = { x: 8, y: 10 }
+const RESEARCH_STATION_TOWN_RETURN = { x: 6, y: 2 }
 const GATE_MARKER_TEXTURE = '/assets/Buildings/pallet%20town/mat.png'
 
 interface BiomeStyle {
@@ -99,6 +103,8 @@ const STYLES = new Map<string, BiomeStyle>([
 ])
 
 export function getNativeSceneDefinition(scenePath: string): ImportedSceneDefinition | null {
+  if (scenePath === RESEARCH_STATION_SCENE) return createResearchStationScene()
+
   const style = STYLES.get(scenePath)
   if (!style) return null
 
@@ -158,6 +164,69 @@ export function listTownBiomeGateways(): readonly {
     tile: { ...gateway.tile },
     returnSpawn: { ...gateway.returnSpawn },
   }))
+}
+
+function createResearchStationScene(): ImportedSceneDefinition {
+  const width = 16
+  const height = 11
+  const tiles: TileDefinition[] = []
+
+  for (let y = 0; y < height; y += 1) {
+    for (let x = 0; x < width; x += 1) {
+      const boundary = x === 0 || y === 0 || x === width - 1 || y === height - 1
+      const centralAisle = x >= 7 && x <= 8
+      const workstationBand = y >= 3 && y <= 5 && !centralAisle
+
+      tiles.push({
+        x,
+        y,
+        tileId: 3,
+        autotileX: 0,
+        autotileY: 0,
+        flipX: false,
+        flipY: false,
+        transpose: false,
+        tint: researchStationTileTint(boundary, workstationBand),
+        blocked: boundary || workstationBand,
+      })
+    }
+  }
+
+  const objects: WorldObjectDefinition[] = [
+    {
+      name: 'Player',
+      instancePath: 'res://Player.tscn',
+      position: {
+        x: RESEARCH_STATION_SPAWN.x * TILE_SIZE,
+        y: RESEARCH_STATION_SPAWN.y * TILE_SIZE,
+      },
+    },
+  ]
+
+  const doors: DoorDefinition[] = [{
+    tile: { ...RESEARCH_STATION_EXIT },
+    nextScene: TOWN_SCENE,
+    spawnTile: { ...RESEARCH_STATION_TOWN_RETURN },
+    spawnDirection: 'up',
+    invisible: true,
+  }]
+
+  return {
+    name: 'Research Station',
+    tiles,
+    ledgeTiles: [],
+    objects,
+    doors,
+  }
+}
+
+function researchStationTileTint(
+  boundary: boolean,
+  workstationBand: boolean,
+): number {
+  if (boundary) return 0x56677a
+  if (workstationBand) return 0x9fb1c4
+  return 0xc8d5e2
 }
 
 function createBiomeScene(

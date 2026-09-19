@@ -9,6 +9,7 @@ import type { WildEncounter } from './encounters/types'
 import { Player } from './entities/Player'
 import { InputController } from './input/InputController'
 import { InteractionService } from './interaction/InteractionService'
+import type { NpcTravelDefinition } from './interaction/types'
 import {
   PARTY_RECOVERY_SERVICE_ID,
   TOWN_FIELD_GUIDE,
@@ -16,7 +17,7 @@ import {
   TOWN_SUPPLY_MERCHANT,
 } from './interaction/npcs'
 import { InventoryStore } from './inventory/InventoryStore'
-import { CAPTURE_CAPSULE_ID, INVENTORY_ITEMS } from './inventory/types'
+import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID, INVENTORY_ITEMS } from './inventory/types'
 import { BattleItemService } from './items/BattleItemService'
 import { FieldItemService } from './items/FieldItemService'
 import { MonsterCollectionStore } from './monsters/MonsterCollectionStore'
@@ -27,7 +28,7 @@ import { QuestJournalService } from './quests/QuestJournalService'
 import { QuestRewardService } from './quests/QuestRewardService'
 import { QuestService } from './quests/QuestService'
 import { QuestStore } from './quests/QuestStore'
-import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID } from './quests/types'
+import { ORIN_FIELD_METHODS_QUEST_ID, ORIN_THREE_ROADS_QUEST_ID, RESEARCH_BASELINE_SAMPLES_QUEST_ID } from './quests/types'
 import { getSpeciesDefinition } from './species/catalog'
 import { PartyRecoveryService } from './recovery/PartyRecoveryService'
 import { BattleRewardService, type BattleRewardGrant } from './rewards/BattleRewardService'
@@ -331,6 +332,34 @@ export class Game {
     this.app.renderer.render(this.app.stage)
   }
 
+
+  openResearchQuestJournalForVisualTest(): void {
+    if (!this.visualTestMode) {
+      throw new Error('Visual research quest journal loading is only available in visual-test mode')
+    }
+
+    this.questStore.clear()
+    this.questService.accept(ORIN_THREE_ROADS_QUEST_ID)
+    this.questService.recordSceneVisit('res://MonsterWorld/TidewaterCoast.tscn')
+    this.questService.recordSceneVisit('res://MonsterWorld/FrosthollowCavern.tscn')
+    this.questService.recordSceneVisit('res://MonsterWorld/DuskmireMarsh.tscn')
+    this.questService.turnIn(ORIN_THREE_ROADS_QUEST_ID)
+
+    this.inventory.add(HEALING_TONIC_ID, 1)
+    this.questService.accept(ORIN_FIELD_METHODS_QUEST_ID)
+    this.questService.recordDefeat('skyrill', 2)
+    this.questService.recordCapture('rillfin')
+    this.questService.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+    this.questService.turnIn(ORIN_FIELD_METHODS_QUEST_ID)
+
+    this.questService.accept(RESEARCH_BASELINE_SAMPLES_QUEST_ID)
+    this.questService.recordCapture('glacub')
+    this.menu.view.visible = false
+    this.questJournal.show()
+    this.fadeOverlay.alpha = 0
+    this.app.renderer.render(this.app.stage)
+  }
+
   private update(deltaMs: number): void {
     const player = this.player
     if (!player) return
@@ -405,6 +434,10 @@ export class Game {
     }
     if (npc.serviceId === PARTY_RECOVERY_SERVICE_ID) {
       this.recovery.show(npc)
+      return true
+    }
+    if (npc.travel) {
+      void this.transitionThroughNpcTravel(npc.travel)
       return true
     }
     this.dialogue.show(npc, this.questDialogue.contentFor(npc))
@@ -584,6 +617,26 @@ export class Game {
       await this.fadeTo(0, SCENE_FADE_MS)
     } finally {
       player.view.visible = true
+      this.transitioning = false
+    }
+  }
+
+
+  private async transitionThroughNpcTravel(travel: NpcTravelDefinition): Promise<void> {
+    const player = this.player
+    if (this.transitioning || !player) return
+
+    this.transitioning = true
+    try {
+      await this.fadeTo(1, SCENE_FADE_MS)
+      this.npcWorld.clear()
+      await this.world.load(travel.scenePath)
+      this.questService.recordSceneVisit(travel.scenePath)
+      await this.npcWorld.loadScene(travel.scenePath)
+      player.setSpawn(travel.spawnTile, travel.spawnDirection)
+      this.updateCamera()
+      await this.fadeTo(0, SCENE_FADE_MS)
+    } finally {
       this.transitioning = false
     }
   }

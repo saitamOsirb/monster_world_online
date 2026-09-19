@@ -5,6 +5,7 @@ import { CAPTURE_CAPSULE_ID, HEALING_TONIC_ID } from '../src/game/inventory/type
 import {
   ORIN_FIELD_METHODS_QUEST,
   ORIN_THREE_ROADS_QUEST,
+  RESEARCH_BASELINE_SAMPLES_QUEST,
 } from '../src/game/quests/catalog'
 import { QuestRewardService } from '../src/game/quests/QuestRewardService'
 import { QuestService } from '../src/game/quests/QuestService'
@@ -13,6 +14,7 @@ import {
   ORIN_FIELD_METHODS_QUEST_ID,
   ORIN_THREE_ROADS_QUEST_ID,
   QUEST_STATUS,
+  RESEARCH_BASELINE_SAMPLES_QUEST_ID,
 } from '../src/game/quests/types'
 import { UnlockStore } from '../src/game/unlocks/UnlockStore'
 import { FIELD_RESEARCH_CLEARANCE_ID } from '../src/game/unlocks/types'
@@ -90,6 +92,17 @@ function completeThreeRoads(fixture: Fixture): void {
     fixture.service.recordSceneVisit(objective.scenePath)
   }
   fixture.service.turnIn(ORIN_THREE_ROADS_QUEST_ID)
+}
+
+
+function completeFieldMethods(fixture: Fixture): void {
+  completeThreeRoads(fixture)
+  fixture.inventory.add(HEALING_TONIC_ID, 1)
+  fixture.service.accept(ORIN_FIELD_METHODS_QUEST_ID)
+  fixture.service.recordDefeat('skyrill', 2)
+  fixture.service.recordCapture('rillfin')
+  fixture.service.deliverItems(ORIN_FIELD_METHODS_QUEST_ID)
+  fixture.service.turnIn(ORIN_FIELD_METHODS_QUEST_ID)
 }
 
 describe('QuestService', () => {
@@ -414,6 +427,57 @@ describe('QuestService', () => {
     expect(reloadedWallet.balance).toBe(540)
     expect(reloadedInventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(2)
     expect(reloadedUnlocks.has(FIELD_RESEARCH_CLEARANCE_ID)).toBe(true)
+  })
+
+
+  it('keeps Baseline Samples locked until Field Methods is completed', () => {
+    const fixture = createService()
+
+    expect(fixture.service.isUnlocked(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toBe(false)
+    expect(fixture.service.accept(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toBe(false)
+
+    completeFieldMethods(fixture)
+
+    expect(fixture.service.isUnlocked(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toBe(true)
+    expect(fixture.service.accept(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toBe(true)
+  })
+
+  it('tracks all three research captures and grants the Baseline Samples reward once', () => {
+    const fixture = createService()
+    completeFieldMethods(fixture)
+    fixture.service.accept(RESEARCH_BASELINE_SAMPLES_QUEST_ID)
+
+    for (const objective of RESEARCH_BASELINE_SAMPLES_QUEST.objectives) {
+      expect(objective.kind).toBe('capture-species')
+      if (objective.kind === 'capture-species') {
+        fixture.service.recordCapture(objective.speciesId)
+      }
+    }
+
+    expect(fixture.service.getProgress(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toEqual({
+      questId: RESEARCH_BASELINE_SAMPLES_QUEST_ID,
+      status: QUEST_STATUS.readyToTurnIn,
+      objectiveProgress: {
+        'capture-glacub-sample': 1,
+        'capture-miretoad-sample': 1,
+        'capture-wispurr-sample': 1,
+      },
+    })
+
+    expect(fixture.service.turnIn(RESEARCH_BASELINE_SAMPLES_QUEST_ID)).toEqual({
+      ok: true,
+      status: QUEST_STATUS.completed,
+      rewardCredits: 300,
+      rewardItems: [{ itemId: CAPTURE_CAPSULE_ID, quantity: 3 }],
+      rewardUnlocks: [],
+      rewardApplied: true,
+    })
+    expect(fixture.wallet.balance).toBe(840)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(5)
+
+    expect(fixture.service.turnIn(RESEARCH_BASELINE_SAMPLES_QUEST_ID).rewardApplied).toBe(false)
+    expect(fixture.wallet.balance).toBe(840)
+    expect(fixture.inventory.getQuantity(CAPTURE_CAPSULE_ID)).toBe(5)
   })
 
 })

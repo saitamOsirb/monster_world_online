@@ -11,6 +11,7 @@ type VisualFixture =
   | 'questDialogue'
   | 'questJournal'
   | 'advancedQuestJournal'
+  | 'researchQuestJournal'
   | 'recovery'
   | 'battle'
   | 'oaksLab'
@@ -19,6 +20,7 @@ type VisualFixture =
   | 'tidewaterCoast'
   | 'frosthollowCavern'
   | 'duskmireMarsh'
+  | 'researchStation'
 
 const EXPECTED_HASHES: Record<VisualFixture, string> = {
   town: '3b805b99210cc5b791d4c76ecf577c94a29d77a7189db194029d9fa51f9dc7c0',
@@ -30,6 +32,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   questDialogue: '679dfdbbb90a5588b47083dec9d84778ff7996571bcb1cff8dccee12523d184a',
   questJournal: 'ac1573146a87d1146d6781d764b28bc6d29bd38bdbcc7c4861e8e159f63e3713',
   advancedQuestJournal: '9f93851366e9323535ab126f145f6ad46db1cb73f5597cdf3f1bf43cf935a646',
+  researchQuestJournal: '062ba5a82ab67a52146aece58416ee1a3d6d4cc920e55053078a625088de61c8',
   recovery: 'd6743daf2eab9f832408a3a07f993307a7df57ed2bbba204ed137c69d9e773b5',
   battle: '34a3a773c00dc1ed829ba73e986b6c39e0cd442a11cf6d49f2a4df7c19a2a5bd',
   oaksLab: '26fa5fef6b5dac40f6d1e854ea93c8a580be48d494a28764a9e61d9f2f20bb4d',
@@ -38,6 +41,7 @@ const EXPECTED_HASHES: Record<VisualFixture, string> = {
   tidewaterCoast: 'd438a72eabf3066ad046f9e00746cb82d0f7862321adf60f9ec4ed4da947e3b8',
   frosthollowCavern: 'ea0a281c0d2a21e30f5a0e7a1dba5d484880bf8c204cbe9956fcf7f90355b5dc',
   duskmireMarsh: 'e822a0f9a10a0f670aa73676197e20d0a202e46cd6577b9f8b78488f0f18f0ad',
+  researchStation: 'f171f2ab72aeb29e9d5e0e1f9dcfbfcb08c5d86bb919d200d4ace7c6b628b3d8',
 }
 
 const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
@@ -47,6 +51,7 @@ const SCENE_FIXTURES: ReadonlyArray<{ name: VisualFixture; scene: string }> = [
   { name: 'tidewaterCoast', scene: 'res://MonsterWorld/TidewaterCoast.tscn' },
   { name: 'frosthollowCavern', scene: 'res://MonsterWorld/FrosthollowCavern.tscn' },
   { name: 'duskmireMarsh', scene: 'res://MonsterWorld/DuskmireMarsh.tscn' },
+  { name: 'researchStation', scene: 'res://MonsterWorld/ResearchStation.tscn' },
 ]
 
 async function setTickers(page: Page, running: boolean): Promise<void> {
@@ -214,6 +219,21 @@ test('Advanced quest journal progress remains pixel-stable', async ({ page }) =>
   })
   await setTickers(page, false)
   verifyHash('advancedQuestJournal', await hashCanvas(page))
+
+  expect(browserErrors).toEqual([])
+})
+
+test('Research quest journal remains pixel-stable', async ({ page }) => {
+  const browserErrors = collectBrowserErrors(page)
+  await bootVisualTest(page)
+
+  await page.evaluate(() => {
+    const harness = window.__MONSTER_WORLD_VISUAL_TEST__
+    if (!harness) throw new Error('Visual test harness was not initialized')
+    harness.game.openResearchQuestJournalForVisualTest()
+  })
+  await setTickers(page, false)
+  verifyHash('researchQuestJournal', await hashCanvas(page))
 
   expect(browserErrors).toEqual([])
 })

@@ -3,6 +3,7 @@ import {
   DUSKMIRE_MARSH_SCENE,
   FROSTHOLLOW_CAVERN_SCENE,
   NATIVE_BIOME_SCENES,
+  RESEARCH_STATION_SCENE,
   TIDEWATER_COAST_SCENE,
   decorateLegacyScene,
   getNativeSceneDefinition,
@@ -78,4 +79,30 @@ describe('native biome scenes', () => {
     expect(decorateLegacyScene('res://OaksLab.tscn', source)).toBe(source)
     expect(getNativeSceneDefinition('res://Town.tscn')).toBeNull()
   })
+
+  it('defines a deterministic Research Station without encounter terrain', () => {
+    const scene = getNativeSceneDefinition(RESEARCH_STATION_SCENE)
+
+    expect(scene?.name).toBe('Research Station')
+    expect(scene?.tiles).toHaveLength(16 * 11)
+    expect(scene?.tiles.some((tile) => tile.encounterZone)).toBe(false)
+    expect(scene?.objects.some((object) => object.instancePath === 'res://Player.tscn')).toBe(true)
+    expect(scene?.doors).toHaveLength(1)
+    expect(scene?.doors[0]).toMatchObject({
+      tile: { x: 8, y: 10 },
+      nextScene: 'res://Town.tscn',
+      spawnTile: { x: 6, y: 2 },
+      spawnDirection: 'up',
+      invisible: true,
+    })
+  })
+
+  it('keeps the Research Station central aisle traversable', () => {
+    const scene = getNativeSceneDefinition(RESEARCH_STATION_SCENE)
+    const aisle = scene?.tiles.filter((tile) => tile.x >= 7 && tile.x <= 8 && tile.y > 0 && tile.y < 10) ?? []
+
+    expect(aisle).toHaveLength(2 * 9)
+    expect(aisle.every((tile) => !tile.blocked)).toBe(true)
+  })
+
 })
